@@ -37,8 +37,11 @@ const uploadAvatar = async (userId, reqFile) => {
   return profile
 }
 
+// Deliberately no email: this endpoint is readable by every authenticated
+// user, and the screens that legitimately need contact details read them from
+// the org-members and class-students endpoints instead.
 const getAllUsers = async () => {
-  const select = { id: true, email: true, username: true, created_at: true }
+  const select = { id: true, username: true, created_at: true }
   return await utils.getAllUsers(select)
 }
 
