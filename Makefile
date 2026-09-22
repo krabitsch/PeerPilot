@@ -10,7 +10,7 @@ YELLOW = \033[0;33m
 BLUE   = \033[0;34m
 RESET  = \033[0m
 
-.PHONY: setup build up down clean restart run re dev prod check_env studio populateDB resetDB genPrismaClient seedAdmin generateUsers
+.PHONY: setup build up down clean restart run re dev prod check_env studio populateDB resetDB genPrismaClient seedAdmin seedAdmin_prod migrate migrate_prod generateUsers
 
 setup: check_env
 	@echo "$(GREEN)Setup complete.$(RESET)"
@@ -30,9 +30,19 @@ check_env:
 		echo "$(GREEN)Linked!$(RESET)"; \
 	fi
 
+# Host-side migration, for dev: the dev overlay publishes the database port and
+# DATABASE_URL points at localhost.
 migrate:
 	@echo "$(BLUE)Applying migrations...$(RESET)"
 	@cd src/packages/database && npx prisma migrate deploy
+	@echo "$(GREEN)Migrations applied.$(RESET)"
+
+# In-container migration, for production: the database is not reachable from
+# the host there, so this runs inside the api container, which ships the
+# schema and the migration history.
+migrate_prod:
+	@echo "$(BLUE)Applying migrations inside the stack...$(RESET)"
+	@docker compose -f $(COMPOSE_FILE) exec -T api npx prisma migrate deploy --schema packages/database/prisma/schema.prisma
 	@echo "$(GREEN)Migrations applied.$(RESET)"
 
 genPrismaClient:
@@ -47,7 +57,8 @@ build: setup genPrismaClient
 prod: setup genPrismaClient
 	@echo "$(GREEN)Starting production...$(RESET)"
 	@docker compose -f $(COMPOSE_FILE) up -d
-	@$(MAKE) seedAdmin
+	@$(MAKE) migrate_prod
+	@$(MAKE) seedAdmin_prod
 	@$(MAKE) print_url
 
 dev: setup genPrismaClient
@@ -107,6 +118,11 @@ populateDB:
 seedAdmin:
 	@echo "$(BLUE)Ensuring admin user exists...$(RESET)"
 	@bash scripts/seed-admin.sh
+	@echo "$(GREEN)Admin user ready.$(RESET)"
+
+seedAdmin_prod:
+	@echo "$(BLUE)Ensuring admin user exists...$(RESET)"
+	@docker compose -f $(COMPOSE_FILE) exec -T api node packages/database/prisma/seedAdmin.js
 	@echo "$(GREEN)Admin user ready.$(RESET)"
 
 generateUsers:

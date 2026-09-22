@@ -8,13 +8,12 @@ on:
 
 env:
   COMPOSE_FILE: src/docker-compose.yml
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
 
   # ── Backend ────────────────────────────────────────────────────
   backend:
-    name: Backend — build & lint
+    name: Backend — install & build image
     runs-on: ubuntu-latest
 
     steps:
@@ -26,28 +25,28 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: src/backend/package-lock.json
+          cache-dependency-path: src/package-lock.json
 
-      - name: Install dependencies
-        working-directory: src/backend
-        run: npm ci
+      - name: Install workspace dependencies
+        working-directory: src
+        run: npm ci --workspaces --include-workspace-root
 
-      - name: Create secrets for Docker build
+      - name: Generate Prisma client
+        working-directory: src/packages/database
+        run: npx prisma@5.22.0 generate
+
+      - name: Syntax-check the API
+        working-directory: src
         run: |
-          mkdir -p ~/.secrets/Transcendence
-          echo "ci_test_password" > ~/.secrets/Transcendence/db_password
-          chmod 600 ~/.secrets/Transcendence/db_password
+          find api/src packages -name '*.js' \
+            -not -path '*/node_modules/*' -not -path '*/generated/*' \
+            -print0 | xargs -0 -n1 node --check
 
       - name: Create .env
-        run: |
-          echo "POSTGRES_USER=ci_user"   > src/.env
-          echo "POSTGRES_DB=ci_db"      >> src/.env
-          echo "DB_HOST=database"       >> src/.env
-          echo "DB_PORT=5432"           >> src/.env
-          echo "PORT=3000"              >> src/.env
+        run: bash scripts/gen-env.sh --defaults
 
-      - name: Build backend image
-        run: docker compose -f $COMPOSE_FILE build backend
+      - name: Build API image
+        run: docker compose -f $COMPOSE_FILE build api
 
   # ── Frontend ───────────────────────────────────────────────────
   frontend:
@@ -71,7 +70,10 @@ jobs:
 
       - name: Run unit tests
         working-directory: src/frontend
-        run: npm test -- --no-watch
+        run: npm test -- --no-watch --browsers=ChromeHeadless
+
+      - name: Create .env
+        run: bash scripts/gen-env.sh --defaults
 
       - name: Build frontend image
         run: docker compose -f $COMPOSE_FILE build frontend
@@ -86,36 +88,64 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Create secrets
-        run: |
-          mkdir -p ~/.secrets/Transcendence
-          echo "ci_test_password" > ~/.secrets/Transcendence/db_password
-          chmod 600 ~/.secrets/Transcendence/db_password
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-      - name: Create .env
-        run: |
-          echo "POSTGRES_USER=ci_user"   > src/.env
-          echo "POSTGRES_DB=ci_db"      >> src/.env
-          echo "DB_HOST=database"       >> src/.env
-          echo "DB_PORT=5432"           >> src/.env
-          echo "PORT=3000"              >> src/.env
+      - name: Create .env and generate Prisma client
+        run: bash scripts/gen-env.sh --defaults
 
       - name: Start stack
         run: docker compose -f $COMPOSE_FILE up -d --build
 
-      - name: Wait for stack to be ready
+      - name: Wait for the API to report healthy
         run: |
-          echo "Waiting for services..."
-          sleep 15
+          for i in $(seq 1 30); do
+            if curl -fsk https://localhost/api/health >/dev/null 2>&1; then
+              echo "API is up"; exit 0
+            fi
+            sleep 2
+          done
+          echo "API never became healthy"
+          docker compose -f $COMPOSE_FILE logs
+          exit 1
 
-      - name: Smoke test — nginx is up
-        run: curl -f http://localhost || (docker compose -f $COMPOSE_FILE logs && exit 1)
+      - name: Apply migrations inside the stack
+        run: docker compose -f $COMPOSE_FILE exec -T api npx prisma migrate deploy --schema packages/database/prisma/schema.prisma
 
-      - name: Smoke test — API health
-        run: curl -f http://localhost/api/health || (docker compose -f $COMPOSE_FILE logs backend && exit 1)
+      - name: Smoke test — HTTP redirects to HTTPS
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost/)
+          echo "GET http://localhost/ -> $code"
+          [ "$code" = "301" ]
 
-      - name: Smoke test — users endpoint
-        run: curl -f http://localhost/api/users || (docker compose -f $COMPOSE_FILE logs backend && exit 1)
+      - name: Smoke test — frontend is served
+        run: curl -fsk -o /dev/null https://localhost/
+
+      - name: Smoke test — API health through nginx
+        run: curl -fsk https://localhost/api/health | grep -q '"status":"ok"'
+
+      # The point of Phase 3: every module rejects an anonymous caller. These
+      # assert the 401 body, because the API still answers errors with HTTP 200.
+      - name: Smoke test — protected routes reject anonymous callers
+        run: |
+          fail=0
+          for path in user org class enroll group submission eval; do
+            body=$(curl -sk "https://localhost/api/$path/")
+            if echo "$body" | grep -q '"code":401'; then
+              echo "ok    /api/$path/ -> 401"
+            else
+              echo "FAIL  /api/$path/ -> $body"; fail=1
+            fi
+          done
+          exit $fail
+
+      - name: Smoke test — login endpoint is reachable and rejects bad credentials
+        run: |
+          curl -sk -X POST https://localhost/api/auth/login \
+            -H 'Content-Type: application/json' \
+            -d '{"email":"nobody@example.com","password":"wrong"}' | grep -q '"ok":false'
 
       - name: Print logs on failure
         if: failure()

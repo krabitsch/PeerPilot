@@ -1,5 +1,25 @@
+# Development overlay: `make dev` adds this on top of docker-compose.yml.
+#
+# Its job is to open up the things production keeps shut — host ports for the
+# database, the MinIO console and the API — so Prisma tooling, a REST client
+# and a debugger can reach them from your machine. Never apply this file to a
+# deployed stack.
 services:
+
   api:
     command: node --watch api/src/index.js
     volumes:
       - ./api/src:/app/api/src
+    ports:
+      - "3000:3000"
+
+  database:
+    # Prisma migrate/studio/seed run on the host against DATABASE_URL, which
+    # gen-env.sh points at localhost:${DB_LOCAL_PORT}.
+    ports:
+      - "${DB_LOCAL_PORT:-5433}:5432"
+
+  minio:
+    ports:
+      - "9000:9000"   # API
+      - "9001:9001"   # Web console

@@ -33,11 +33,16 @@ COPY packages/fileManager ./packages/fileManager
 COPY packages/logger      ./packages/logger
 COPY packages/utils       ./packages/utils
 
-# The Prisma client is generated on the host (`make genPrismaClient`); only the
-# entrypoint and the generated client are needed at runtime.
+# The Prisma client is generated on the host (`make genPrismaClient`) and
+# copied in; it is not regenerated during the build.
 COPY packages/database/package.json ./packages/database/package.json
 COPY packages/database/index.js     ./packages/database/index.js
 COPY packages/database/generated    ./packages/database/generated
+
+# Schema, migrations and seed scripts travel with the image so a deployed stack
+# can run `prisma migrate deploy` and seed its admin without exposing the
+# database to the host.
+COPY packages/database/prisma       ./packages/database/prisma
 
 COPY api/package.json ./api/package.json
 COPY api/src          ./api/src

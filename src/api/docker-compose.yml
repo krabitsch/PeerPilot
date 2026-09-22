@@ -8,13 +8,14 @@ services:
       - ../.env
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${POSTGRES_DB}
-    # TODO(phase-4): drop this host port mapping and use `expose: [3000]` so all
-    # traffic has to go through nginx's TLS termination.
-    ports:
-      - "3000:3000"
+    # Not published to the host: the only way in is nginx, which terminates TLS.
+    # docker-compose.dev.yml republishes it for local debugging.
+    expose:
+      - "3000"
+    restart: unless-stopped
     depends_on:
       database:
-        condition: service_started
+        condition: service_healthy
       minio:
         condition: service_healthy
     networks:

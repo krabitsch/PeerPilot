@@ -21,7 +21,7 @@
   * [Project Structure](#project-structure)
   * [Architecture](#architecture)
   * [API Endpoints](#api-endpoints)
-  * [Adding a New Service](#adding-a-new-service)
+  * [Adding a New Module](#adding-a-new-module)
   * [Branch Strategy](#branch-strategy)
   * [Contributing](#contributing)
 * [Journey](#journey)
@@ -33,7 +33,7 @@
 
 PeerPilot is a peer-to-peer learning platform inspired by the educational model of **42 School**. The platform enables students, instructors (Bocal), and administrators to collaborate through assignments, organizations, groups, and evaluations in a modern web application.
 
-The project follows a **microservice architecture**, with an Angular frontend, Express.js backend services, a PostgreSQL database managed through Prisma ORM, and nginx acting as the reverse proxy. Everything is fully containerized using Docker for a simple development and deployment experience.
+The project pairs an Angular frontend with an Express.js backend, a PostgreSQL database managed through Prisma ORM, and nginx acting as the reverse proxy and TLS terminator. Everything is fully containerized using Docker for a simple development and deployment experience. The backend was developed as eight microservices and consolidated into a single, internally modular `api` service for production — see [Backend as Microservices](#-backend-as-microservices-2-points) for the reasoning.
 
 ---
 
@@ -213,7 +213,7 @@ Throughout development the team used three main tools to coordinate work:
 | Layer            | Technology               |
 | ---------------- | ------------------------ |
 | Frontend         | Angular 17               |
-| Backend          | Express.js Microservices |
+| Backend          | Express.js (single `api` service) |
 | Database         | PostgreSQL 16            |
 | ORM              | Prisma v5                |
 | Reverse Proxy    | nginx                    |
@@ -226,7 +226,7 @@ Throughout development the team used three main tools to coordinate work:
 
 **Angular** was chosen for its scalability, component-based architecture, strong TypeScript integration, and built-in tooling. The project makes heavy use of Angular signals, computed values, and the standalone component pattern introduced in Angular 17.
 
-**Express.js Microservices** allow each domain (users, auth, organizations, classes, enrollments, groups, submissions, evaluations) to evolve independently. Services share common packages for the database client, structured logging, error classes, and read-only query utilities, keeping each service thin and focused on its own business logic.
+**Express.js** serves the whole API from one container, organised internally by domain: `auth`, `user`, `org`, `class`, `enroll`, `group`, `submission` and `eval` each live in their own module under `src/api/src/modules/`. The project was originally built as eight separate services (see *Backend as Microservices* below); they were consolidated for production because they shared a single database and schema and never called one another, so the split cost eight images and eight dependency sets while providing none of the independent-deploy or independent-scaling benefits that justify it. The shared packages for the database client, structured logging, error classes and query helpers survive the merge unchanged, as npm workspace packages.
 
 **PostgreSQL** provides reliable relational storage with strong support for transactions, cascading deletes, and complex joins — all of which are used extensively across the Prisma schema.
 
@@ -272,7 +272,7 @@ The project fulfills several **Major** and **Minor** modules from the **42 ft_tr
 
 ## ✔ Framework for Frontend and Backend (2 Points)
 
-The frontend is a single-page Angular 17 application using standalone components, the new signals API, and `@ngx-translate/core` for internationalization. It communicates with the backend exclusively through the nginx reverse proxy, which routes `/api/*` paths to the appropriate microservice. The backend is a set of Express.js services, each built from a shared template: an Express app, a `/health` endpoint, a central error handler using the shared `errors` package, and structured JSON logging via the shared `logger` package.
+The frontend is a single-page Angular 17 application using standalone components, the new signals API, and `@ngx-translate/core` for internationalization. It communicates with the backend exclusively through the nginx reverse proxy, which forwards `/api/*` to the api service. The backend is an Express.js application whose domain modules share one template: a router per module, a central error handler using the shared `errors` package, and structured JSON logging via the shared `logger` package, behind a single `/api/health` endpoint and one authentication gate.
 
 **Primary Contributors:** *Entire Team*
 
@@ -312,7 +312,9 @@ Organizations are the top-level grouping entity. An organization has an email, n
 
 ## ✔ Backend as Microservices (2 Points)
 
-The backend is split into eight independent services: `user` (port 3001), `auth` (port 3002), `org` (port 3003), `class` (port 3004), `enroll` (port 3005), `group` (port 3006), `submission` (port 3007), and `eval` (port 3008). Each service is built and run as its own Docker container. They share three internal Docker networks: `database-network` (services to PostgreSQL), `backend-network` (nginx to services), and `frontend-network` (nginx to the Angular container). Services never talk directly to each other; all cross-service data needs are resolved by the frontend or by the shared `packages/utils` read-only query helpers.
+The backend was built as eight independent services: `user` (port 3001), `auth` (port 3002), `org` (port 3003), `class` (port 3004), `enroll` (port 3005), `group` (port 3006), `submission` (port 3007), and `eval` (port 3008). Each was built and run as its own Docker container, across three internal Docker networks: `database-network` (services to PostgreSQL), `backend-network` (nginx to services), and `frontend-network` (nginx to the Angular container). Services never talked directly to each other; cross-service data needs were resolved by the frontend or by the shared `packages/utils` query helpers.
+
+> **Note — consolidated for production.** Because all eight services shared one PostgreSQL instance, one Prisma schema and one query package, and never called each other, they could not be deployed, scaled or rolled back independently. Ahead of production they were merged into a single `api` service, with each former service preserved as a module under `src/api/src/modules/`. The route paths are unchanged. The history of the split is kept in git: every file moved with `git mv`, so `git log --follow` still reaches the original per-service commits.
 
 **Primary Contributors:** *Yamen*
 
@@ -592,9 +594,9 @@ On first startup the project will automatically:
 3. Build all Docker containers
 4. Wait for the database to be healthy (`pg_isready`)
 5. Apply all pending Prisma migrations
-6. Start every microservice and the Angular frontend
+6. Start the `api` service, nginx, MinIO and the Angular frontend
 
-Open your browser at **http://localhost**
+Open your browser at **https://localhost** (plain HTTP redirects there; the dev certificate is self-signed, so expect a browser warning).
 
 To populate the database with realistic seed data (two organizations, 44 users, four classes, four assignments, groups, submissions, and sample evaluations):
 
@@ -608,20 +610,27 @@ The seed password for all generated users is printed in green at the end of the 
 
 ## Commands
 
-| Command           | Description                                   |
-| ----------------- | --------------------------------------------- |
-| `make`            | Start in dev mode (default)                   |
-| `make dev`        | Dev mode — hot reload, no healthcheck         |
-| `make prod`       | Production mode — full healthchecks           |
-| `make down`       | Stop all containers                           |
-| `make re`         | Stop, rebuild, restart                        |
-| `make logs`       | Follow all container logs                     |
-| `make status`     | Show running containers                       |
-| `make migrate`    | Apply pending Prisma migrations               |
-| `make studio`     | Open Prisma Studio at http://localhost:5555   |
-| `make clean`      | Stop + remove all Docker resources            |
-| `make fclean`     | `clean` + remove `.env`                       |
-| `make populateDB` | Wipe and reseed the database with sample data |
+| Command               | Description                                              |
+| --------------------- | -------------------------------------------------------- |
+| `make`                | Start in dev mode (default)                              |
+| `make dev`            | Dev mode — hot reload, host ports published              |
+| `make prod`           | Production mode — nothing but nginx published            |
+| `make down`           | Stop all containers                                      |
+| `make re`             | Stop, rebuild, restart                                   |
+| `make logs`           | Follow all container logs                                |
+| `make status`         | Show running containers                                  |
+| `make migrate`        | Apply pending migrations **from the host** (dev)         |
+| `make migrate_prod`   | Apply pending migrations **inside the stack** (prod)     |
+| `make seedAdmin`      | Ensure the admin account exists, from the host (dev)     |
+| `make seedAdmin_prod` | Ensure the admin account exists, in the stack (prod)     |
+| `make studio`         | Open Prisma Studio at http://localhost:5555              |
+| `make generateUsers`  | Create additional users (`ARGS="--count 10 --org 1"`)    |
+| `make resetDB`        | Wipe the database and re-apply migrations                |
+| `make clean`          | Stop + remove all Docker resources                       |
+| `make fclean`         | `clean` + remove `.env`                                  |
+| `make populateDB`     | Wipe and reseed the database with sample data            |
+
+> **Why two migrate targets.** In dev, `docker-compose.dev.yml` publishes PostgreSQL on `DB_LOCAL_PORT` (5433 by default) and the host-side Prisma CLI connects to it. In production nothing but nginx is published, so `migrate_prod` and `seedAdmin_prod` run the same work inside the `api` container, which ships the schema and the migration history in its image.
 
 ---
 
@@ -655,58 +664,115 @@ Transcendence/
     │   └── docker-compose.yml
     ├── minio/
     │   └── docker-compose.yml
+    ├── package.json              ← npm workspace root (api + packages/*)
     ├── packages/
     │   ├── database/            ← shared Prisma client + schema + migrations
     │   ├── logger/              ← structured JSON logger
     │   ├── errors/              ← AppError, NotFoundError, ValidationError, etc.
-    │   ├── utils/               ← read-only Prisma query helpers
+    │   ├── utils/               ← shared Prisma query helpers
     │   └── fileManager/         ← MinIO client + Multer uploader
-    └── services/
-        ├── user/                ← :3001
-        ├── auth/                ← :3002
-        ├── org/                 ← :3003
-        ├── class/               ← :3004
-        ├── enroll/              ← :3005
-        ├── group/               ← :3006
-        ├── submission/          ← :3007
-        └── eval/                ← :3008
+    └── api/                      ← the whole backend, one container
+        ├── Dockerfile
+        ├── docker-compose.yml
+        ├── package.json
+        └── src/
+            ├── index.js          ← the single express app
+            ├── middleware/
+            │   ├── authenticate.js  ← token check, role loading, role guards
+            │   └── errorHandler.js
+            └── modules/
+                ├── auth/         ← routes, controller, userModel, utils
+                ├── user/         ← routes + service
+                ├── org/
+                ├── class/
+                ├── enroll/
+                ├── group/
+                ├── submission/
+                └── eval/
 ```
+
+Shared packages are npm workspace members, so modules import them by name
+(`require('@transcendence/logger')`) rather than by relative path.
 
 ---
 
 ## Architecture
 
+Five containers. Only nginx is published to the host.
+
 ```text
 Internet
     │
- nginx :80 / :443          ← only public port (self-signed TLS in dev)
+ nginx :80 / :443            ← the only published port (self-signed TLS in dev)
+    │                          :80 redirects to :443
+    ├── /                    → Angular frontend   (frontend-network)
+    ├── /api/                → api                (backend-network)
+    │        │
+    │        ├── /auth/        public: login, register, OAuth, password reset
+    │        ├── /user/    ┐
+    │        ├── /org/     │
+    │        ├── /class/   │
+    │        ├── /enroll/  ├── all require a valid access token
+    │        ├── /group/   │
+    │        ├── /submission/
+    │        └── /eval/    ┘
     │
-    ├── /                  → Angular frontend  (frontend-network)
-    ├── /api/user/         → user-service      (backend-network)
-    ├── /api/auth/         → auth-service
-    ├── /api/org/          → org-service
-    ├── /api/class/        → class-service
-    ├── /api/enroll/       → enroll-service
-    ├── /api/group/        → group-service
-    ├── /api/submission/   → submission-service
-    ├── /api/eval/         → eval-service
-    └── /files/            → MinIO object store
+    └── /files/              → MinIO object store  (backend-network)
                │
-           PostgreSQL       (database-network — internal only)
-           MinIO            (backend-network)
+           PostgreSQL         (database-network — internal only)
+           MinIO              (backend-network   — internal only)
 ```
 
-| Network            | Services                   | Internet access |
-| ------------------ | -------------------------- | --------------- |
-| `frontend-network` | nginx, frontend            | yes (via nginx) |
-| `backend-network`  | nginx, all services, MinIO | no (internal)   |
-| `database-network` | all services, PostgreSQL   | no (internal)   |
+| Network            | Members                      | Internet access |
+| ------------------ | ---------------------------- | --------------- |
+| `frontend-network` | nginx, frontend              | yes (via nginx) |
+| `backend-network`  | nginx, api, MinIO            | no (internal)   |
+| `database-network` | api, PostgreSQL              | no (internal)   |
+
+In development `src/docker-compose.dev.yml` additionally publishes PostgreSQL
+(`5433`), the MinIO API and console (`9000`/`9001`) and the API (`3000`) so
+local tooling can reach them. That overlay must never be applied to a deployed
+stack.
 
 ---
 
 ## API Endpoints
 
-### User Service (`/api/user/`)
+### Authentication & authorization
+
+Everything except the public `/api/auth/` endpoints requires a valid access
+token: `Authorization: Bearer <token>`. The token is verified once, centrally,
+and the caller's current role is loaded from the database on every request, so
+a role change or a deleted account takes effect immediately rather than when
+the 15-minute token expires.
+
+On top of that floor, routes apply one of three rules:
+
+| Rule              | Meaning                                                                 |
+| ----------------- | ----------------------------------------------------------------------- |
+| *authenticated*   | any signed-in user                                                        |
+| *self-or-staff*   | the user named in the URL, or an Admin/Bocal                              |
+| *staff* / *Admin* | `Admin` and `Bocal`, or `Admin` alone                                     |
+
+Staff-only operations are: creating, updating and deleting classes and
+assignments; org membership and org profiles; eval sheets and the eval-pairing
+table; the `/group/:id/admin/*` routes; listing every group or submission for
+an assignment; enrolling and dropping students. Creating or deleting an
+organisation, and deleting a user, are Admin-only.
+
+Routes that act on behalf of a user — creating or leaving a group, inviting a
+member, uploading or downloading a submission file, starting or submitting an
+evaluation, replying to feedback — take the caller's identity **from the
+token**, not from the request body. A `userId` in the body is ignored. The
+ownership rules themselves live in the service layer: you must be an active
+member of the group, its leader, or the evaluator the pairing names.
+
+Errors are returned with HTTP 200 and a body of
+`{ "ok": false, "error": "...", "code": <status> }`; read `code`, not the HTTP
+status. (This is a known wart, kept for frontend compatibility.)
+
+
+### User module (`/api/user/`)
 
 | Method | Endpoint       | Description            |
 | ------ | -------------- | ---------------------- |
@@ -718,7 +784,7 @@ Internet
 | POST   | `/:id/avatar`  | Upload avatar to MinIO |
 | DELETE | `/:id`         | Delete user            |
 
-### Auth Service (`/api/auth/`)
+### Auth module (`/api/auth/`)
 
 | Method | Endpoint               | Description                      |
 | ------ | ---------------------- | -------------------------------- |
@@ -738,7 +804,7 @@ Internet
 | GET    | `/invites`             | List whitelisted emails          |
 | DELETE | `/invite/:id`          | Revoke a whitelist entry         |
 
-### Organization Service (`/api/org/`)
+### Organization module (`/api/org/`)
 
 | Method | Endpoint        | Description                  |
 | ------ | --------------- | ---------------------------- |
@@ -754,7 +820,7 @@ Internet
 | DELETE | `/:id/profile`  | Delete org profile           |
 | GET    | `/:id/courses`  | List org's classes           |
 
-### Class Service (`/api/class/`)
+### Class module (`/api/class/`)
 
 | Method | Endpoint              | Description                   |
 | ------ | --------------------- | ----------------------------- |
@@ -771,7 +837,7 @@ Internet
 | DELETE | `/assignment/:id`     | Delete assignment             |
 | GET    | `/courses/:id`        | Get classes by org ID         |
 
-### Enrollment Service (`/api/enroll/`)
+### Enrollment module (`/api/enroll/`)
 
 | Method | Endpoint        | Description                           |
 | ------ | --------------- | ------------------------------------- |
@@ -780,7 +846,7 @@ Internet
 | GET    | `/:id`          | Get enrollments for student           |
 | GET    | `/classes/:id`  | Get enrolled classes with assignments |
 
-### Group Service (`/api/group/`)
+### Group module (`/api/group/`)
 
 | Method | Endpoint             | Description                                |
 | ------ | -------------------- | ------------------------------------------ |
@@ -795,7 +861,7 @@ Internet
 | GET    | `/my-group`          | Get current user's group for an assignment |
 | GET    | `/assignment/:assId` | List all groups for an assignment          |
 
-### Submission Service (`/api/submission/`)
+### Submission module (`/api/submission/`)
 
 | Method | Endpoint                    | Description                        |
 | ------ | --------------------------- | ---------------------------------- |
@@ -807,7 +873,7 @@ Internet
 | DELETE | `/:groupId/file`            | Remove uploaded file               |
 | GET    | `/assignment/:assId/`       | Get all submissions for assignment |
 
-### Evaluation Service (`/api/eval/`)
+### Evaluation module (`/api/eval/`)
 
 | Method | Endpoint                                   | Description                             |
 | ------ | ------------------------------------------ | --------------------------------------- |
@@ -832,13 +898,25 @@ Internet
 
 ---
 
-## Adding a New Service
+## Adding a New Module
 
-1. Create `src/services/your-service/` — copy the structure from `services/user/`.
-2. Add to `src/docker-compose.yml` under the `include:` list.
-3. Add an nginx route in `src/nginx/conf.d/default.conf`.
-4. Add your models to `src/packages/database/prisma/schema.prisma`.
-5. Run:
+1. Create `src/api/src/modules/your-module/` with `routes.js` and `service.js` —
+   copy the shape of `modules/user/`.
+2. Mount it in `src/api/src/index.js`, **below** the `app.use(authenticate)`
+   line unless it genuinely needs to be public:
+
+   ```js
+   app.use('/your-module', require('./modules/your-module/routes'))
+   ```
+
+   No nginx change is needed: `/api/` already forwards everything to the api
+   service.
+3. Add role guards where they belong. `require('../../middleware/authenticate')`
+   gives you `requireStaff`, `requireRole('Admin')` and
+   `requireSelfOrStaff('id')`.
+4. Take the caller's identity from `req.user.userId` — never from the request
+   body.
+5. Add your models to `src/packages/database/prisma/schema.prisma`, then:
 
 ```bash
 cd src/packages/database
@@ -847,7 +925,10 @@ make migrate
 make re
 ```
 
-Every service must expose a `/health` endpoint returning `{ status: 'ok', service: 'your-service' }` and use a central error handler via `next(err)` with the shared error classes.
+Report failures with `next(err)` and the shared error classes from
+`@transcendence/errors`; the central handler in `middleware/errorHandler.js`
+turns them into responses. The API exposes a single `/api/health` endpoint —
+individual modules no longer carry their own.
 
 ---
 
@@ -881,7 +962,7 @@ main
 
 ```text
 feat(scope): short description
-fix(auth-service): handle expired refresh token edge case
+fix(auth): handle expired refresh token edge case
 chore(docker): add eval service to compose
 ```
 
@@ -943,4 +1024,23 @@ Artificial Intelligence tools were used to understand unfamiliar frameworks, res
 
 ## Known Limitations
 
-No known limitations have been documented at this time.
+* **Errors are returned with HTTP 200.** Every error response carries the real
+  status in the JSON body (`{ "ok": false, "code": 404 }`) rather than in the
+  HTTP status line. Clients must read `code`. Changing this requires a matching
+  change to the Angular 401-refresh interceptor, which keys off `err.status`.
+* **`/api/user/login` and `/api/user/register` still exist** and duplicate the
+  `/api/auth` equivalents; `loginUser` has its password comparison commented
+  out. They are behind authentication and restricted to `Admin`, so they are
+  not reachable by an attacker, but they should be deleted.
+* **The `user` table has two write paths** — raw SQL in the auth module and the
+  Prisma client everywhere else.
+* **`GET /api/user/:id` returns an email address** to any signed-in user, so
+  the directory is enumerable. This is accepted: email addresses are not
+  treated as sensitive in this deployment. The bulk listing at `GET /api/user/`
+  does not include them.
+* **TLS uses a self-signed certificate** generated at image build time. A real
+  deployment needs a real certificate and a real server name.
+* **MinIO is run as a container with a local volume.** For production, an
+  external S3-compatible store with lifecycle and backup policies is a better
+  fit.
+* **`make populateDB` is destructive** and intended for development only.
