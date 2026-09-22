@@ -1,4 +1,4 @@
-const { prisma } = require('../../database')
+const { prisma } = require('@transcendence/database')
 
 const getSubmissionCount = async(groupId)=>{
     return await prisma.submission.count({

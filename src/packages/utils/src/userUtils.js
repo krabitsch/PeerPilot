@@ -1,4 +1,4 @@
-const { prisma } = require('../../database')
+const { prisma } = require('@transcendence/database')
 
 const getAllUsers = async (select = null)=>{
     const options = { };

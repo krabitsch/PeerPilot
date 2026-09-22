@@ -6,5 +6,9 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs"
+  "type": "commonjs",
+  "dependencies": {
+    "@transcendence/database": "*",
+    "@transcendence/errors": "*"
+  }
 }
