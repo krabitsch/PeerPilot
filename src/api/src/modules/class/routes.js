@@ -1,7 +1,11 @@
 const express = require('express')
 const classService = require('./service')
 const { uploader } = require('@transcendence/filemanager')
+const { requireStaff } = require('../../middleware/authenticate')
 const route = express.Router()
+
+// Students read the catalogue; only staff create or change classes,
+// assignments and their subject files.
 
 route.get('/', async (req, res, next)=>{
     try {
@@ -21,25 +25,25 @@ route.get('/courses/:id', async (req, res, next)=>{
     }catch(err){next(err)}
 })
 
-route.post('/', async (req, res, next)=>{
+route.post('/', requireStaff, async (req, res, next)=>{
     try {
         res.json( await classService.createClass(req.body))
     } catch (error) {next(error)}
 })
 
-route.put('/:id', async (req, res, next)=>{
+route.put('/:id', requireStaff, async (req, res, next)=>{
     try {
         res.json( await classService.updateClass(req.params.id, req.body))
     } catch (error) {next(error)}
 })
 
-route.delete('/:id', async (req, res, next)=>{
+route.delete('/:id', requireStaff, async (req, res, next)=>{
     try {
         res.json( await classService.deleteClass(req.params.id))
     } catch (error) {next(error)}
 })
 
-route.post('/:id/assignment', uploader.single('file'), async(req, res, next)=>{
+route.post('/:id/assignment', requireStaff, uploader.single('file'), async(req, res, next)=>{
     try{
         res.json( await classService.createAssignment(req.params.id, req.body, req.file)) // id passed = course id
     }catch(err){next(err)}
@@ -63,13 +67,13 @@ route.get('/assignment/:id', async (req, res, next)=>{
     }catch(err){next(err)}
 })
 
-route.put('/assignment/:id', uploader.single('file'), async (req, res, next)=>{
+route.put('/assignment/:id', requireStaff, uploader.single('file'), async (req, res, next)=>{
     try{
         res.json(await classService.updateAssignment(req.params.id, req.body, req.file)) // id passed = assignment id
     }catch(err){next(err)}
 })
 
-route.delete('/assignment/:id', async (req, res, next)=>{
+route.delete('/assignment/:id', requireStaff, async (req, res, next)=>{
     try{
         res.json(await classService.deleteAssignment(req.params.id)) // id passed = assignment id
     }catch(err){next(err)}

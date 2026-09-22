@@ -1,5 +1,5 @@
 const {prisma} = require('@transcendence/database')
-const {NotFoundError, ValidationError, ConflictError} = require('@transcendence/errors')
+const {NotFoundError, ValidationError, ConflictError, UnauthorizedError} = require('@transcendence/errors')
 const utils = require('@transcendence/utils')
 
 
@@ -226,12 +226,19 @@ const leaveGroup = async(groupId, {userId})=>{
     return {message: 'Left the group successfully'}
 }
 
-const deleteInvite = async(inviteId)=>{
-    if(!inviteId)
+const deleteInvite = async(inviteId, userId)=>{
+    if(!inviteId || !userId)
         throw new ValidationError('Invalid request')
     const invite = await utils.getinvite(inviteId)
     if(!invite)
         throw new NotFoundError('Invite Not Found')
+
+    // Either side of an invite may cancel it: the leader who sent it, or the
+    // student who received it. Nobody else gets to touch it.
+    const requesterId = parseInt(userId)
+    if(invite.senderId !== requesterId && invite.reciverId !== requesterId)
+        throw new UnauthorizedError('This invite is not yours to delete')
+
     await prisma.groupInvite.delete({
         where:{id: parseInt(inviteId)}
     })

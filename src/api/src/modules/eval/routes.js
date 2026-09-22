@@ -1,6 +1,13 @@
 const express = require('express')
 const route = express.Router()
 const service = require('./service')
+const { requireStaff } = require('../../middleware/authenticate')
+
+// Eval sheets and the pairing table are course machinery: staff build them,
+// students only read them. The evaluation flow itself stays open to students,
+// but the evaluator's identity comes from the token — `submitEvaluation`
+// already refuses a pairing that isn't yours, and replying to feedback already
+// requires being the group leader.
 
 route.get('/sheet/:id', async(req, res, next)=>{
     try{
@@ -14,26 +21,26 @@ route.get('/sheet/ass/:id', async(req, res, next)=>{
     }catch(err){next(err)}
 })
 
-route.post('/sheet', async (req, res, next)=>{
+route.post('/sheet', requireStaff, async (req, res, next)=>{
     try{
         res.json(await service.createEvalSheet(req.body))
     }catch(err){next(err)}
 })
 
-route.post('/sheet/:id/section', async (req, res, next)=>{
+route.post('/sheet/:id/section', requireStaff, async (req, res, next)=>{
     try {
         res.json(await service.createEvalSection(req.params.id, req.body))
     } catch (err) {next(err)}
 })
 
-route.patch('/sheet/:id/section', async(req, res, next)=>{
+route.patch('/sheet/:id/section', requireStaff, async(req, res, next)=>{
     try{
         res.json(await service.updateEvalSheetSection(req.params.id, req.body))
     }catch(err){ next(err)}
 })
 
 
-route.delete('/sheet/:id/section', async(req, res, next)=>{
+route.delete('/sheet/:id/section', requireStaff, async(req, res, next)=>{
     //console.log(req.body)
     try{
         res.json(await service.removeSection(req.params.id, req.body))
@@ -51,7 +58,7 @@ route.get('/assignment/:id', async(req, res, next)=>{
 // Routes pertaining to EvalAssignment model/table
 
 // creates one EvalAssignment manually (POST /api/eval/eval-assignments) 
-route.post('/eval-assignments', async(req, res, next) => {
+route.post('/eval-assignments', requireStaff, async(req, res, next) => {
     try{
         res.json(await service.createEvalAssignment(req.body))
     }catch(err){next(err)}
@@ -68,7 +75,7 @@ route.get('/assignment/:id/eval-assignments', async (req, res, next) => {
 })
 
 // delete all EvalAssignments for one assignment (DELETE /api/eval/assignment/:id/eval-assignments)
-route.delete('/assignment/:id/eval-assignments', async (req, res, next) => {
+route.delete('/assignment/:id/eval-assignments', requireStaff, async (req, res, next) => {
   try {
     res.json(await service.deleteEvalAssignments(req.params.id))
   } catch (err) {
@@ -86,20 +93,20 @@ route.get('/eval-assignments/:id', async (req, res, next) => {
 })
 
 // update one EvalAssignment (PUT /api/eval/eval-assignments/:id)
-route.put('/eval-assignments/:id', async(req, res, next) => {
+route.put('/eval-assignments/:id', requireStaff, async(req, res, next) => {
     try{
         res.json(await service.updateEvalAssignment(req.params.id, req.body))
     }catch(err){next(err)}
 })
 
 // delete one EvalAssignment (DELETE /api/eval/eval-assignments/:id)
-route.delete('/eval-assignments/:id', async(req, res, next) => {
+route.delete('/eval-assignments/:id', requireStaff, async(req, res, next) => {
     try{
         res.json(await service.deleteEvalAssignment(req.params.id))
     }catch(err){next(err)}
 })
 
-route.post('/assignment/:id/generate-simple-pairings', async(req, res, next) => {
+route.post('/assignment/:id/generate-simple-pairings', requireStaff, async(req, res, next) => {
     try{
         res.json(await service.generateSimpleEvalAssignmentPairings(req.params.id))
     }catch(err){next(err)}
@@ -107,13 +114,13 @@ route.post('/assignment/:id/generate-simple-pairings', async(req, res, next) => 
 
 route.post('/evaluate/start', async (req, res, next) => {
     try{
-        res.json(await service.startEvaluation(req.body))
+        res.json(await service.startEvaluation({ ...req.body, evaluatorUserId: req.user.userId }))
     }catch(err){next(err)}
 })
 
 route.post('/evaluate/submit', async (req, res, next) => {
     try{
-        res.json(await service.submitEvaluation(req.body))
+        res.json(await service.submitEvaluation({ ...req.body, evaluatorUserId: req.user.userId }))
     }catch(err){next(err)}
 })
 
@@ -127,7 +134,7 @@ route.get('/submission/:subId/responses', async (req, res, next) => {
 // group leader replies to one piece of eval feedback (PATCH /api/eval/responses/:id/reply)
 route.patch('/responses/:id/reply', async (req, res, next) => {
     try{
-        res.json(await service.replyToEvalResponse(req.params.id, req.body))
+        res.json(await service.replyToEvalResponse(req.params.id, { ...req.body, userId: req.user.userId }))
     }catch(err){next(err)}
 })
 

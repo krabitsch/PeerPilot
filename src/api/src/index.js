@@ -7,6 +7,7 @@ const helmet = require('helmet')
 
 const logger = require('@transcendence/logger')
 const errorHandler = require('./middleware/errorHandler')
+const { authenticate } = require('./middleware/authenticate')
 
 const app = express()
 
@@ -28,7 +29,16 @@ app.get('/health', (req, res) => {
 // ── Modules ──────────────────────────────────────────
 // Mount paths are unchanged from the per-service layout, so nginx only has to
 // forward /api/ here and the frontend needs no changes.
-app.use('/auth',       require('./modules/auth/routes'))
+
+// The auth module owns the only endpoints that may be reached without a token
+// (login, register, password reset, OAuth callbacks) and applies `authenticate`
+// itself on the few of its routes that need it.
+app.use('/auth', require('./modules/auth/routes'))
+
+// Everything past this line requires a valid access token. Individual routes
+// add role and ownership checks on top; this is the floor, not the ceiling.
+app.use(authenticate)
+
 app.use('/user',       require('./modules/user/routes'))
 app.use('/org',        require('./modules/org/routes'))
 app.use('/class',      require('./modules/class/routes'))
