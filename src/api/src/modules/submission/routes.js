@@ -2,7 +2,7 @@ const express = require('express')
 const router = express.Router()
 const subService = require('./service')
 const { uploader } = require('@transcendence/filemanager')
-const { requireStaff } = require('../../middleware/authenticate')
+const { isStaff } = require('../../middleware/authenticate')
 
 // `validateGroupMember` in the service already requires the caller to be
 // enrolled in the class and a member of this exact group, and closing a
@@ -22,9 +22,13 @@ router.patch('/:groupId/close' , async (req, res, next)=>{
     }catch(err){ next(err)}
 })
 
-router.get('/assignment/:assId/', requireStaff, async (req, res, next)=>{
+// Staff see every group's submission. Students see only their own group's —
+// the assignment page finds "my submission" in this list — and never other
+// groups' passkeys, which are what an evaluator needs to start an evaluation.
+router.get('/assignment/:assId/', async (req, res, next)=>{
     try{
-        res.json(await subService.getSubmissionsForAssignment(req.params.assId))
+        const scope = isStaff(req) ? {} : { memberId: req.user.userId }
+        res.json(await subService.getSubmissionsForAssignment(req.params.assId, scope))
     }catch(err){next(err)}
 })
 

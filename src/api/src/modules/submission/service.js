@@ -173,12 +173,17 @@ const removeFile = async (groupId, userId) =>{
     return { message: 'File deleted successfully' }
 }
 
-const getSubmissionsForAssignment = async (assId)=>{
+// `memberId` narrows the list to submissions of groups that user belongs to.
+// Students get only their own group's; staff pass nothing and see every group.
+const getSubmissionsForAssignment = async (assId, { memberId } = {})=>{
     const ass = await utils.getAssignmentById(assId)
     if(!ass)
         throw new NotFoundError('Assignment not found')
+    const where = {group:{assId: parseInt(assId)}}
+    if (memberId)
+        where.group.members = { some: { userId: parseInt(memberId) } }
     return utils.getSubmissionsBy(
-        {group:{assId: parseInt(assId)}},
+        where,
         {file: true, group: {include: {members: {include: {user: { select: { id: true, username: true } } }}}}}
     )
 }
