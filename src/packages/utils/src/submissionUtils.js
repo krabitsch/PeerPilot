@@ -58,14 +58,6 @@ const getGroupSubmissionStats = async (groupId) => {
     }
 }
 
-const getAssignment = async(assId, select = null, include = null)=>{
-    const options = {where: {id: parseInt(assId)}}
-    if(select)
-        options.select = select
-    if(include)
-        options.include = include
-    return await prisma.assignment.findUnique(options)
-}
 
 const getSubmissionsBy = async (where, include = null)=>{
     if(!where)
@@ -79,5 +71,5 @@ const getSubmissionsBy = async (where, include = null)=>{
 
 module.exports = {getSubmissionById, getSubmissionCount, getLastSubmission, 
     getGroupSubmissionStats,getSubmissionsBy,
-    getAssignment, getSubmissionByPasskey
+    getSubmissionByPasskey
 }

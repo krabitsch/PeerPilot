@@ -174,7 +174,7 @@ const removeFile = async (groupId, userId) =>{
 }
 
 const getSubmissionsForAssignment = async (assId)=>{
-    const ass = await utils.getAssignment(assId)
+    const ass = await utils.getAssignmentById(assId)
     if(!ass)
         throw new NotFoundError('Assignment not found')
     return utils.getSubmissionsBy(

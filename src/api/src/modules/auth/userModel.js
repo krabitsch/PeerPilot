@@ -5,300 +5,303 @@ const { NotFoundError, ConflictError, ForbiddenError } = require('@transcendence
 
 const SALT_ROUNDS = parseInt(process.env.BCRYPT_ROUNDS, 10) || 12;
 
+// Everything here goes through the Prisma client, like the rest of the API.
+// The functions return the same flat shapes the raw-SQL versions did (e.g.
+// `pass_hash` directly on the user), because the controller reads them that way.
+//
+// Where the old SQL was an UPDATE or DELETE that silently matched nothing, this
+// uses updateMany/deleteMany: Prisma's update/delete throw on a missing row.
+
+const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
+
 const generateUsername = async (email) => {
   let base = email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
   if (!base) base = 'user';
   let username = base;
   let counter = 1;
   while (true) {
-    const existing = await prisma.$queryRaw`SELECT id FROM "user" WHERE username = ${username}`;
-    if (existing.length === 0) return username;
+    const existing = await prisma.user.findUnique({ where: { username }, select: { id: true } });
+    if (!existing) return username;
     username = `${base}${counter++}`;
   }
 };
 
 // ========== USERS ==========
 const createUser = async (email, plainPassword, orgId = null) => {
-  const hashed = await bcrypt.hash(plainPassword, SALT_ROUNDS);
+  const pass_hash = await bcrypt.hash(plainPassword, SALT_ROUNDS);
   const username = await generateUsername(email);
-  const userRows = await prisma.$queryRaw`
-    INSERT INTO "user" (email, username, role, "orgId", created_at)
-    VALUES (${email}, ${username}, 'Student', ${orgId}, NOW())
-    RETURNING id, email, username, created_at
-  `;
-  const user = userRows[0];
-  await prisma.$executeRaw`
-    INSERT INTO "userAuth" ("userId", pass_hash, provider, email_verified)
-    VALUES (${user.id}, ${hashed}, 'local', false)
-  `;
-  return user;
+  // The user and its auth row are created in one statement, so a failure can no
+  // longer leave a user without credentials behind.
+  return await prisma.user.create({
+    data: {
+      email,
+      username,
+      role: 'Student',
+      orgId,
+      userAuth: { create: { pass_hash, provider: 'local', email_verified: false } },
+    },
+    select: { id: true, email: true, username: true, created_at: true },
+  });
 };
 
 const findUserByEmail = async (email) => {
-  const rows = await prisma.$queryRaw`
-    SELECT u.id, u.email, u.username, u.role,
-           ua.pass_hash, ua.provider, ua.email_verified,
-           ua.verification_token_hash, ua.verification_token_expiry,
-           ua.reset_token_hash, ua.reset_token_expiry
-    FROM "user" u
-    LEFT JOIN "userAuth" ua ON u.id = ua."userId"
-    WHERE u.email = ${email}
-  `;
-  return rows[0];
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: {
+      id: true, email: true, username: true, role: true,
+      userAuth: {
+        select: {
+          pass_hash: true, provider: true, email_verified: true,
+          verification_token_hash: true, verification_token_expiry: true,
+          reset_token_hash: true, reset_token_expiry: true,
+        },
+      },
+    },
+  });
+  if (!user) return undefined;
+  const auth = user.userAuth ?? {};
+  return {
+    id: user.id,
+    email: user.email,
+    username: user.username,
+    role: user.role,
+    pass_hash: auth.pass_hash ?? null,
+    provider: auth.provider ?? null,
+    email_verified: auth.email_verified ?? null,
+    verification_token_hash: auth.verification_token_hash ?? null,
+    verification_token_expiry: auth.verification_token_expiry ?? null,
+    reset_token_hash: auth.reset_token_hash ?? null,
+    reset_token_expiry: auth.reset_token_expiry ?? null,
+  };
 };
 
-// ========== REFRESH TOKENS (fixed camelCase) ==========
+// ========== REFRESH TOKENS ==========
 const storeRefreshToken = async (userId, refreshToken, expiresAt) => {
-  const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
-  await prisma.$executeRaw`
-    INSERT INTO "refreshToken" ("tokenHash", "userId", "expiresAt", "CreatedAt")
-    VALUES (${tokenHash}, ${userId}, ${expiresAt}, NOW())
-  `;
+  await prisma.refreshToken.create({
+    data: { tokenHash: hashToken(refreshToken), userId, expiresAt },
+  });
 };
 
 const findRefreshToken = async (refreshToken) => {
-  const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
-  const rows = await prisma.$queryRaw`
-    SELECT * FROM "refreshToken"
-    WHERE "tokenHash" = ${tokenHash}
-  `;
-  return rows[0];
+  return (await prisma.refreshToken.findUnique({
+    where: { tokenHash: hashToken(refreshToken) },
+  })) ?? undefined;
 };
 
 const deleteRefreshToken = async (refreshToken) => {
-  const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
-  await prisma.$executeRaw`
-    DELETE FROM "refreshToken" WHERE "tokenHash" = ${tokenHash}
-  `;
+  await prisma.refreshToken.deleteMany({ where: { tokenHash: hashToken(refreshToken) } });
 };
 
 const deleteAllUserRefreshTokens = async (userId) => {
-  await prisma.$executeRaw`
-    DELETE FROM "refreshToken" WHERE "userId" = ${userId}
-  `;
+  await prisma.refreshToken.deleteMany({ where: { userId } });
 };
 
 // ========== OAUTH ==========
+const oauthUserFields = {
+  id: true, email: true, username: true,
+  userAuth: { select: { provider: true, provider_user_id: true, email_verified: true } },
+};
+
+const flattenOAuthUser = (user) => ({
+  id: user.id,
+  email: user.email,
+  username: user.username,
+  provider: user.userAuth.provider,
+  provider_user_id: user.userAuth.provider_user_id,
+  email_verified: user.userAuth.email_verified,
+});
+
 const findOrCreateOAuthUser = async (provider, providerUserId, email, name) => {
-  let rows = await prisma.$queryRaw`
-    SELECT u.id, u.email, u.username, ua.provider, ua.provider_user_id, ua.email_verified
-    FROM "user" u
-    JOIN "userAuth" ua ON u.id = ua."userId"
-    WHERE ua.provider = ${provider} AND ua.provider_user_id = ${providerUserId}
-  `;
-  let user = rows[0];
-  if (!user) {
-    // Check if this email is already registered under any provider
-    const existingRows = await prisma.$queryRaw`
-      SELECT u.id, u.email, u.username, ua.provider, ua.email_verified
-      FROM "user" u
-      JOIN "userAuth" ua ON u.id = ua."userId"
-      WHERE u.email = ${email}
-    `;
-    const existing = existingRows[0];
+  const linked = await prisma.user.findFirst({
+    where: { userAuth: { provider, provider_user_id: providerUserId } },
+    select: oauthUserFields,
+  });
+  if (linked) return flattenOAuthUser(linked);
 
-    if (existing) {
-      if (existing.provider === 'local') {
-        throw new ConflictError('Email already registered with password. Please log in using your password.');
-      }
-      // Email registered via a different OAuth provider — link by email, return existing user
-      return existing;
+  // Check if this email is already registered under any provider
+  const existing = await prisma.user.findFirst({
+    where: { email, userAuth: { isNot: null } },
+    select: oauthUserFields,
+  });
+
+  if (existing) {
+    if (existing.userAuth.provider === 'local') {
+      throw new ConflictError('Email already registered with password. Please log in using your password.');
     }
-
-    // New user — must be on the invite list
-    const allowed = await isEmailAllowed(email);
-    if (!allowed) {
-      const err = new ForbiddenError('Registration not permitted for this email address.');
-      err.code = 'INVITE_REQUIRED';
-      throw err;
-    }
-
-    const username = await generateUsername(email);
-    const userRows = await prisma.$queryRaw`
-      INSERT INTO "user" (email, username, role, "orgId", created_at)
-      VALUES (${email}, ${username}, 'Student', ${allowed.orgId}, NOW())
-      RETURNING id, email, username
-    `;
-    user = userRows[0];
-    await prisma.$executeRaw`
-      INSERT INTO "userAuth" ("userId", provider, provider_user_id, email_verified)
-      VALUES (${user.id}, ${provider}, ${providerUserId}, true)
-    `;
-    user.email_verified = true;
-    await markEmailAsUsed(email);
+    // Email registered via a different OAuth provider — link by email, return existing user
+    const { provider_user_id, ...rest } = flattenOAuthUser(existing);
+    return rest;
   }
-  return user;
+
+  // New user — must be on the invite list
+  const allowed = await isEmailAllowed(email);
+  if (!allowed) {
+    const err = new ForbiddenError('Registration not permitted for this email address.');
+    err.code = 'INVITE_REQUIRED';
+    throw err;
+  }
+
+  const username = await generateUsername(email);
+  const user = await prisma.user.create({
+    data: {
+      email,
+      username,
+      role: 'Student',
+      orgId: allowed.orgId,
+      userAuth: { create: { provider, provider_user_id: providerUserId, email_verified: true } },
+    },
+    select: { id: true, email: true, username: true },
+  });
+  await markEmailAsUsed(email);
+  return { ...user, email_verified: true };
 };
 
 // ========== PASSWORD RESET ==========
 const saveResetToken = async (userId, tokenHash, expiresAt) => {
-  await prisma.$executeRaw`
-    UPDATE "userAuth"
-    SET reset_token_hash = ${tokenHash}, reset_token_expiry = ${expiresAt}
-    WHERE "userId" = ${userId}
-  `;
+  await prisma.userAuth.updateMany({
+    where: { userId },
+    data: { reset_token_hash: tokenHash, reset_token_expiry: expiresAt },
+  });
 };
 
 const findUserByResetToken = async (tokenHash) => {
-  const rows = await prisma.$queryRaw`
-    SELECT u.id, u.email, ua.pass_hash
-    FROM "user" u
-    JOIN "userAuth" ua ON u.id = ua."userId"
-    WHERE ua.reset_token_hash = ${tokenHash}
-      AND ua.reset_token_expiry > NOW()
-  `;
-  return rows[0];
+  const user = await prisma.user.findFirst({
+    where: { userAuth: { reset_token_hash: tokenHash, reset_token_expiry: { gt: new Date() } } },
+    select: { id: true, email: true, userAuth: { select: { pass_hash: true } } },
+  });
+  if (!user) return undefined;
+  return { id: user.id, email: user.email, pass_hash: user.userAuth.pass_hash };
 };
 
 const clearResetToken = async (userId) => {
-  await prisma.$executeRaw`
-    UPDATE "userAuth"
-    SET reset_token_hash = NULL, reset_token_expiry = NULL
-    WHERE "userId" = ${userId}
-  `;
+  await prisma.userAuth.updateMany({
+    where: { userId },
+    data: { reset_token_hash: null, reset_token_expiry: null },
+  });
 };
 
 const updatePassword = async (userId, newHashedPassword) => {
-  await prisma.$executeRaw`
-    UPDATE "userAuth"
-    SET pass_hash = ${newHashedPassword}
-    WHERE "userId" = ${userId}
-  `;
+  await prisma.userAuth.updateMany({
+    where: { userId },
+    data: { pass_hash: newHashedPassword },
+  });
 };
 
 // ========== EMAIL VERIFICATION ==========
 const storeVerificationToken = async (userId, tokenHash, expiresAt) => {
-  await prisma.$executeRaw`
-    UPDATE "userAuth"
-    SET verification_token_hash = ${tokenHash}, verification_token_expiry = ${expiresAt}
-    WHERE "userId" = ${userId}
-  `;
+  await prisma.userAuth.updateMany({
+    where: { userId },
+    data: { verification_token_hash: tokenHash, verification_token_expiry: expiresAt },
+  });
 };
 
 const findUserByVerificationToken = async (tokenHash) => {
-  const rows = await prisma.$queryRaw`
-    SELECT u.id, u.email
-    FROM "user" u
-    JOIN "userAuth" ua ON u.id = ua."userId"
-    WHERE ua.verification_token_hash = ${tokenHash}
-      AND ua.verification_token_expiry > NOW()
-  `;
-  return rows[0];
+  return (await prisma.user.findFirst({
+    where: {
+      userAuth: { verification_token_hash: tokenHash, verification_token_expiry: { gt: new Date() } },
+    },
+    select: { id: true, email: true },
+  })) ?? undefined;
 };
 
 const verifyEmail = async (userId) => {
-  await prisma.$executeRaw`
-    UPDATE "userAuth"
-    SET email_verified = true,
-        verification_token_hash = NULL,
-        verification_token_expiry = NULL
-    WHERE "userId" = ${userId}
-  `;
+  await prisma.userAuth.updateMany({
+    where: { userId },
+    data: { email_verified: true, verification_token_hash: null, verification_token_expiry: null },
+  });
 };
 
 // ========== ALLOWED EMAILS ==========
 const isEmailAllowed = async (email) => {
-  const rows = await prisma.$queryRaw`
-    SELECT "orgId" FROM auth_allowed_emails
-    WHERE email = ${email} AND (used = false OR used IS NULL)
-  `;
-  return rows[0] ?? null;
+  return await prisma.authAllowedEmail.findFirst({
+    where: { email, used: false },
+    select: { orgId: true },
+  });
 };
 
 const markEmailAsUsed = async (email) => {
-  await prisma.$executeRaw`
-    UPDATE auth_allowed_emails SET used = true WHERE email = ${email}
-  `;
+  await prisma.authAllowedEmail.updateMany({ where: { email }, data: { used: true } });
 };
 
 const unmarkEmailAsUsed = async (email) => {
-  await prisma.$executeRaw`
-    UPDATE auth_allowed_emails SET used = false WHERE email = ${email}
-  `;
+  await prisma.authAllowedEmail.updateMany({ where: { email }, data: { used: false } });
 };
 
 const deleteUserById = async (userId) => {
-  await prisma.$executeRaw`DELETE FROM "user" WHERE id = ${userId}`;
+  await prisma.user.deleteMany({ where: { id: userId } });
 };
 
 // ========== INVITATIONS ==========
 const addAllowedEmail = async (email, invitedBy, orgId = null) => {
   if (orgId != null) {
-    const org = await prisma.$queryRaw`SELECT id FROM org WHERE id = ${orgId}`;
-    if (org.length === 0) {
+    const org = await prisma.organization.findUnique({ where: { id: orgId }, select: { id: true } });
+    if (!org) {
       throw new NotFoundError('Organization not found.');
     }
   }
-  const existing = await prisma.$queryRaw`
-    SELECT id, used FROM auth_allowed_emails WHERE email = ${email}
-  `;
-  if (existing.length > 0) {
+  const existing = await prisma.authAllowedEmail.findUnique({
+    where: { email },
+    select: { id: true, used: true },
+  });
+  if (existing) {
     throw new ConflictError(
-      existing[0].used ? 'Email is already registered.' : 'Email has already been invited.'
+      existing.used ? 'Email is already registered.' : 'Email has already been invited.'
     );
   }
-  const rows = await prisma.$queryRaw`
-    INSERT INTO auth_allowed_emails (email, invited_by, "orgId", created_at)
-    VALUES (${email}, ${invitedBy ?? null}, ${orgId}, NOW())
-    RETURNING id, email, used, invited_by, "orgId", created_at
-  `;
-  return rows[0];
+  return await prisma.authAllowedEmail.create({
+    data: { email, invited_by: invitedBy ?? null, orgId },
+    select: { id: true, email: true, used: true, invited_by: true, orgId: true, created_at: true },
+  });
 };
 
 const getAllowedEmails = async (orgId = null) => {
-  if (orgId != null) {
-    return await prisma.$queryRaw`
-      SELECT ae.id, ae.email, ae.used, ae.created_at, ae."orgId",
-             u.username AS invited_by_username
-      FROM auth_allowed_emails ae
-      LEFT JOIN "user" u ON ae.invited_by = u.id
-      WHERE ae."orgId" = ${orgId}
-      ORDER BY ae.created_at DESC
-    `;
-  }
-  return await prisma.$queryRaw`
-    SELECT ae.id, ae.email, ae.used, ae.created_at, ae."orgId",
-           u.username AS invited_by_username
-    FROM auth_allowed_emails ae
-    LEFT JOIN "user" u ON ae.invited_by = u.id
-    ORDER BY ae.created_at DESC
-  `;
+  const rows = await prisma.authAllowedEmail.findMany({
+    where: orgId != null ? { orgId } : undefined,
+    // id breaks ties between invites created in the same instant.
+    orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+    select: {
+      id: true, email: true, used: true, created_at: true, orgId: true,
+      invitedBy: { select: { username: true } },
+    },
+  });
+  return rows.map(({ invitedBy, ...row }) => ({
+    ...row,
+    invited_by_username: invitedBy?.username ?? null,
+  }));
 };
 
 const revokeAllowedEmail = async (id) => {
-  const rows = await prisma.$queryRaw`
-    SELECT id, used FROM auth_allowed_emails WHERE id = ${parseInt(id)}
-  `;
-  if (!rows[0]) {
+  const invite = await prisma.authAllowedEmail.findUnique({
+    where: { id: parseInt(id) },
+    select: { id: true, used: true },
+  });
+  if (!invite) {
     throw new NotFoundError('Invite not found.');
   }
-  if (rows[0].used) {
+  if (invite.used) {
     throw new ConflictError('Cannot revoke an already-used invite.');
   }
-  await prisma.$executeRaw`
-    DELETE FROM auth_allowed_emails WHERE id = ${parseInt(id)}
-  `;
+  await prisma.authAllowedEmail.delete({ where: { id: invite.id } });
 };
 
 const findUserById = async (userId) => {
-  const rows = await prisma.$queryRaw`
-    SELECT u.id, u.email, u.username, u.role, u.created_at, u."orgId",
-           up.bio, up.avatar, up.last_update
-    FROM "user" u
-    LEFT JOIN "userProfile" up ON u.id = up."userId"
-    WHERE u.id = ${userId}
-  `;
-  if (!rows[0]) return null;
-  const r = rows[0];
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true, email: true, username: true, role: true, created_at: true, orgId: true,
+      profile: { select: { bio: true, avatar: true, last_update: true } },
+    },
+  });
+  if (!user) return null;
   return {
-    id: r.id,
-    email: r.email,
-    username: r.username,
-    role: r.role,
-    created_at: r.created_at,
-    orgId: r.orgId,
-    profile: (r.bio !== null || r.avatar !== null)
-      ? { bio: r.bio, avatar: r.avatar, last_update: r.last_update }
+    id: user.id,
+    email: user.email,
+    username: user.username,
+    role: user.role,
+    created_at: user.created_at,
+    orgId: user.orgId,
+    profile: user.profile
+      ? { bio: user.profile.bio, avatar: user.profile.avatar, last_update: user.profile.last_update }
       : null,
   };
 };

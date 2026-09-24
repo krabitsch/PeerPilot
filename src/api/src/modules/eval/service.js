@@ -8,7 +8,7 @@ const storage = createStorage('submissions')
 const getAssignment = async(assId)=>{
     if(!assId)
         throw new ValidationError('Invalid request')
-    const ass =  await utils.getAssignment(assId)
+    const ass =  await utils.getAssignmentById(assId)
     if(!ass)
         throw new NotFoundError('Assignment not found')
     return ass;
@@ -17,7 +17,7 @@ const getAssignment = async(assId)=>{
 const createEvalSheet = async ({assId})=>{
     if(!assId)
         throw new ValidationError('Invalid request')
-    const ass = await utils.getAssignment(assId, null, {evalSheet:true})
+    const ass = await utils.getAssignmentById(assId, null, {evalSheet:true})
     if(!ass)
         throw new NotFoundError('Assignment not found')
     if(ass.evalSheet)

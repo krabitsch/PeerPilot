@@ -1,8 +1,7 @@
 const { prisma } = require('@transcendence/database')
-const { NotFoundError, ConflictError, ValidationError } = require('@transcendence/errors')
+const { NotFoundError, ValidationError } = require('@transcendence/errors')
 const utils = require('@transcendence/utils')
 const logger = require('@transcendence/logger')
-const bcrypt = require('bcrypt')
 const {createStorage} = require('@transcendence/filemanager')
 
 let storage
@@ -52,24 +51,6 @@ const getUserById = async (id) => {
   return user
 }
 
-const createUser = async ({ email, username, password }) => {
-  if(!email || !username || !password)
-    throw new ValidationError('Invalid request')
-  
-  const existing = await utils.searchUser(email, username)
-  if(existing) throw new ConflictError('Email or username already taken')
-  const pass_hash = await bcrypt.hash(password, 10)
-  const user = await prisma.user.create({
-    data: {
-      email,
-      username,
-      userAuth: { create: { pass_hash } }
-    },
-    select: { id: true, email: true, username: true, created_at: true }
-  })
-  logger.info('user-service', 'User created', { userId: user.id })
-  return user
-}
 
 //Havent tested it yet
 const getRole = async (id) => {
@@ -80,18 +61,6 @@ const getRole = async (id) => {
   return { role: user.role }
 }
 
-const loginUser = async ({ email, username, password }) => {
-  if (!email && !username) 
-    throw new ValidationError('Email or username required')
-  if (!password) 
-    throw new ValidationError('Password required')
-  const user = await utils.searchUser(email, username, null, {profile: true})
-  if (!user) 
-    throw new NotFoundError('User not found');
-  //if (!await bcrypt.compare(password, user.userAuth.pass_hash)) 
-    //throw new ValidationError('Invalid password');
-  return user;
-}
 
 const getProfile = async (id)=>{
   const profile = await utils.getUserProfile(id)
@@ -120,4 +89,4 @@ const deleteUser = async (id)=>{
 }
 
 
-module.exports = { getAllUsers, getUserById, getRole, createUser, getProfile, updateProfile, deleteUser, loginUser, uploadAvatar}
+module.exports = { getAllUsers, getUserById, getRole, getProfile, updateProfile, deleteUser, uploadAvatar}
