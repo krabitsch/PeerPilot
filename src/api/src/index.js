@@ -11,6 +11,14 @@ const { authenticate } = require('./middleware/authenticate')
 
 const app = express()
 
+// nginx is the only way in, so trust exactly one proxy hop. Express then takes
+// the client address from the entry nginx appends to X-Forwarded-For, and
+// req.ip is the real client rather than nginx's container. Without this every
+// visitor shared one IP, so the auth rate limits were global: ten logins in
+// fifteen minutes from anyone locked everyone out. Entries a client forges are
+// further left in the header and are ignored.
+app.set('trust proxy', 1)
+
 // ── Security / parsing ───────────────────────────────
 // Previously these lived only in the auth service; every route gets them now.
 app.use(helmet())
