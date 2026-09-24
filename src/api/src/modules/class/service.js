@@ -97,7 +97,7 @@ const deleteClass = async (classId)=>{
         id: classId }
 }
 
-const createAssignment = async (classId, {name, description, maxScore, reqEval, createdBy}, reqFile)=>{
+const createAssignment = async (classId, {name, description, maxScore, reqEval, passThreshold, createdBy}, reqFile)=>{
     if(!classId || !name|| !description || !maxScore || !reqEval)
         throw new ValidationError("Invalid request")
 
@@ -129,10 +129,13 @@ const createAssignment = async (classId, {name, description, maxScore, reqEval, 
 
     const result = await prisma.assignment.create({
         data:{classid: parseInt(classId), name, description, max_score:parseInt(maxScore),
-            req_eval:parseInt(reqEval), ...(subjectFile && { fileId: subjectFile.id })
+            req_eval:parseInt(reqEval),
+            // Optional so older clients keep working; they get the schema default.
+            ...(passThreshold && { pass_threshold: parseFloat(passThreshold) }),
+            ...(subjectFile && { fileId: subjectFile.id })
         },
          select: {id: true, name: true, description: true, max_score:true, req_eval:true,
-            created_at: true, classid:true, fileId:true}
+            pass_threshold: true, created_at: true, classid:true, fileId:true}
     })
     return {...result, file: subjectFile}
 }
