@@ -1,7 +1,7 @@
 const express = require('express')
 const route = express.Router()
 const groupService = require('./service')
-const { requireStaff } = require('../../middleware/authenticate')
+const { requireStaff, isStaff } = require('../../middleware/authenticate')
 
 // The service layer already enforces the real rules — you must be an active
 // member, the group leader, or the invite's recipient. Those checks were
@@ -9,9 +9,13 @@ const { requireStaff } = require('../../middleware/authenticate')
 // The caller's id now comes from the verified token instead, which is what
 // makes those existing checks mean something.
 
+// Staff create groups on a student's behalf (the Bocal panel's "Create group"
+// and "Generate groups"), so they name the leader in the body. A student can
+// only ever create a group led by themselves.
 route.post('/', async (req, res, next)=>{
     try{
-        res.json(await groupService.createGroup({ ...req.body, userId: req.user.userId }))
+        const userId = isStaff(req) && req.body.userId ? req.body.userId : req.user.userId
+        res.json(await groupService.createGroup({ ...req.body, userId }))
     }catch(err){next(err)}
 })
 
