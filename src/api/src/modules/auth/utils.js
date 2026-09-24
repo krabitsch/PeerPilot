@@ -10,14 +10,19 @@ const nodemailer = require('nodemailer');
 //   }
 // });
 
-const transporter = nodemailer.createTransport({
-  host: "sandbox.smtp.mailtrap.io",
-  port: 2525,
-  auth: {
-    user: "abd7afb8b22993",
-    pass: "2d08047fd50cc6"
-  }
-});
+// EMAIL_TRANSPORT=json swaps SMTP for nodemailer's JSON transport, which builds
+// the message and delivers nothing. The e2e stack uses it so test runs don't
+// send mail (or trip the SMTP provider's rate limit).
+const transporter = process.env.EMAIL_TRANSPORT === 'json'
+  ? nodemailer.createTransport({ jsonTransport: true })
+  : nodemailer.createTransport({
+      host: "sandbox.smtp.mailtrap.io",
+      port: 2525,
+      auth: {
+        user: "abd7afb8b22993",
+        pass: "2d08047fd50cc6"
+      }
+    });
 
 const sendResetEmail = async (to, resetUrl) => {
     const mailOptions = {

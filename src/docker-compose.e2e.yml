@@ -1,0 +1,32 @@
+# End-to-end test overlay. The Makefile runs it as its own Compose project
+# (`-p peerpilot-e2e`), so it has separate containers, networks and volumes and
+# can run alongside the dev stack. The suite wipes and reseeds this database
+# on every run; nothing here touches dev data.
+#
+#   https://localhost:8443   the app, through nginx
+#   localhost:5434           PostgreSQL, for the seed script and test helpers
+services:
+
+  nginx:
+    container_name: e2e-nginx
+    ports: !override
+      - "8443:443"
+
+  api:
+    container_name: e2e-api
+    environment:
+      - EMAIL_TRANSPORT=json          # build emails, deliver nothing
+      - AUTH_RATE_LIMIT_SCALE=1000    # one IP drives the whole suite, run after run
+      - BASE_URL=https://localhost:8443/
+      - JWT_ACCESS_EXPIRY=2h          # saved sessions outlive a full run
+
+  database:
+    container_name: e2e-database
+    ports:
+      - "5434:5432"
+
+  frontend:
+    container_name: e2e-frontend
+
+  minio:
+    container_name: e2e-minio

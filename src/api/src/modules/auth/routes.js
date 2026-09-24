@@ -4,8 +4,15 @@ const rateLimit = require('express-rate-limit');
 const authController = require('./controller');
 const { authenticate, requireRole } = require('../../middleware/authenticate');
 
+// AUTH_RATE_LIMIT_SCALE multiplies every limit below. The e2e suite raises it
+// because all of its traffic comes from one IP; it is ignored in production so
+// a stray variable can never loosen a live deployment.
+const scale = process.env.NODE_ENV === 'production'
+    ? 1
+    : Math.max(1, parseInt(process.env.AUTH_RATE_LIMIT_SCALE, 10) || 1);
+
 const limiter = (max, message) => rateLimit({
-    windowMs: 15 * 60 * 1000, max,
+    windowMs: 15 * 60 * 1000, max: max * scale,
     standardHeaders: true,
     legacyHeaders: false,
     handler: (req, res) => {

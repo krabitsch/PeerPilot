@@ -1,0 +1,13 @@
+{
+  "name": "peerpilot-e2e",
+  "private": true,
+  "description": "Playwright regression suite: role journeys through the UI plus API authorization checks.",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
+  }
+}

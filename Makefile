@@ -1,6 +1,9 @@
 .DEFAULT_GOAL := dev
 COMPOSE_FILE     = src/docker-compose.yml
 COMPOSE_DEV_FILE = src/docker-compose.dev.yml
+# The e2e stack is its own Compose project with its own volumes; see
+# src/docker-compose.e2e.yml. It never shares data with the dev stack.
+E2E_COMPOSE      = docker compose -p peerpilot-e2e -f src/docker-compose.yml -f src/docker-compose.e2e.yml
 ENV_FILE         = src/.env
 ENV_DBFILE         = src/packages/database/.env
 
@@ -10,7 +13,7 @@ YELLOW = \033[0;33m
 BLUE   = \033[0;34m
 RESET  = \033[0m
 
-.PHONY: setup build up down clean restart run re dev prod check_env studio populateDB resetDB genPrismaClient seedAdmin seedAdmin_prod migrate migrate_prod generateUsers
+.PHONY: setup build up down clean restart run re dev prod check_env studio populateDB resetDB genPrismaClient seedAdmin seedAdmin_prod migrate migrate_prod generateUsers e2e e2e-up e2e-seed e2e-down e2e-install
 
 setup: check_env
 	@echo "$(GREEN)Setup complete.$(RESET)"
@@ -149,3 +152,30 @@ resetDB:
 	else \
 		echo "$(RED)Cancelled.$(RESET)"; \
 	fi
+
+# ── End-to-end tests ─────────────────────────────────────────
+# `make e2e` builds and starts the isolated test stack on https://localhost:8443,
+# applies migrations inside it, and runs the Playwright suite. The suite reseeds
+# the test database itself at the start of every run. The stack stays up
+# afterwards so you can re-run with `cd e2e && npx playwright test`; stop it with
+# `make e2e-down`.
+e2e: e2e-up e2e-install
+	@echo "$(BLUE)Running Playwright...$(RESET)"
+	@cd e2e && npx playwright test
+
+e2e-up: setup genPrismaClient
+	@echo "$(BLUE)Starting the e2e stack (https://localhost:8443)...$(RESET)"
+	@$(E2E_COMPOSE) up -d --build --wait
+	@$(E2E_COMPOSE) exec -T api npx prisma migrate deploy --schema packages/database/prisma/schema.prisma
+	@echo "$(GREEN)e2e stack ready.$(RESET)"
+
+e2e-install:
+	@cd e2e && npm install --no-audit --no-fund >/dev/null && npx playwright install chromium >/dev/null
+	@cd src && npm install --workspaces --include-workspace-root --no-audit --no-fund >/dev/null
+
+e2e-seed:
+	@cd e2e && node support/seed.js
+
+e2e-down:
+	@echo "$(RED)Removing the e2e stack and its data...$(RESET)"
+	@$(E2E_COMPOSE) down -v --remove-orphans

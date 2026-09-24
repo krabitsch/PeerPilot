@@ -154,3 +154,64 @@ jobs:
       - name: Tear down
         if: always()
         run: docker compose -f $COMPOSE_FILE down -v
+
+  # ── End-to-end ─────────────────────────────────────────────────
+  # The Playwright suite: role journeys through the UI plus API authorization
+  # checks, against the isolated e2e stack (https://localhost:8443).
+  e2e:
+    name: E2E — Playwright journeys & access control
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            src/package-lock.json
+            e2e/package-lock.json
+
+      # The suite seeds through the backend's Prisma client and bcrypt.
+      - name: Install backend workspace
+        working-directory: src
+        run: npm ci --workspaces --include-workspace-root
+
+      - name: Install Playwright
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Create .env and generate Prisma client
+        run: bash scripts/gen-env.sh --defaults
+
+      - name: Start the e2e stack and migrate it
+        run: make e2e-up
+
+      - name: Run Playwright
+        working-directory: e2e
+        run: npx playwright test
+
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+          retention-days: 14
+
+      - name: Stack logs on failure
+        if: failure()
+        run: docker compose -p peerpilot-e2e -f src/docker-compose.yml -f src/docker-compose.e2e.yml logs
+
+      - name: Tear down
+        if: always()
+        run: make e2e-down

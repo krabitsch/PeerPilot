@@ -18,6 +18,7 @@
   * [Requirements](#requirements)
   * [Getting Started](#getting-started)
   * [Commands](#commands)
+  * [Testing](#testing)
   * [Project Structure](#project-structure)
   * [Architecture](#architecture)
   * [API Endpoints](#api-endpoints)
@@ -629,8 +630,67 @@ The seed password for all generated users is printed in green at the end of the 
 | `make clean`          | Stop + remove all Docker resources                       |
 | `make fclean`         | `clean` + remove `.env`                                  |
 | `make populateDB`     | Wipe and reseed the database with sample data            |
+| `make e2e`            | Start the isolated test stack and run the Playwright suite |
+| `make e2e-up`         | Start (and migrate) the test stack without running tests |
+| `make e2e-seed`       | Reset the test database to the fixed dataset             |
+| `make e2e-down`       | Remove the test stack and its data                       |
 
 > **Why two migrate targets.** In dev, `docker-compose.dev.yml` publishes PostgreSQL on `DB_LOCAL_PORT` (5433 by default) and the host-side Prisma CLI connects to it. In production nothing but nginx is published, so `migrate_prod` and `seedAdmin_prod` run the same work inside the `api` container, which ships the schema and the migration history in its image.
+
+---
+
+## Testing
+
+The regression suite lives in `e2e/` and uses [Playwright](https://playwright.dev).
+
+```bash
+make e2e                        # build the test stack, run everything
+cd e2e && npx playwright test   # re-run against a stack that's already up
+npx playwright test --ui        # step through tests in Playwright's UI
+npx playwright show-report      # open the HTML report of the last run
+```
+
+**It runs against its own stack.** `make e2e` starts a separate Compose
+project (`peerpilot-e2e`) on **https://localhost:8443** with its own
+containers, volumes and database, so it runs next to your dev stack and never
+touches dev data. `make e2e-down` removes it.
+
+**Every run starts from the same data.** Before the tests, the suite wipes the
+test database and loads the fixed dataset in `e2e/support/data.js`: one org,
+an Admin, a Bocal, four students, two classes, two assignments with eval
+sheets, and a submission waiting to be evaluated. It then signs each role in
+once and reuses that session, which keeps runs fast and well inside the login
+rate limit.
+
+**What it covers**
+
+| Suite | Checks |
+| ----- | ------ |
+| `tests/api/access-control.spec.js` | Anonymous callers are refused everywhere; students are refused on staff routes; identity comes from the token, not the request body; submission lists are scoped to the caller; enrolment is staff-only |
+| `tests/api/platform.spec.js` | Health, the login rate limit, removed routes stay removed |
+| `tests/journeys/auth.spec.js` | Sign in per role, wrong password, unverified account, invite-only registration with email verification, sign out |
+| `tests/journeys/student.spec.js` | Dashboard, classes, the full submission flow through to the passkey, profile editing |
+| `tests/journeys/evaluation.spec.js` | A student evaluates another group by passkey; the group leader replies; the final grade is computed |
+| `tests/journeys/bocal.spec.js` | Creating classes, assignments with eval sheets, and groups for students |
+| `tests/journeys/admin.spec.js` | Creating organisations, whitelisting and revoking registration invites |
+
+UI tests find elements by role, label or placeholder, the way a user sees the
+page, rather than by CSS class. Tests that change data check the database
+through `e2e/support/db.js` as well as the screen.
+
+**Adding a test:** use the seeded users and names from `e2e/support/data.js`,
+get IDs from `seeded()` rather than hardcoding them, and pick a session with
+`test.use({ storageState: sessionFile('alice') })`. Don't rely on data another
+test creates — each file should pass on its own.
+
+The test stack differs from dev in three settings, all in
+`src/docker-compose.e2e.yml`: emails are built but not sent
+(`EMAIL_TRANSPORT=json`), auth rate limits are scaled up because every request
+comes from one IP (`AUTH_RATE_LIMIT_SCALE`, ignored when
+`NODE_ENV=production`), and access tokens last long enough for a full run.
+
+CI runs the suite on every pull request (the `e2e` job) and attaches the
+Playwright report and traces when it fails.
 
 ---
 
@@ -1044,3 +1104,8 @@ Artificial Intelligence tools were used to understand unfamiliar frameworks, res
   external S3-compatible store with lifecycle and backup policies is a better
   fit.
 * **`make populateDB` is destructive** and intended for development only.
+* **Students still see an Enroll button.** Enrolment is staff-only, so on
+  *My classes → Browse classes* the button always fails with "Failed to
+  enroll". The page should hide it for students.
+* **A translation placeholder leaks** on *Browse classes*: available classes
+  show `{{threshold}}% threshold` instead of the value.
