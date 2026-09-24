@@ -31,11 +31,11 @@ const bocalGuard = () => {
 };
 
 const adminGuard = () => {
-  const auth = inject(AuthService);
+  const auth   = inject(AuthService);
   const router = inject(Router);
-  const role = auth.role();
-  if (role === 'Admin') return true;
-  return router.parseUrl('/dashboard');
+  // Wait for the session like bocalGuard does: on a fresh load (a refresh or a
+  // bookmarked /admin URL) the role is still null until /me answers.
+  return waitForInit(auth, () => auth.role() === 'Admin' ? true : router.parseUrl('/dashboard'));
 };
 
 // Restricts /:lang to supported language codes so it doesn't swallow unknown paths
