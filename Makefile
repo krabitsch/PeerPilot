@@ -21,6 +21,11 @@ check_env:
 		echo "$(YELLOW).env not found — generating...$(RESET)"; \
 		bash scripts/gen-env.sh --defaults && \
 		echo "$(GREEN).env created at $(ENV_FILE)$(RESET)"; \
+		if docker volume inspect src_postgres_data >/dev/null 2>&1; then \
+			echo "$(RED)Warning: an existing database volume was found. It still uses the$(RESET)"; \
+			echo "$(RED)password from the old .env, so the new one will be rejected.$(RESET)"; \
+			echo "$(RED)Run 'make fclean' to wipe it, or restore the old .env.$(RESET)"; \
+		fi; \
 	else \
 		echo "$(GREEN).env found.$(RESET)"; \
 	fi
@@ -84,10 +89,14 @@ down:
 	@echo "$(RED)Stopping containers...$(RESET)"
 	@docker compose -f $(COMPOSE_FILE) down
 
-clean: down
+# Removes this project's containers *and* its named volumes (database and MinIO
+# data). `docker volume prune` alone is not enough: since Docker 23 it only
+# removes anonymous volumes, and a surviving postgres volume keeps the password
+# it was initialised with, which no longer matches a freshly generated .env.
+clean:
 	@echo "$(RED)Removing all Docker resources...$(RESET)"
+	@docker compose -f $(COMPOSE_FILE) down -v --remove-orphans
 	@docker system prune -af
-	@docker volume prune -f
 
 fclean: clean
 	@echo "$(RED)Removing .env...$(RESET)"
