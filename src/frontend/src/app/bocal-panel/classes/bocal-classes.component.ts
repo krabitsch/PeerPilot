@@ -29,8 +29,10 @@ export interface BocalClass {
   name: string;
   description: string;
   created_at: string;
+  updated_at?: string;
   org_id: number;
   assignmentCount: number;
+  studentCount: number;
 }
 
 export interface EnrolledStudent {
@@ -71,9 +73,10 @@ export class BocalClassesComponent implements OnInit {
   // ── Data signals ───────────────────────────────────────────
   classes          = signal<BocalClass[]>([]);
   selectedClass    = signal<BocalClass | null>(null);
+  editingClass     = signal<BocalClass | null>(null);
   classAssignments = signal<AssignmentResponse[]>([]);
   classStudents    = signal<EnrolledStudent[]>([]);
-
+  
   // ── Groups (per-assignment, lazily loaded) ─────────────────
   expandedAssignment = signal<number | null>(null);
   assignmentGroups   = signal<Map<number, AssignmentGroup[]>>(new Map());
@@ -114,17 +117,38 @@ export class BocalClassesComponent implements OnInit {
     // Keep the selected class in sync with the `classId` query param so that
     // viewing/managing a class has its own URL (and the back button + breadcrumbs work).
     this.route.queryParams.subscribe(params => {
-      const classId = parseInt(params['classId'], 10);
-      if (!classId) { this.selectedClass.set(null); return; }
-      if (this.selectedClass()?.id === classId) return;
+    const classId = parseInt(params['classId'], 10);
+    const wantsAssignments = params['view'] === 'assignments';
 
-      const cached = this.classes().find(c => c.id === classId);
-      if (cached) this.openClass(cached);
-      else this.pendingClassId = classId;
+    // No concrete course selected yet.
+    if (!classId) {
+      this.selectedClass.set(null);
+
+      if (wantsAssignments) {
+      this.pendingAssignmentsEntry = true;
+      this.applyPendingAssignmentsEntry();
+      }
+
+      return;
+    }
+
+    this.pendingAssignmentsEntry = false;
+
+    if (this.selectedClass()?.id === classId) return;
+
+    const cached = this.classes().find(c => c.id === classId);
+
+    if (cached) {
+      this.openClass(cached);
+    } else {
+      this.pendingClassId = classId;
+    }
     });
   }
 
   private pendingClassId: number | null = null;
+
+  private pendingAssignmentsEntry = false;
 
   loadAll() {
     const orgId = this.orgId;
@@ -139,22 +163,42 @@ export class BocalClassesComponent implements OnInit {
           return;
         }
 
-        forkJoin(courses.map((c: any) => this.assignService.getAssignments(c.id))).subscribe({
-          next: (allAssignments: any) => {
-            this.classes.set(courses.map((c, i) => ({
-              id: c.id, name: c.name, description: c.description,
-              created_at: c.created_at, org_id: c.org_id,
-              assignmentCount: (allAssignments[i] as any[]).length,
-            })));
+        forkJoin(courses.map((c: any) => forkJoin({
+              assignments: this.assignService.getAssignments(c.id),
+              students: this.courseService.getClassStudents(c.id), }) )).subscribe({
+          next: (courseData) => {
+            this.classes.set(
+              courses.map((c, i) => ({
+                id: c.id,
+                name: c.name,
+                description: c.description,
+                created_at: c.created_at,
+                updated_at: c.updated_at,
+                org_id: c.org_id,
+                assignmentCount: courseData[i].assignments.length,
+                studentCount: courseData[i].students.length,
+              }))
+            );
             this.loading.hide();
             this.applyPendingClass();
+            this.applyPendingAssignmentsEntry?.();
           },
+
           error: () => {
-            this.classes.set(courses.map(c => ({ ...c, assignmentCount: 0 })));
+            this.classes.set(
+              courses.map(c => ({
+                ...c,
+                assignmentCount: 0,
+                studentCount: 0,
+              }))
+            );
+
             this.loading.hide();
             this.applyPendingClass();
+            this.applyPendingAssignmentsEntry?.();
           },
         });
+
       },
       error: () => this.loading.hide(),
     });
@@ -167,6 +211,25 @@ export class BocalClassesComponent implements OnInit {
     if (cls) this.openClass(cls);
   }
 
+  private applyPendingAssignmentsEntry() {
+    if (!this.pendingAssignmentsEntry) return;
+    if (this.classes().length === 0) return;
+
+    this.pendingAssignmentsEntry = false;
+
+    const firstCourse = this.classes()[0];
+
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: {
+        classId: firstCourse.id,
+        view: null,
+      },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
+  }  
+
   // ── Assignment viewing ─────────────────────────────────────
   /** Opens the (student-facing) assignment-detail page in a new tab so the bocal panel stays put. */
   viewAssignment(a: AssignmentResponse) {
@@ -177,15 +240,35 @@ export class BocalClassesComponent implements OnInit {
   }
 
   // ── Class selection ────────────────────────────────────────
+  openAssignments(c: BocalClass) {
+    this.router.navigate(['/bocal/classes'], {
+      queryParams: { classId: c.id }
+    });
+  }
+
+  showStudents(c: BocalClass) {
+    this.router.navigate(['/bocal/students'], {
+      queryParams: { classId: c.id }
+    });
+  }  
   /** Selects a class and gives it its own URL via the `classId` query param. */
   selectClass(c: BocalClass) {
     this.router.navigate([], {
       relativeTo: this.route,
-      queryParams: { classId: c.id },
+      queryParams: { classId: c.id, view: null, },
       queryParamsHandling: 'merge',
     });
   }
 
+  switchCourse(value: string) {
+    const classId = parseInt(value, 10);
+    if (!classId) return;
+    const course = this.classes().find(c => c.id === classId);
+    if (course) {
+      this.selectClass(course);
+    }
+  }
+  
   /** Loads a class's assignments and shows its detail view (does not touch the URL). */
   private openClass(c: BocalClass) {
     this.selectedClass.set(c);
@@ -207,7 +290,7 @@ export class BocalClassesComponent implements OnInit {
   backToClasses() {
     this.router.navigate([], {
       relativeTo: this.route,
-      queryParams: { classId: null },
+      queryParams: { classId: null, view: null, },
       queryParamsHandling: 'merge',
     });
   }
@@ -225,23 +308,28 @@ export class BocalClassesComponent implements OnInit {
   }
 
   // ── Edit class ─────────────────────────────────────────────
-  openEditClass() {
-    const cls = this.selectedClass();
-    if (!cls) return;
-    this.editClassName.set(cls.name);
-    this.editClassDesc.set(cls.description ?? '');
+  openEditClass(cls?: BocalClass) {
+    const course = cls ?? this.selectedClass();
+    if (!course) return;
+
+    this.editingClass.set(course);
+
+    this.editClassName.set(course.name);
+    this.editClassDesc.set(course.description ?? '');
     this.editClassThreshold.set(80);
+
     this.editClassError.set(null);
     this.showEditClass.set(true);
   }
 
   closeEditClassModal() {
     this.showEditClass.set(false);
+    this.editingClass.set(null);
     this.editClassError.set(null);
-  }
+  }  
 
   onSaveClassEdit() {
-    const cls  = this.selectedClass();
+    const cls  = this.editingClass();
     const user = this.auth.user();
     const name = this.editClassName().trim();
     const desc = this.editClassDesc().trim();
@@ -285,6 +373,39 @@ export class BocalClassesComponent implements OnInit {
   const count = c.assignmentCount;
   const key = count === 1 ? 'class_list_assignment_singular' : 'class_list_assignment_plural';
   return this.translate.instant(key, { count });
+  }
+
+
+  // ── Delete currently edited course ─────────────────────────
+  deleteEditingClass() {
+    const cls = this.editingClass();
+    if (!cls) return;
+
+    const firstConfirm = confirm(
+      `Are you sure you want to delete "${cls.name}"?\n\n` +
+      `This will permanently delete the course and its associated data.` );
+    if (!firstConfirm) return;
+
+    const finalConfirm = confirm(
+      `This action is permanent and irreversible.\n\n` +
+      `Delete "${cls.name}"?` );
+    if (!finalConfirm) return;
+
+    this.loading.show();
+    this.courseService.deleteClass(cls.id).subscribe({
+      next: () => {
+        this.classes.update(list =>
+          list.filter(c => c.id !== cls.id) );
+        if (this.selectedClass()?.id === cls.id) {
+          this.backToClasses();
+        }
+        this.closeEditClassModal();
+        this.loading.hide();
+      },
+      error: () => {
+        this.loading.hide();
+      },
+    });
   }
 
   // ── Delete class ───────────────────────────────────────────
@@ -616,6 +737,7 @@ private generatedGroupName(index: number): string { return `group${index + 1}`; 
   readonly errorStyle    = { fontSize: '0.8125rem', color: DS.colors.red, background: DS.colors.redSubtle, border: `1px solid ${DS.colors.redBorder}`, borderRadius: DS.radius.md, padding: `${DS.space[2]} ${DS.space[3]}` };
   readonly crumbStyle    = { fontSize: '0.8125rem', color: DS.colors.violet, cursor: 'pointer', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '4px' };
   readonly inputStyle    = { width: '100%', boxSizing: 'border-box' as const, padding: '9px 12px', background: DS.colors.bg, border: `1px solid ${DS.colors.border}`, borderRadius: DS.radius.md, color: DS.colors.fg1, fontFamily: DS.fonts.body, fontSize: '0.875rem', outline: 'none' };
+  readonly courseSelectStyle = { ...this.inputStyle, width: '420px', maxWidth: '100%', cursor: 'pointer', };
   readonly textAreaStyle = { ...this.inputStyle, minHeight: '80px', resize: 'vertical' as const, fontFamily: DS.fonts.body };
   readonly fieldLabelStyle = { fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.06em', textTransform: 'uppercase' as const, color: DS.colors.fg3, marginBottom: '4px', display: 'block' };
 }

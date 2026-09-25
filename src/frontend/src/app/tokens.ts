@@ -169,6 +169,7 @@ export interface Course {
   name: string;
   description: string;
   created_at: string;
+  updated_at?: string;
   pass_threshold: number;
   created_by: number;
   org_id: number;

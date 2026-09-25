@@ -125,6 +125,7 @@ model Class {
   description String
 
   created_at     DateTime     @default(now())
+  updated_at     DateTime     @default(now()) @updatedAt
   assignments    Assignment[]
   enrollments    Enrollment[]
   pass_threshold Float        @default(100.0)
