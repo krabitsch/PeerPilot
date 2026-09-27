@@ -11,6 +11,7 @@ import { CourseService } from '../../core/services/course-service/course-service
 import { AssignmentService, AssignmentResponse } from '../../core/services/course-service/Assignment.service';
 import { EnrollService } from '../../core/services/enroll-service/enroll-service';
 import { LoadingService } from '../../core/services/loading-service/loading.service';
+import { ActivatedRoute } from '@angular/router';
 
 export interface OrgMember {
   id: number;
@@ -42,6 +43,7 @@ export class BocalStudentsComponent implements OnInit {
   private enrollService = inject(EnrollService);
   private loading       = inject(LoadingService);
   private translate     = inject(TranslateService);
+  private route         = inject(ActivatedRoute);
 
   // ── Data signals ───────────────────────────────────────────
   members = signal<OrgMember[]>([]);
@@ -82,6 +84,13 @@ export class BocalStudentsComponent implements OnInit {
   ngOnInit() {
     this.loadMembers();
     this.loadClasses();
+    this.route.queryParams.subscribe(params => {
+    const classId = parseInt(params['classId'], 10);
+
+    if (!classId) return;
+
+    this.onClassFilterChanged(String(classId));
+    });
   }
 
   loadMembers() {

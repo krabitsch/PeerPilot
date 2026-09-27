@@ -120,28 +120,29 @@ export class BocalClassesComponent implements OnInit {
     const classId = parseInt(params['classId'], 10);
     const wantsAssignments = params['view'] === 'assignments';
 
-    // No concrete course selected yet.
-    if (!classId) {
-      this.selectedClass.set(null);
+    // Explicit classId always wins.
+    if (classId) {
+        this.pendingAssignmentsEntry = false;
 
-      if (wantsAssignments) {
-      this.pendingAssignmentsEntry = true;
-      this.applyPendingAssignmentsEntry();
-      }
+        if (this.selectedClass()?.id === classId) return;
 
-      return;
+        const cached = this.classes().find(c => c.id === classId);
+
+        if (cached) {
+        this.openClass(cached);
+        } else {
+        this.pendingClassId = classId;
+        }
+
+        return;
     }
 
-    this.pendingAssignmentsEntry = false;
+    // No explicit class selected.
+    this.selectedClass.set(null);
 
-    if (this.selectedClass()?.id === classId) return;
-
-    const cached = this.classes().find(c => c.id === classId);
-
-    if (cached) {
-      this.openClass(cached);
-    } else {
-      this.pendingClassId = classId;
+    if (wantsAssignments) {
+        this.pendingAssignmentsEntry = true;
+        this.applyPendingAssignmentsEntry();
     }
     });
   }
@@ -250,7 +251,8 @@ export class BocalClassesComponent implements OnInit {
     this.router.navigate(['/bocal/students'], {
       queryParams: { classId: c.id }
     });
-  }  
+  }
+
   /** Selects a class and gives it its own URL via the `classId` query param. */
   selectClass(c: BocalClass) {
     this.router.navigate([], {
@@ -272,11 +274,54 @@ export class BocalClassesComponent implements OnInit {
   /** Loads a class's assignments and shows its detail view (does not touch the URL). */
   private openClass(c: BocalClass) {
     this.selectedClass.set(c);
-    this.loadClassStudents(c.id);
+
+    // Prevent group data from the previously selected course
+    // from remaining visible while the new course loads.
+    this.assignmentGroups.set(new Map());
+
     this.loading.show();
-    this.assignService.getAssignments(c.id).subscribe({
-      next: (list) => { this.classAssignments.set(list); this.loading.hide(); },
-      error: ()     =>   this.loading.hide(),
+
+    forkJoin({
+      students: this.courseService.getClassStudents(c.id),
+      assignments: this.assignService.getAssignments(c.id),
+    }).subscribe({
+      next: ({ students, assignments }) => {
+        this.classStudents.set(students);
+        this.classAssignments.set(assignments);
+
+        if (assignments.length === 0) {
+          this.loading.hide();
+          return;
+        }
+
+        // We need the groups immediately for the summary counters.
+        forkJoin(
+          assignments.map(a =>
+            this.groupService.getGroupsForAssignment(a.id).pipe(
+              catchError(() => of([] as AssignmentGroup[]))
+            )
+          )
+        ).subscribe({
+          next: (allGroups) => {
+            const groupMap = new Map<number, AssignmentGroup[]>();
+
+            assignments.forEach((a, i) => {
+              groupMap.set(a.id, allGroups[i] ?? []);
+            });
+
+            this.assignmentGroups.set(groupMap);
+            this.loading.hide();
+          },
+
+          error: () => {
+            this.loading.hide();
+          },
+        });
+      },
+
+      error: () => {
+        this.loading.hide();
+      },
     });
   }
 
@@ -368,6 +413,12 @@ export class BocalClassesComponent implements OnInit {
     this.router.navigate(['/bocal/assignment-create'], { queryParams: { assId: a.id } });
   }
 
+  manageEvaluationPairings(a: AssignmentResponse) {
+    this.router.navigate(['/eval-assignments'], {
+      queryParams: { assignmentId: a.id }
+    });
+  }
+
   // --Assignment count label with proper pluralization──
   assignmentCountLabel(c: { assignmentCount: number }): string {
   const count = c.assignmentCount;
@@ -408,20 +459,6 @@ export class BocalClassesComponent implements OnInit {
     });
   }
 
-  // ── Delete class ───────────────────────────────────────────
-  deleteClass(c: BocalClass) {
-    if (!confirm(this.translate.instant('confirm_delete_class', { name: c.name }))) return;
-
-    this.loading.show();
-    this.courseService.deleteClass(c.id).subscribe({
-      next: () => {
-        this.classes.update(list => list.filter(x => x.id !== c.id));
-        if (this.selectedClass()?.id === c.id) this.backToClasses();
-        this.loading.hide();
-      },
-      error: () => this.loading.hide(),
-    });
-  }
 
   // ── Delete assignment ──────────────────────────────────────
   deleteAssignment(a: AssignmentResponse) {
@@ -466,6 +503,20 @@ export class BocalClassesComponent implements OnInit {
   groupsFor(a: AssignmentResponse): AssignmentGroup[] {
     return this.assignmentGroups().get(a.id) ?? [];
   }
+
+  assignmentStudentCount(): number {
+    return this.classStudents()
+      .filter(student => student.role === 'Student')
+      .length;
+  }
+
+  groupCount(a: AssignmentResponse): number {
+    return this.groupsFor(a).length;
+  }
+
+  unallocatedStudentCount(a: AssignmentResponse): number {
+    return this.ungroupedStudentsFor(a).length;
+  }  
 
   removeGroup(a: AssignmentResponse, g: AssignmentGroup) {
     if (!confirm(this.translate.instant('confirm_remove_group', { name: g.name }))) return;
