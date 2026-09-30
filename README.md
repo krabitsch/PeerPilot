@@ -624,6 +624,8 @@ The seed password for all generated users is printed in green at the end of the 
 | `make migrate_prod`   | Apply pending migrations **inside the stack** (prod)     |
 | `make seedAdmin`      | Ensure the admin account exists, from the host (dev)     |
 | `make seedAdmin_prod` | Ensure the admin account exists, in the stack (prod)     |
+| `make cert`           | Obtain a Let's Encrypt cert (`DOMAIN=… CERTBOT_EMAIL=…`)  |
+| `make cert-renew`     | Renew certificates near expiry and reload nginx          |
 | `make studio`         | Open Prisma Studio at http://localhost:5555              |
 | `make generateUsers`  | Create additional users (`ARGS="--count 10 --org 1"`)    |
 | `make resetDB`        | Wipe the database and re-apply migrations                |
@@ -771,7 +773,7 @@ Five containers. Only nginx is published to the host.
 ```text
 Internet
     │
- nginx :80 / :443            ← the only published port (self-signed TLS in dev)
+ nginx :80 / :443            ← the only published port (self-signed in dev, real cert in prod)
     │                          :80 redirects to :443
     ├── /                    → Angular frontend   (frontend-network)
     ├── /api/                → api                (backend-network)
@@ -801,6 +803,31 @@ In development `src/docker-compose.dev.yml` additionally publishes PostgreSQL
 (`5433`), the MinIO API and console (`9000`/`9001`) and the API (`3000`) so
 local tooling can reach them. That overlay must never be applied to a deployed
 stack.
+
+### TLS certificates
+
+nginx loads its certificate from `/etc/nginx/ssl/{fullchain,privkey}.pem`, a
+mounted volume rather than the image. Its entrypoint (`nginx/entrypoint.sh`)
+generates a self-signed pair there **only if none is mounted**, so development
+works out of the box (expect a browser warning) and production uses a real
+certificate placed in the same volume.
+
+To get a real certificate with Let's Encrypt, once the stack is running
+(`make prod`) on a host whose public domain resolves to it, with ports 80 and
+443 reachable from the internet:
+
+```bash
+make cert DOMAIN=peerpilot.example.com CERTBOT_EMAIL=admin@peerpilot.example.com
+```
+
+This runs certbot, which answers the HTTP-01 challenge through nginx's
+`/.well-known/acme-challenge/` path, installs the issued certificate into the
+volume nginx serves, and reloads nginx. Then set `BASE_URL=https://<domain>/`
+in `src/.env`. Renew with `make cert-renew` (safe to run daily from cron;
+Let's Encrypt only renews within 30 days of expiry).
+
+If TLS is instead terminated upstream (a managed load balancer, Cloudflare,
+Traefik…), skip certbot and point that proxy at the stack.
 
 ---
 
@@ -1096,18 +1123,10 @@ Artificial Intelligence tools were used to understand unfamiliar frameworks, res
   status in the JSON body (`{ "ok": false, "code": 404 }`) rather than in the
   HTTP status line. Clients must read `code`. Changing this requires a matching
   change to the Angular 401-refresh interceptor, which keys off `err.status`.
-* **`/api/user/login` and `/api/user/register` still exist** and duplicate the
-  `/api/auth` equivalents; `loginUser` has its password comparison commented
-  out. They are behind authentication and restricted to `Admin`, so they are
-  not reachable by an attacker, but they should be deleted.
-* **The `user` table has two write paths** — raw SQL in the auth module and the
-  Prisma client everywhere else.
 * **`GET /api/user/:id` returns an email address** to any signed-in user, so
   the directory is enumerable. This is accepted: email addresses are not
   treated as sensitive in this deployment. The bulk listing at `GET /api/user/`
   does not include them.
-* **TLS uses a self-signed certificate** generated at image build time. A real
-  deployment needs a real certificate and a real server name.
 * **MinIO is run as a container with a local volume.** For production, an
   external S3-compatible store with lifecycle and backup policies is a better
   fit.

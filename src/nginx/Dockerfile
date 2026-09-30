@@ -1,10 +1,9 @@
 FROM nginx:alpine
 
-# Self-signed TLS certificate for local/dev HTTPS termination at the gateway.
-# Generated at build time since this stack has no real domain name.
-RUN apk add --no-cache openssl && \
-    mkdir -p /etc/nginx/ssl && \
-    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-        -keyout /etc/nginx/ssl/selfsigned.key \
-        -out /etc/nginx/ssl/selfsigned.crt \
-        -subj "/C=FR/ST=IDF/L=Paris/O=42/OU=transcendence/CN=localhost"
+# openssl is used by the entrypoint to generate a self-signed fallback cert
+# when no real certificate is mounted. Real certs are provided at runtime
+# (see nginx/entrypoint.sh and `make cert`), not baked into the image.
+RUN apk add --no-cache openssl
+
+COPY entrypoint.sh /docker-entrypoint.d/40-ensure-cert.sh
+RUN chmod +x /docker-entrypoint.d/40-ensure-cert.sh

@@ -10,6 +10,11 @@ services:
 
     volumes:
       - ./conf.d:/etc/nginx/conf.d
+      # Certificates nginx serves. A real cert lands here via `make cert`; with
+      # nothing mounted the entrypoint writes a self-signed pair for dev.
+      - nginx_certs:/etc/nginx/ssl
+      # Webroot for the Let's Encrypt HTTP-01 challenge, shared with certbot.
+      - certbot_webroot:/var/www/certbot
 
     networks:
       - backend-network
@@ -23,9 +28,27 @@ services:
       - api
       - frontend
 
+  # On-demand only (profile "certbot"): does not start with `make prod`/`up`.
+  # `make cert` runs it to obtain a Let's Encrypt certificate, then copies the
+  # result into nginx_certs and reloads nginx. Needs a public domain pointed at
+  # this host and ports 80/443 reachable from the internet.
+  certbot:
+    image: certbot/certbot
+    container_name: certbot
+    profiles: ["certbot"]
+    volumes:
+      - certbot_conf:/etc/letsencrypt
+      - certbot_webroot:/var/www/certbot
+      - nginx_certs:/nginx-certs
+
 networks:
 
   backend-network:
 
-  
+
   frontend-network:
+
+volumes:
+  nginx_certs:
+  certbot_webroot:
+  certbot_conf:

@@ -36,18 +36,21 @@ Legend: ✅ done · 🚧 in progress · 🔴 blocker · 🟠 should-do · 🟡 h
 
 ## 🔴 Blockers — the app is not correct in prod without these
 
-### Real TLS  🚧 (in progress)
-- Was: a self-signed cert baked into the nginx image at build time,
-  `CN=localhost`.
-- Needs: a real domain, a real certificate, and nginx + `BASE_URL` pointing at
-  that domain.
-- Plan: nginx reads its cert from a mounted location (real cert in prod,
-  self-signed fallback in dev), serves the ACME HTTP-01 challenge, and a
-  `certbot` path issues/renews Let's Encrypt certificates once a public domain
-  is pointed at the host.
-- **Manual step (needs a domain + public host):** point DNS at the server, set
-  `DOMAIN` and `CERTBOT_EMAIL` in `.env`, run the cert issuance, and set
-  `BASE_URL=https://<domain>/`.
+### Real TLS  ✅ mechanism done — one manual step remains (needs a domain)
+- Done: nginx no longer bakes a cert into the image. It reads
+  `/etc/nginx/ssl/{fullchain,privkey}.pem` from a mounted volume; the
+  entrypoint generates a self-signed pair there only if none is mounted (dev
+  keeps working). nginx serves the ACME HTTP-01 challenge over HTTP and
+  redirects everything else to HTTPS. `make cert` / `make cert-renew` issue and
+  renew Let's Encrypt certs via an on-demand certbot service and reload nginx.
+- Verified locally: self-signed fallback, HTTPS, ACME challenge path, a
+  dropped-in real cert being served and surviving a restart, and the full e2e
+  suite green on the rebuilt stack.
+- **Remaining manual step (needs a public domain + host):** point DNS at the
+  server with ports 80/443 open, run
+  `make cert DOMAIN=<domain> CERTBOT_EMAIL=<email>`, then set
+  `BASE_URL=https://<domain>/` in `src/.env`. `make cert` itself is untested
+  against the live Let's Encrypt service (no domain yet).
 
 ### Real email
 - `src/api/src/modules/auth/utils.js` **hardcodes Mailtrap sandbox credentials
@@ -114,8 +117,5 @@ Legend: ✅ done · 🚧 in progress · 🔴 blocker · 🟠 should-do · 🟡 h
 
 ## Notes
 
-- The README's *Known Limitations* still lists two items that were already
-  fixed in Phase 2 (`/api/user/login`+`/register` deleted; single user-table
-  write path). Clean those up.
 - `GET /api/user/:id` returning an email is **accepted** — email is not treated
   as sensitive here. Not a todo.

@@ -13,7 +13,7 @@ YELLOW = \033[0;33m
 BLUE   = \033[0;34m
 RESET  = \033[0m
 
-.PHONY: setup build up down clean restart run re dev prod check_env studio populateDB resetDB genPrismaClient seedAdmin seedAdmin_prod migrate migrate_prod generateUsers e2e e2e-up e2e-seed e2e-down e2e-install e2e-summary e2e-report
+.PHONY: setup build up down clean restart run re dev prod check_env studio populateDB resetDB genPrismaClient seedAdmin seedAdmin_prod migrate migrate_prod generateUsers e2e e2e-up e2e-seed e2e-down e2e-install e2e-summary e2e-report cert cert-renew
 
 setup: check_env
 	@echo "$(GREEN)Setup complete.$(RESET)"
@@ -113,6 +113,35 @@ fclean: clean
 
 print_url:
 	@echo "$(GREEN)https://localhost$(RESET)"
+
+# ── Real TLS (Let's Encrypt) ─────────────────────────────────
+# Obtain a production certificate and install it for nginx. Requires a public
+# domain pointed at this host with ports 80 and 443 reachable from the
+# internet, and the stack already running (`make prod`).
+#
+#   make cert DOMAIN=peerpilot.example.com CERTBOT_EMAIL=admin@example.com
+#
+# certbot answers the HTTP-01 challenge through nginx's /.well-known/ path,
+# then the deploy hook copies the issued cert into the volume nginx serves and
+# nginx is reloaded. Afterwards set BASE_URL=https://$(DOMAIN)/ in src/.env.
+cert:
+	@if [ -z "$(DOMAIN)" ] || [ -z "$(CERTBOT_EMAIL)" ]; then \
+		echo "$(RED)Usage: make cert DOMAIN=your.domain CERTBOT_EMAIL=you@example.com$(RESET)"; exit 1; fi
+	@echo "$(BLUE)Requesting a certificate for $(DOMAIN)...$(RESET)"
+	@docker compose -f $(COMPOSE_FILE) run --rm certbot certonly \
+		--webroot -w /var/www/certbot \
+		-d $(DOMAIN) \
+		--email $(CERTBOT_EMAIL) --agree-tos --no-eff-email --non-interactive \
+		--deploy-hook 'cp "$$RENEWED_LINEAGE/fullchain.pem" /nginx-certs/fullchain.pem && cp "$$RENEWED_LINEAGE/privkey.pem" /nginx-certs/privkey.pem'
+	@docker compose -f $(COMPOSE_FILE) exec nginx nginx -s reload
+	@echo "$(GREEN)Certificate installed for $(DOMAIN). Set BASE_URL=https://$(DOMAIN)/ in src/.env.$(RESET)"
+
+# Renew any certificate near expiry and reload nginx. Safe to run on a schedule
+# (e.g. a daily cron); Let's Encrypt renews only within 30 days of expiry.
+cert-renew:
+	@docker compose -f $(COMPOSE_FILE) run --rm certbot renew \
+		--deploy-hook 'cp "$$RENEWED_LINEAGE/fullchain.pem" /nginx-certs/fullchain.pem && cp "$$RENEWED_LINEAGE/privkey.pem" /nginx-certs/privkey.pem'
+	@docker compose -f $(COMPOSE_FILE) exec nginx nginx -s reload
 
 status:
 	@docker compose -f $(COMPOSE_FILE) ps
