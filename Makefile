@@ -13,7 +13,7 @@ YELLOW = \033[0;33m
 BLUE   = \033[0;34m
 RESET  = \033[0m
 
-.PHONY: setup build up down clean restart run re dev prod check_env studio populateDB resetDB genPrismaClient seedAdmin seedAdmin_prod migrate migrate_prod generateUsers e2e e2e-up e2e-seed e2e-down e2e-install
+.PHONY: setup build up down clean restart run re dev prod check_env studio populateDB resetDB genPrismaClient seedAdmin seedAdmin_prod migrate migrate_prod generateUsers e2e e2e-up e2e-seed e2e-down e2e-install e2e-summary e2e-report
 
 setup: check_env
 	@echo "$(GREEN)Setup complete.$(RESET)"
@@ -180,6 +180,14 @@ e2e-install:
 
 e2e-seed:
 	@cd e2e && node support/seed.js
+
+# Compact terminal summary of the last run (pass/fail counts + any failures).
+e2e-summary:
+	@cd e2e && node support/summary.js
+
+# Open the detailed HTML report of the last run (serves it on localhost:9323).
+e2e-report:
+	@cd e2e && npx playwright show-report
 
 e2e-down:
 	@echo "$(RED)Removing the e2e stack and its data...$(RESET)"

@@ -633,6 +633,8 @@ The seed password for all generated users is printed in green at the end of the 
 | `make e2e`            | Start the isolated test stack and run the Playwright suite |
 | `make e2e-up`         | Start (and migrate) the test stack without running tests |
 | `make e2e-seed`       | Reset the test database to the fixed dataset             |
+| `make e2e-summary`    | Print a terminal summary of the last run (pass/fail counts) |
+| `make e2e-report`     | Open the detailed HTML report of the last run            |
 | `make e2e-down`       | Remove the test stack and its data                       |
 
 > **Why two migrate targets.** In dev, `docker-compose.dev.yml` publishes PostgreSQL on `DB_LOCAL_PORT` (5433 by default) and the host-side Prisma CLI connects to it. In production nothing but nginx is published, so `migrate_prod` and `seedAdmin_prod` run the same work inside the `api` container, which ships the schema and the migration history in its image.
@@ -645,10 +647,16 @@ The regression suite lives in `e2e/` and uses [Playwright](https://playwright.de
 
 ```bash
 make e2e                        # build the test stack, run everything
+make e2e-summary                # terminal summary of the last run (pass/fail counts)
+make e2e-report                 # open the detailed HTML report of the last run
 cd e2e && npx playwright test   # re-run against a stack that's already up
 npx playwright test --ui        # step through tests in Playwright's UI
-npx playwright show-report      # open the HTML report of the last run
 ```
+
+Every run also prints its own summary line as it finishes (the `list`
+reporter); `make e2e-summary` shows that same summary again afterwards without
+re-running, and `make e2e-report` opens the clickable report with traces and
+screenshots for any failure.
 
 **It runs against its own stack.** `make e2e` starts a separate Compose
 project (`peerpilot-e2e`) on **https://localhost:8443** with its own

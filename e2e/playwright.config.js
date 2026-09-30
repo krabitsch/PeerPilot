@@ -14,9 +14,12 @@ module.exports = defineConfig({
   retries: process.env.CI ? 1 : 0,
   forbidOnly: !!process.env.CI,
 
+  // `list` prints progress + a summary line as tests run; `html` writes the
+  // detailed report (open it with `make e2e-report`); `json` writes a
+  // machine-readable result `make e2e-summary` turns into a terminal summary.
   reporter: process.env.CI
-    ? [['list'], ['html', { open: 'never' }], ['github']]
-    : [['list'], ['html', { open: 'never' }]],
+    ? [['list'], ['html', { open: 'never' }], ['json', { outputFile: 'test-results/results.json' }], ['github']]
+    : [['list'], ['html', { open: 'never' }], ['json', { outputFile: 'test-results/results.json' }]],
 
   use: {
     baseURL: BASE_URL,
