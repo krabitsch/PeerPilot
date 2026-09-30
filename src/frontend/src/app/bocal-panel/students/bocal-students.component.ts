@@ -89,6 +89,9 @@ export class BocalStudentsComponent implements OnInit {
 
     if (!classId) return;
 
+    // If we arrive via "Show students" for a course, this page is specifically showing students.
+    this.roleFilter.set('Student');
+
     this.onClassFilterChanged(String(classId));
     });
   }
@@ -205,4 +208,6 @@ export class BocalStudentsComponent implements OnInit {
   readonly h1Style         = { fontFamily: DS.fonts.display, fontSize: '1.75rem', fontWeight: '700', letterSpacing: '-0.03em', color: DS.colors.fg1 };
   readonly inputStyle      = { width: '100%', boxSizing: 'border-box' as const, padding: '9px 12px', background: DS.colors.bg, border: `1px solid ${DS.colors.border}`, borderRadius: DS.radius.md, color: DS.colors.fg1, fontFamily: DS.fonts.body, fontSize: '0.875rem', outline: 'none' };
   readonly filterBarStyle  = { display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap' as const };
+  readonly filterFieldStyle = { display: 'flex', flexDirection: 'column' as const, gap: '5px', };
+  readonly filterLabelStyle = { fontSize: '0.6875rem', fontWeight: '600', letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: DS.colors.fg3, };  
 }

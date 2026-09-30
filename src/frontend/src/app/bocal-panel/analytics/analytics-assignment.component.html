@@ -1,0 +1,358 @@
+<div class="analytics-page">
+
+  <div class="overline">BOCAL PANEL</div>
+
+  <button
+    type="button"
+    class="analytics-back"
+    (click)="backToAnalytics()">
+    ← Analytics
+  </button>
+
+  <h1>Assignment analytics</h1>
+
+  <p class="section-description">
+    {{ courseName() }}
+  </p>
+
+
+  <!-- Assignment selection -->
+
+  @if (assignments().length > 0) {
+
+    <section class="course-section">
+
+      <label
+        class="section-label"
+        for="analytics-assignment">
+
+        SELECT ASSIGNMENT
+
+      </label>
+
+      <select
+        id="analytics-assignment"
+        class="course-select"
+        [value]="assignmentId() ?? ''"
+        (change)="onAssignmentChanged($any($event.target).value)"
+      >
+
+        @for (a of assignments(); track a.id) {
+
+          <option
+            [value]="a.id"
+            [selected]="a.id === assignmentId()">
+
+            {{ a.name }}
+
+          </option>
+
+        }
+
+      </select>
+
+    </section>
+
+  }
+
+
+  @if (error()) {
+
+    <div class="error-message">
+      {{ error() }}
+    </div>
+
+  }
+
+
+  @if (loading()) {
+
+    <p class="muted">
+      Loading evaluation progress...
+    </p>
+
+  }
+
+
+  <!-- Assignment statistics -->
+
+  @if (stats(); as s) {
+
+    <section class="assignment-statistics">
+
+      <h2>{{ selectedAssignmentName() }}</h2>
+
+      <div class="summary-grid">
+
+        <div class="summary-card">
+          <div class="summary-number">
+            {{ s.students }}
+          </div>
+          <div class="summary-label">
+            Students
+          </div>
+        </div>
+
+        <div class="summary-card">
+          <div class="summary-number">
+            {{ s.groups }}
+          </div>
+          <div class="summary-label">
+            Groups
+          </div>
+        </div>
+
+        <div class="summary-card">
+          <div class="summary-number">
+            {{ s.pairings }}
+          </div>
+          <div class="summary-label">
+            Active pairings
+          </div>
+        </div>
+
+        <div class="summary-card">
+          <div class="summary-number">
+            {{ s.groupsMissingPairings }}
+          </div>
+          <div class="summary-label">
+            Groups missing pairings
+          </div>
+        </div>
+
+        <div class="summary-card">
+          <div class="summary-number">
+            {{ s.unallocatedStudents }}
+          </div>
+          <div class="summary-label">
+            Unallocated students
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- Student progress table -->
+
+    <section class="student-section">
+
+      <div class="student-section-header">
+
+        <div>
+          <h2>Student evaluation progress</h2>
+
+          <p class="section-description">
+            {{ s.students }} students enrolled
+            · {{ rounds().length }} displayed rounds
+          </p>
+        </div>
+
+
+        <div class="student-filter">
+
+          <label
+            class="section-label"
+            for="analytics-student-filter">
+
+            FILTER STUDENTS
+
+          </label>
+
+          <select
+            id="analytics-student-filter"
+            class="course-select"
+            [value]="filter()"
+            (change)="onFilterChanged($any($event.target).value)"
+          >
+
+            <option value="All">All</option>
+            <option value="Incomplete">Incomplete</option>
+            <option value="Unallocated">Unallocated</option>
+
+          </select>
+
+        </div>
+
+      </div>
+
+
+      <div class="student-table-container">
+
+        <table class="progress-table">
+
+          <thead>
+
+            <!-- First header row -->
+
+            <tr>
+
+              <th rowspan="2" scope="col">
+                Student
+              </th>
+
+              <th rowspan="2" scope="col">
+                Group
+              </th>
+
+              <th
+                [attr.colspan]="rounds().length"
+                scope="colgroup">
+
+                As evaluee
+
+              </th>
+
+              <th
+                [attr.colspan]="rounds().length"
+                scope="colgroup">
+
+                As evaluator
+
+              </th>
+
+            </tr>
+
+
+            <!-- Second header row -->
+
+            <tr>
+
+              @for (round of rounds(); track round) {
+
+                <th scope="col">
+                  Round {{ round }}
+                </th>
+
+              }
+
+              @for (round of rounds(); track round) {
+
+                <th scope="col">
+                  Round {{ round }}
+                </th>
+
+              }
+
+            </tr>
+
+          </thead>
+
+
+          <tbody>
+
+            @for (student of filteredStudents(); track student.id) {
+
+              <tr>
+
+                <td class="student-name">
+                  <button
+                    type="button"
+                    class="student-link"
+                    (click)="openStudentAnalytics(student.id)">
+                    {{ student.name }}
+                  </button>
+                </td>
+
+                <td class="student-group">
+                  {{ student.groupName }}
+                </td>
+
+
+                <!-- Evaluations received by their group -->
+
+                @for (cell of student.received; track $index) {
+
+                  <td class="progress-cell">
+
+                    @if (cell.kind === 'complete') {
+                      <span class="complete" title="Completed">
+                        ✓
+                      </span>
+                    } @else if (cell.kind === 'pending') {
+                      <span
+                        class="status-clock"
+                        title="Pending"
+                        aria-label="Pending">
+                      </span>
+                    } @else {
+                      <span class="not-assigned" title="Not assigned">
+                        —
+                      </span>
+                    }
+
+                  </td>
+
+                }
+
+
+                <!-- Evaluations performed by this student -->
+
+                @for (cell of student.evaluator; track $index) {
+
+                  <td class="progress-cell">
+
+                    @if (cell.kind === 'complete') {
+                      <span class="complete" title="Completed">
+                        ✓
+                      </span>
+                    } @else if (cell.kind === 'pending') {
+                      <span
+                        class="status-clock"
+                        title="Pending"
+                        aria-label="Pending">
+                      </span>
+                    } @else {
+                      <span class="not-assigned" title="Not assigned">
+                        —
+                      </span>
+                    }
+
+                  </td>
+
+                }
+
+              </tr>
+
+            } @empty {
+
+              <tr>
+
+                <td
+                  [attr.colspan]="2 + 2 * rounds().length"
+                  class="empty-table">
+
+                  No students match the selected filter.
+
+                </td>
+
+              </tr>
+
+            }
+
+          </tbody>
+
+        </table>
+
+      </div>
+
+
+      <div class="table-legend">
+
+        <span class="complete">✓</span>
+        Completed
+
+        <span class="status-clock"></span>
+        Pending
+
+        <span class="not-assigned">—</span>
+        Not assigned
+
+      </div>
+
+    </section>
+
+  }
+
+</div>

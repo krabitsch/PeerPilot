@@ -1,0 +1,177 @@
+<div class="analytics-page">
+
+  <div class="overline">BOCAL PANEL</div>
+
+  <h1>Analytics</h1>
+
+  <!-- Course selection -->
+  <section class="course-section">
+
+    <label class="section-label" for="analytics-course">
+      COURSE
+    </label>
+
+    @if (loadingCourses()) {
+
+      <p class="muted">Loading courses...</p>
+
+    } @else if (courses().length > 0) {
+
+      <select
+        id="analytics-course"
+        class="course-select"
+        [value]="selectedCourseId() ?? ''"
+        (change)="onCourseChanged($any($event.target).value)"
+      >
+        @for (c of courses(); track c.id) {
+          <option
+            [value]="c.id"
+            [selected]="c.id === selectedCourseId()"
+          >
+            {{ c.name }}
+          </option>
+        }
+      </select>
+
+    } @else {
+
+      <p class="muted">No courses available.</p>
+
+    }
+
+  </section>
+
+
+  @if (error()) {
+    <div class="error-message">
+      {{ error() }}
+    </div>
+  }
+
+
+  <!-- Assignment overview -->
+  @if (selectedCourseId() !== null) {
+
+    <section class="assignments-section">
+
+      <h2>Assignments</h2>
+
+      <p class="section-description">
+        Overview of peer-evaluation progress
+      </p>
+
+
+      @if (loadingAssignments()) {
+
+        <p class="muted">Loading assignment progress...</p>
+
+      } @else if (cards().length === 0 && !error()) {
+
+        <div class="empty-state">
+          No assignments available for this course.
+        </div>
+
+      } @else {
+
+        <div class="assignment-grid">
+
+          @for (card of cards(); track card.id) {
+
+            <article class="assignment-card">
+
+              <div class="assignment-title">
+                {{ card.name }}
+              </div>
+
+              <div class="assignment-meta">
+
+                @if (card.groupCount !== null) {
+                  {{ card.groupCount }}
+                  {{ card.groupCount === 1 ? 'group' : 'groups' }}
+                } @else {
+                  Groups unavailable
+                }
+
+                · {{ card.requiredEvals }} required evaluations
+
+              </div>
+
+
+              @if (card.dataError) {
+
+                <div class="error-message">
+                  Some progress data could not be loaded.
+                </div>
+
+              } @else {
+
+                <div class="rounds">
+
+                  @for (r of card.rounds; track r.round) {
+
+                    <div class="round-row">
+
+                      <span class="round-label">
+                        Round {{ r.round }}
+                      </span>
+
+                      <progress
+                        [value]="r.completed"
+                        [max]="r.assigned || 1"
+                      ></progress>
+
+                      <span class="round-value">
+
+                        @if (r.assigned > 0) {
+                          {{ r.completed }}/{{ r.assigned }}
+                        } @else {
+                          No pairings
+                        }
+
+                      </span>
+
+                    </div>
+
+                  }
+
+                </div>
+
+
+                <div class="assignment-footer">
+
+                  @if (card.assigned > 0) {
+
+                    {{ card.completed }} of
+                    {{ card.assigned }}
+                    evaluations completed
+
+                  } @else {
+
+                    No evaluation pairings created yet
+
+                  }
+
+                </div>
+
+                <button
+                  type="button"
+                  class="assignment-analytics-link"
+                  (click)="openAssignmentAnalytics(card.id)">
+                  View assignment analytics →
+                </button>
+
+              }
+
+            </article>
+
+          }
+
+        </div>
+
+      }
+
+    </section>
+
+  }
+
+</div>

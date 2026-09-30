@@ -141,8 +141,20 @@ export const routes: Routes = [
         loadComponent: () => import('./bocal-panel/students/bocal-students.component').then(m => m.BocalStudentsComponent),
       },
       {
+        path: 'analytics/student', 
+        loadComponent: () => import('./bocal-panel/analytics/analytics-student.component').then(m => m.AnalyticsStudentComponent),
+      },
+      {
+        path: 'analytics/student',
+        loadComponent: () => import('./bocal-panel/analytics/analytics-student.component').then(m => m.AnalyticsStudentComponent),
+      },
+      {
+        path: 'analytics/assignment',
+        loadComponent: () => import('./bocal-panel/analytics/analytics-assignment.component').then(m => m.AnalyticsAssignmentComponent),
+      },
+      {
         path: 'analytics',
-        loadComponent: () => import('./bocal-panel/analytics/bocal-analytics.component').then(m => m.BocalAnalyticsComponent),
+        loadComponent: () => import('./bocal-panel/analytics/analytics-overview.component').then(m => m.AnalyticsOverviewComponent),
       },
       {
         path: 'assignment-create',

@@ -1,0 +1,263 @@
+.analytics-back {
+  display: inline-block;
+  margin: 0 0 12px;
+  padding: 0;
+
+  background: transparent;
+  border: 0;
+
+  color: #b986fa;
+  font: inherit;
+  font-size: 0.8125rem;
+
+  cursor: pointer;
+}
+
+.analytics-back:hover {
+  text-decoration: underline;
+}
+
+.assignment-statistics {
+  margin-top: 22px;
+  margin-bottom: 40px;
+}
+
+.assignment-statistics h2 {
+  margin-bottom: 18px;
+}
+
+/* Five summary indicators */
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.summary-card {
+  padding: 18px 14px;
+
+  background: oklch(12% 0.014 272);
+  border: 1px solid oklch(24% 0.025 272);
+  border-radius: 10px;
+}
+
+.summary-number {
+  font-size: 1.65rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.summary-label {
+  color: oklch(64% 0.01 272);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+/* Student section */
+
+.student-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 20px;
+
+  margin-bottom: 20px;
+}
+
+.student-section-header h2 {
+  margin-bottom: 6px;
+}
+
+.student-filter {
+  min-width: 180px;
+}
+
+.student-filter .course-select {
+  min-width: 180px;
+}
+
+/* Student table */
+
+.student-table-container {
+  width: 100%;
+  overflow-x: auto;
+
+  background: oklch(12% 0.014 272);
+  border: 1px solid oklch(24% 0.025 272);
+  border-radius: 10px;
+}
+
+.progress-table {
+  width: 100%;
+  min-width: 760px;
+
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.progress-table th {
+  padding: 13px 12px;
+
+  text-align: center;
+  font-weight: 600;
+
+  color: oklch(65% 0.01 272);
+  background: oklch(15% 0.02 272);
+
+  border-bottom: 1px solid oklch(25% 0.025 272);
+}
+
+.progress-table td {
+  padding: 13px 12px;
+
+  border-bottom: 1px solid oklch(22% 0.025 272);
+}
+
+.progress-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.progress-table tbody tr:hover {
+  background: oklch(17% 0.02 272);
+}
+
+.student-name {
+  font-weight: 600;
+  color: oklch(94% 0.005 272);
+  white-space: nowrap;
+}
+
+.student-group {
+  color: oklch(65% 0.01 272);
+  white-space: nowrap;
+}
+
+.progress-cell {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.complete {
+  color: #35b39c;
+  font-weight: 700;
+}
+
+.pending {
+  color: #e6bc62;
+  font-weight: 600;
+}
+
+.not-assigned {
+  color: oklch(44% 0.01 272);
+}
+
+.empty-table {
+  text-align: center;
+  color: oklch(60% 0.01 272);
+  padding: 28px !important;
+}
+
+.table-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+
+  gap: 10px;
+  margin-top: 14px;
+
+  color: oklch(60% 0.01 272);
+  font-size: 0.75rem;
+}
+
+.table-legend span:not(:first-child) {
+  margin-left: 16px;
+}
+
+@media (max-width: 1050px) {
+  .summary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.status-clock {
+  position: relative;
+  display: inline-block;
+
+  width: 13px;
+  height: 13px;
+
+  border: 1.7px solid #e6bc62;
+  border-radius: 50%;
+
+  box-sizing: border-box;
+}
+
+/* minute hand */
+.status-clock::before {
+  content: '';
+
+  position: absolute;
+
+  width: 1.5px;
+  height: 4px;
+
+  left: 50%;
+  top: 2px;
+
+  background: #e6bc62;
+
+  transform: translateX(-50%);
+  transform-origin: bottom center;
+
+  border-radius: 2px;
+}
+
+/* hour hand */
+.status-clock::after {
+  content: '';
+
+  position: absolute;
+
+  width: 3.5px;
+  height: 1.5px;
+
+  left: 50%;
+  top: 50%;
+
+  background: #e6bc62;
+
+  transform-origin: left center;
+  transform: translateY(-50%) rotate(25deg);
+
+  border-radius: 2px;
+}
+
+.student-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+
+  color: #b986fa;
+  font: inherit;
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.student-link:hover {
+  text-decoration: underline;
+}
+
+.student-link:focus-visible {
+  outline: 2px solid #b986fa;
+  outline-offset: 4px;
+  border-radius: 3px;
+}
