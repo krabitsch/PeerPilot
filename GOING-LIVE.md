@@ -14,9 +14,14 @@ Legend: ✅ done · 🚧 in progress · 🔴 blocker · 🟠 should-do · 🟡 h
   log in with email + password. The GitHub/Google buttons on the login page
   and the OAuth backend routes are now dead and should be removed — see
   *Remove OAuth* below.
-- **Email provider access is currently lost.** The Mailtrap sandbox was set up
-  by a teammate; we don't have the credentials right now. Real email is still
-  needed (see the dependency note under *Real email*).
+- **No email — drop the email dependency instead of fixing it.** The Mailtrap
+  sandbox was set up by a teammate and is unavailable, and for a small,
+  controlled deployment (~60 vetted people, admin reachable) email verification
+  and emailed password resets aren't worth their weight. Decision: remove the
+  email dependency rather than wire up a provider. Details under
+  *Remove the email dependency* below. (If the platform ever grows beyond a
+  controlled cohort, revisit and add a real SMTP provider — the
+  `email_verified` column is kept so verification can be re-enabled.)
 
 ---
 
@@ -52,20 +57,47 @@ Legend: ✅ done · 🚧 in progress · 🔴 blocker · 🟠 should-do · 🟡 h
   `BASE_URL=https://<domain>/` in `src/.env`. `make cert` itself is untested
   against the live Let's Encrypt service (no domain yet).
 
-### Real email
-- `src/api/src/modules/auth/utils.js` **hardcodes Mailtrap sandbox credentials
-  in source** and ignores the `EMAIL_*` variables that already exist in `.env`.
-  So verification and password-reset emails go to a test inbox, not the user.
-- Fix: use the `EMAIL_*` env vars (host/port/user/pass) for the SMTP transport;
-  delete the hardcoded creds. The env-driven version is already in the file,
-  commented out (note the typo `EMIAL_HOST`).
-- **Dependency for our auth model:** login refuses an account whose email is
-  not verified (`auth.controller.js` login → `ForbiddenError('Please verify
-  your email…')`), and verification happens by emailed link. So the
-  whitelist-email login flow **cannot work end to end until real email works**,
-  unless we decide to pre-verify whitelisted accounts / skip verification for
-  them. Open question to resolve when email access is restored.
-- Blocked for now: we don't have the mail provider credentials.
+### Remove the email dependency (controlled-environment auth)
+
+Decided 2026-09-30: for a small, controlled deployment we remove email from the
+auth flow rather than run an SMTP provider. How auth works today (for context):
+an Admin/Bocal whitelists an email (`POST /auth/invite` → `AuthAllowedEmail`
+row); the student self-registers against the whitelist; the backend **emails a
+verification link** (mandatory — if the send fails, registration rolls back);
+login refuses any account whose email isn't verified; and password reset is via
+an **emailed** token. Email is on the critical path in two places, both broken.
+
+Changes (not yet implemented):
+
+1. **Auto-verify on registration.** Keep self-registration (whitelisted email +
+   chosen password), but set `email_verified = true` immediately and stop
+   sending the verification email. Remove the mandatory email-send that
+   currently rolls registration back. Keep the `email_verified` column so real
+   verification can be re-enabled later.
+2. **Drop forgot/reset-password by email.** Remove `POST /auth/forgot-password`
+   and `POST /auth/reset-password`, the reset-token model usage, and the
+   frontend forgot/reset-password pages + routes.
+3. **Add an admin password reset — system-generated temp password** (decided:
+   the system generates it, not the admin typing one). New admin-only endpoint
+   (e.g. `POST /api/user/:id/reset-password` or under `/auth`, `Admin` only)
+   that sets a new random password and returns it once, plus a "Reset password"
+   button on the admin org/members page that shows the generated password for
+   the admin to pass on. This is the "if something happens, ask the admin"
+   path — without it there is currently **no** way to reset a forgotten
+   password (only self-register or the emailed token, which we're removing).
+4. **Delete the email-sending code and the committed Mailtrap secret.** Remove
+   `sendVerificationEmail` / `sendResetEmail` and the hardcoded
+   `sandbox.smtp.mailtrap.io` credentials from `auth/utils.js`; drop
+   nodemailer and the `EMAIL_*` / `EMAIL_TRANSPORT` wiring (the e2e stack sets
+   `EMAIL_TRANSPORT=json` today only to avoid real sends — unneeded once email
+   is gone).
+5. **Tests.** Extend the Playwright suite: registration activates an account
+   with no email step; admin reset produces a working temp password; the
+   removed endpoints/pages are gone.
+
+Accepted trade-offs (fine at ~60 vetted users): no email verification means a
+typo'd whitelist entry could register a slightly-wrong address (admin controls
+the list, so catchable); password reset depends on the admin being reachable.
 
 ### Remove OAuth (follow-up to the no-social-login decision)
 - Backend: `/auth/google`, `/auth/google/callback`, `/auth/github`,
@@ -73,7 +105,7 @@ Legend: ✅ done · 🚧 in progress · 🔴 blocker · 🟠 should-do · 🟡 h
 - Frontend: the GitHub/Google buttons on the login page, `loginWithGitHub` /
   `loginWithGoogle`, and the `oauth-callback` route/component.
 - Env / config: `GOOGLE_*`, `GITHUB_*` in `gen-env.sh` and `.env.example`.
-- Keep the invite/whitelist + email-verification registration path.
+- Keep the invite/whitelist registration path (now without email verification).
 
 ---
 
@@ -87,8 +119,10 @@ Legend: ✅ done · 🚧 in progress · 🔴 blocker · 🟠 should-do · 🟡 h
   the `postgres` volume.
 - **Backups** for both the `postgres` and `minio` volumes — nothing backs them
   up today.
-- **Secrets out of source / git.** The hardcoded SMTP creds (above) are a
-  committed secret; rotate them and keep secrets in `.env` / a secret store.
+- **Secrets out of source / git.** The hardcoded Mailtrap SMTP creds in
+  `auth/utils.js` are a committed secret. They go away with *Remove the email
+  dependency* (step 4); they should also be rotated/invalidated since they're
+  in git history. Keep any future secrets in `.env` / a secret store.
 
 ---
 
