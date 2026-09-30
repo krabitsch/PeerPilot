@@ -92,14 +92,19 @@ down:
 	@echo "$(RED)Stopping containers...$(RESET)"
 	@docker compose -f $(COMPOSE_FILE) down
 
-# Removes this project's containers *and* its named volumes (database and MinIO
-# data). `docker volume prune` alone is not enough: since Docker 23 it only
-# removes anonymous volumes, and a surviving postgres volume keeps the password
-# it was initialised with, which no longer matches a freshly generated .env.
+# Removes THIS project's containers, networks, named volumes (database and
+# MinIO data) and the images it built — nothing else on the machine.
+#   -v          drops the named volumes. `docker volume prune` alone is not
+#               enough: since Docker 23 it only removes anonymous volumes, and a
+#               surviving postgres volume keeps the password it was initialised
+#               with, which no longer matches a freshly generated .env.
+#   --rmi local removes only the images this compose built (api, frontend,
+#               nginx); the tagged base images (postgres, minio) are kept.
+# The e2e stack is a separate Compose project, so it is torn down explicitly.
 clean:
-	@echo "$(RED)Removing all Docker resources...$(RESET)"
-	@docker compose -f $(COMPOSE_FILE) down -v --remove-orphans
-	@docker system prune -af
+	@echo "$(RED)Removing this project's containers, volumes and built images...$(RESET)"
+	@docker compose -f $(COMPOSE_FILE) down -v --remove-orphans --rmi local
+	@$(E2E_COMPOSE) down -v --remove-orphans --rmi local 2>/dev/null || true
 
 fclean: clean
 	@echo "$(RED)Removing .env...$(RESET)"

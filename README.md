@@ -627,7 +627,7 @@ The seed password for all generated users is printed in green at the end of the 
 | `make studio`         | Open Prisma Studio at http://localhost:5555              |
 | `make generateUsers`  | Create additional users (`ARGS="--count 10 --org 1"`)    |
 | `make resetDB`        | Wipe the database and re-apply migrations                |
-| `make clean`          | Stop + remove all Docker resources                       |
+| `make clean`          | Remove this project's containers, volumes and built images |
 | `make fclean`         | `clean` + remove `.env`                                  |
 | `make populateDB`     | Wipe and reseed the database with sample data            |
 | `make e2e`            | Start the isolated test stack and run the Playwright suite |
