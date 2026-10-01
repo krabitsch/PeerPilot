@@ -14,7 +14,7 @@ test.describe('signing in', () => {
   test('staff land on the Bocal panel', async ({ page }) => {
     await signIn(page, D.users.bocal.email, D.PASSWORD)
     await expect(page).toHaveURL(/\/bocal\/classes$/)
-    await expect(page.getByRole('heading', { name: 'Manage classes' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Courses' })).toBeVisible()
   })
 
   test('a wrong password is refused', async ({ page }) => {

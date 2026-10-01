@@ -6,28 +6,35 @@ const D = require('../../support/data')
 
 test.use({ storageState: sessionFile('bocal') })
 
-const openClass = async (page, name) => {
+// The bocal panel calls courses "Courses" in the UI; the create form and the
+// DB model still say "class". Opening a course's assignments is a card button
+// that leads to the Assignments view scoped to that course.
+const openAssignments = async (page, courseName) => {
   await page.goto('/bocal/classes')
-  await page.getByText(name, { exact: true }).first().click()
-  await expect(page.getByRole('heading', { name: new RegExp(name) })).toBeVisible()
+  await page.getByText(courseName, { exact: true }).first().waitFor()
+  await page.getByText(courseName, { exact: true })
+    .locator('xpath=ancestor::*[.//button[normalize-space()="Open assignments"]][1]')
+    .getByRole('button', { name: 'Open assignments' }).click()
+  await expect(page.getByRole('heading', { name: 'Assignments' })).toBeVisible()
+  await expect(page.getByText(`Assignments for ${courseName}`)).toBeVisible()
 }
 
-test('creates a class', async ({ page }) => {
+test('creates a course', async ({ page }) => {
   await page.goto('/bocal/classes')
-  await page.getByRole('button', { name: '+ New class' }).click()
+  await page.getByRole('button', { name: '+ New course' }).click()
   const form = page.getByRole('main')
   await form.getByRole('textbox').nth(0).fill('Algorithms')
   await form.getByRole('textbox').nth(1).fill('Sorting, searching and graphs.')
   await page.getByRole('button', { name: 'Create class' }).click()
 
-  await expect(page.getByText('Algorithms', { exact: true })).toBeVisible()
+  await expect(page.getByText('Algorithms')).toBeVisible()
   const created = await db().class.findFirst({ where: { name: 'Algorithms' } })
   expect(created).toMatchObject({ created_by: seeded().users.bocal, org_id: seeded().orgId })
 })
 
 test('creates an assignment with an eval sheet that sums to the max score', async ({ page }) => {
-  await openClass(page, D.classes.web.name)
-  await page.getByRole('button', { name: '+ Assignment' }).click()
+  await openAssignments(page, D.classes.web.name)
+  await page.getByRole('button', { name: '+ New assignment' }).click()
   await expect(page.getByRole('heading', { name: /New assignment/ })).toBeVisible()
 
   const main = page.getByRole('main')
@@ -64,15 +71,21 @@ test('creates an assignment with an eval sheet that sums to the max score', asyn
 
 // Regression: Phase 3 broke this — the group was created as led by the Bocal.
 test('creates a group for a student', async ({ page }) => {
-  await openClass(page, D.classes.web.name)
-  const peer = page.locator('div')
-    .filter({ has: page.getByText(D.assignments.peer.name, { exact: true }) })
-    .filter({ has: page.getByRole('button', { name: 'Groups' }) })
-    .last()
-  await peer.getByRole('button', { name: 'Groups' }).click()
+  await openAssignments(page, D.classes.web.name)
+
+  // Expand just the Peer Review assignment's groups, so only its
+  // "Add single group" is on screen.
+  await page.getByText(D.assignments.peer.name, { exact: true })
+    .locator('xpath=ancestor::*[.//button[normalize-space()="Manage groups"]][1]')
+    .getByRole('button', { name: 'Manage groups' }).click()
   await page.getByRole('button', { name: 'Add single group' }).click()
 
-  await page.getByRole('combobox').selectOption({ label: 'bob · bob@e2e.test' })
+  // The modal has a student picker (a combobox listing emails) and a group
+  // name field; the page also has a course picker, so target the one with
+  // student options.
+  const studentSelect = page.getByRole('combobox')
+    .filter({ has: page.getByRole('option', { name: /bob · / }) })
+  await studentSelect.selectOption({ label: 'bob · bob@e2e.test' })
   await page.getByRole('main').getByRole('textbox').first().fill('bob-group')
   await page.getByRole('button', { name: 'Create group' }).click()
 
