@@ -21,8 +21,9 @@
     <div [ngStyle]="actionsStyle">
       <app-btn
         variant="secondary"
-        (clicked)="goBackToAssignment()">
-        {{ 'btn_back_to_assignment' | translate }}
+        size="md"
+        (clicked)="goBackToAssignments()">
+        ← Back to assignments
       </app-btn>
 
       <app-btn

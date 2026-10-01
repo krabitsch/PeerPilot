@@ -1,0 +1,353 @@
+<div class="analytics-page">
+
+  <div class="overline">
+    BOCAL PANEL
+  </div>
+
+
+  <button
+    type="button"
+    class="analytics-back"
+    (click)="backToAssignmentAnalytics()">
+
+    ← Assignment analytics
+
+  </button>
+
+
+  <h1>
+    Student analytics
+  </h1>
+
+
+  @if (error()) {
+
+    <div class="error-message">
+      {{ error() }}
+    </div>
+
+  }
+
+
+  @if (loading()) {
+
+    <p class="muted">
+      Loading student analytics...
+    </p>
+
+  }
+
+
+  @if (student(); as s) {
+
+    <!-- Student context -->
+
+    <section class="student-context">
+
+      <div class="section-label">
+        STUDENT
+      </div>
+
+      <div class="student-heading">
+        {{ s.username }}
+      </div>
+
+      <div class="student-email">
+        {{ s.email }}
+      </div>
+
+      <div class="context-line">
+
+        <span>
+          {{ courseName() }}
+        </span>
+
+        <span>·</span>
+
+        <span>
+          {{ assignmentName() }}
+        </span>
+
+        <span>·</span>
+
+        <span>
+          {{ studentGroup()?.name ?? 'Unallocated' }}
+        </span>
+
+      </div>
+
+    </section>
+
+
+        <!-- Summary -->
+
+    <section class="student-summary">
+
+      <div class="summary-grid student-summary-grid">
+
+        <!-- Group membership -->
+        <div class="summary-card">
+
+          <div class="summary-label">
+            Member of group
+          </div>
+
+          <div class="summary-number">
+            {{ studentGroup()?.name ?? '—' }}
+          </div>
+
+        </div>
+
+
+        <!-- Progress as evaluee -->
+        <div class="summary-card">
+
+          <div class="summary-label">
+            As evaluee
+          </div>
+
+          <div class="summary-number">
+            {{ groupCompletedCount() }} / {{ requiredRounds() }}
+          </div>
+
+        </div>
+
+
+        <!-- Progress as evaluator -->
+        <div class="summary-card">
+
+          <div class="summary-label">
+            As evaluator
+          </div>
+
+          <div class="summary-number">
+            {{ evaluatorCompletedCount() }} / {{ requiredRounds() }}
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- AS EVALUEE -->
+
+    <section class="student-detail-section">
+
+      <h2>
+        As evaluee
+      </h2>
+
+      <p class="section-description">
+        Evaluation progress for
+        {{ studentGroup()?.name ?? 'this student' }}
+      </p>
+
+
+      <div class="detail-table-container">
+
+        <table class="detail-table">
+
+          <thead>
+
+            <tr>
+
+              <th>
+                Round
+              </th>
+
+              <th>
+                Evaluated by
+              </th>
+
+              <th>
+                Evaluator group
+              </th>
+
+              <th>
+                Status
+              </th>
+
+            </tr>
+
+          </thead>
+
+
+          <tbody>
+
+            @for (
+              row of evalueeRows();
+              track $index
+            ) {
+
+              <tr>
+
+                <td>
+                  Round {{ row.round }}
+                </td>
+
+                <td>
+                  {{ row.evaluatorName }}
+                </td>
+
+                <td>
+                  {{ row.evaluatorGroupName }}
+                </td>
+
+                <td>
+
+                  @if (
+                    row.status === 'Submitted'
+                  ) {
+
+                    <span class="status-complete">
+                      ✓ Completed
+                    </span>
+
+                  } @else if (
+                    row.status === 'Pending'
+                  ) {
+
+                    <span class="status-pending">
+
+                      <span
+                        class="status-clock">
+                      </span>
+
+                      Pending
+
+                    </span>
+
+                  } @else {
+
+                    <span class="status-none">
+                      —
+                      {{ row.status }}
+                    </span>
+
+                  }
+
+                </td>
+
+              </tr>
+
+            }
+
+          </tbody>
+
+        </table>
+
+      </div>
+
+    </section>
+
+
+    <!-- AS EVALUATOR -->
+
+    <section class="student-detail-section">
+
+      <h2>
+        As evaluator
+      </h2>
+
+      <p class="section-description">
+        Peer evaluations assigned to
+        {{ s.username }}
+      </p>
+
+
+      @if (
+        evaluatorRows().length === 0
+      ) {
+
+        <div class="detail-empty">
+          No evaluator tasks assigned.
+        </div>
+
+      } @else {
+
+        <div class="detail-table-container">
+
+          <table class="detail-table">
+
+            <thead>
+
+              <tr>
+
+                <th>
+                  Round
+                </th>
+
+                <th>
+                  Evaluates
+                </th>
+
+                <th>
+                  Status
+                </th>
+
+              </tr>
+
+            </thead>
+
+
+            <tbody>
+
+              @for (
+                row of evaluatorRows();
+                track $index
+              ) {
+
+                <tr>
+
+                  <td>
+                    Round {{ row.round }}
+                  </td>
+
+                  <td>
+                    {{ row.evalueeGroupName }}
+                  </td>
+
+                  <td>
+
+                    @if (
+                      row.status === 'Submitted'
+                    ) {
+
+                      <span class="status-complete">
+                        ✓ Completed
+                      </span>
+
+                    } @else {
+
+                      <span class="status-pending">
+
+                        <span
+                          class="status-clock">
+                        </span>
+
+                        {{ row.status }}
+
+                      </span>
+
+                    }
+
+                  </td>
+
+                </tr>
+
+              }
+
+            </tbody>
+
+          </table>
+
+        </div>
+
+      }
+
+    </section>
+
+  }
+
+</div>

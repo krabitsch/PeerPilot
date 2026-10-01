@@ -8,33 +8,56 @@
 
   <!-- ── Filters ────────────────────────────────────────────── -->
   <div [ngStyle]="filterBarStyle">
-    <input
-      [ngStyle]="inputStyle"
-      style="max-width:280px"
-      type="text"
-      [placeholder]="'placeholder_search_username_email' | translate"
-      [value]="searchQuery()"
-      (input)="searchQuery.set($any($event.target).value)" />
 
-    <select [ngStyle]="inputStyle" style="max-width:160px" [value]="roleFilter()" (change)="roleFilter.set($any($event.target).value)">
-      @for (r of roleOptions; track r) {
-        <option [value]="r">{{ r === 'All' ? ('label_all_roles' | translate) : r }}</option>
-      }
-    </select>
+    <div [ngStyle]="filterFieldStyle">
+      <label [ngStyle]="filterLabelStyle">Search</label>
+      <input
+        [ngStyle]="inputStyle"
+        style="max-width:280px"
+        type="text"
+        [placeholder]="'placeholder_search_username_email' | translate"
+        [value]="searchQuery()"
+        (input)="searchQuery.set($any($event.target).value)" />
+    </div>
 
-    <select [ngStyle]="inputStyle" style="max-width:200px" [value]="classFilter() ?? ''" (change)="onClassFilterChanged($any($event.target).value)">
-      <option value="">{{ 'label_all_classes' | translate }}</option>
-      @for (c of classes(); track c.id) {
-        <option [value]="c.id">{{ c.name }}</option>
-      }
-    </select>
+    <div [ngStyle]="filterFieldStyle">
+      <label [ngStyle]="filterLabelStyle">Role</label>
+      <select [ngStyle]="inputStyle" style="max-width:160px" [value]="roleFilter()" (change)="roleFilter.set($any($event.target).value)">
+        @for (role of roleOptions; track role) {
+          <option
+            [value]="role"
+            [selected]="role === roleFilter()">
+            {{ role === 'All' ? 'All roles' : role }}
+          </option>
+        }
+      </select>
 
-    <select [ngStyle]="inputStyle" style="max-width:200px" [value]="subjectFilter() ?? ''" [disabled]="!classFilter()" (change)="onSubjectFilterChanged($any($event.target).value)">
-      <option value="">{{ 'label_all_subjects' | translate }}</option>
-      @for (s of subjects(); track s.id) {
-        <option [value]="s.id">{{ s.name }}</option>
-      }
-    </select>
+    </div>
+
+    <div [ngStyle]="filterFieldStyle">
+      <label [ngStyle]="filterLabelStyle">Course</label>    
+      <select
+        [ngStyle]="inputStyle" style="max-width:300px" [value]="classFilter() ?? ''" (change)="onClassFilterChanged($any($event.target).value)">
+        <option value="" [selected]="classFilter() === null">
+          All courses
+        </option>
+        @for (c of classes(); track c.id) {
+          <option [value]="c.id" [selected]="c.id === classFilter()">
+            {{ c.name }}
+          </option>
+        }
+      </select>
+    </div>
+
+    <div [ngStyle]="filterFieldStyle">
+      <label [ngStyle]="filterLabelStyle">Assignment</label>
+      <select [ngStyle]="inputStyle" style="max-width:200px" [value]="subjectFilter() ?? ''" [disabled]="!classFilter()" (change)="onSubjectFilterChanged($any($event.target).value)">
+        <option value="">{{ 'label_all_subjects' | translate }}</option>
+        @for (s of subjects(); track s.id) {
+          <option [value]="s.id">{{ s.name }}</option>
+        }
+      </select>
+    </div>
 
     <span style="font-size:0.8125rem;color:oklch(48% 0.01 272)">
       {{ (members().length === 1 ? 'bocal_students_count_singular' : 'bocal_students_count_plural') | translate:{shown: filteredMembers().length, total: members().length} }}
@@ -45,7 +68,7 @@
     [items]="filteredMembers()"
     [trackBy]="memberTrackFn"
     [emptyMessage]="'bocal_no_members_match_filters' | translate"
-    [pageSize]="8">
+    [pageSize]="50">
     <ng-template let-m>
       <div style="padding:14px 18px;display:flex;justify-content:space-between;align-items:center">
         <div style="display:flex;align-items:center;gap:10px">

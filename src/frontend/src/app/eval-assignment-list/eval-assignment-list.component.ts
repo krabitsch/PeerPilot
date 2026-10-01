@@ -455,15 +455,15 @@ readonly modalStyle = { background: '#0d0f1a', border: '1px solid #2a2f45', bord
     });
   }  
 
-  goBackToAssignment(): void {
-    const id = this.assignmentId();
+  goBackToAssignments(): void {
+    const classId = this.classId();
 
-    if (!id) { this.router.navigate(['/assignment']); return; }
+    if (!classId) { this.error.set('Could not determine the course for this assignment.'); return; }
 
-    this.router.navigate(['/assignment-detail'], {
-      queryParams: { assId: id },
+    this.router.navigate(['/bocal/classes'], {
+      queryParams: { classId }
     });
-  }
+  }  
 
   private memberNames(group: any): string {
   const members = group?.members ?? [];

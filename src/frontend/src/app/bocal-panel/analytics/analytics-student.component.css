@@ -1,0 +1,299 @@
+.analytics-back {
+  display: inline-block;
+
+  margin: 0 0 12px;
+  padding: 0;
+
+  border: 0;
+  background: transparent;
+
+  color: #b986fa;
+
+  font: inherit;
+  font-size: 0.8125rem;
+
+  cursor: pointer;
+}
+
+.analytics-back:hover {
+  text-decoration: underline;
+}
+
+
+/* Student context */
+
+.student-context {
+  margin-top: 28px;
+  margin-bottom: 28px;
+}
+
+.student-heading {
+  margin-top: 7px;
+
+  font-size: 1.35rem;
+  font-weight: 700;
+
+  color: oklch(94% 0.005 272);
+}
+
+.student-email {
+  margin-top: 3px;
+
+  color: oklch(55% 0.01 272);
+  font-size: 0.8125rem;
+}
+
+.context-line {
+  display: flex;
+  flex-wrap: wrap;
+
+  gap: 7px;
+
+  margin-top: 12px;
+
+  color: oklch(65% 0.01 272);
+  font-size: 0.8125rem;
+}
+
+
+/* Summary */
+
+/* Summary */
+
+.student-summary {
+  margin-top: 24px;
+  margin-bottom: 38px;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.summary-card {
+  min-width: 0;
+  min-height: 110px;
+
+  padding: 18px 20px;
+
+  background: oklch(12% 0.014 272);
+  border: 1px solid oklch(24% 0.025 272);
+  border-radius: 10px;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.summary-label {
+  color: oklch(60% 0.01 272);
+
+  font-size: 0.75rem;
+  font-weight: 600;
+
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.summary-number {
+  margin-top: 16px;
+
+  color: oklch(94% 0.005 272);
+
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+/* The group name is text rather than a statistic,
+   so make the first card slightly less oversized. */
+.summary-card:first-child .summary-number {
+  font-size: 1.3rem;
+}
+
+.student-summary-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+
+/* Detail sections */
+
+.student-detail-section {
+  margin-top: 32px;
+}
+
+.student-detail-section h2 {
+  margin-bottom: 5px;
+}
+
+.detail-table-container {
+  width: 100%;
+
+  overflow-x: auto;
+
+  margin-top: 16px;
+
+  background: oklch(12% 0.014 272);
+
+  border:
+    1px solid
+    oklch(24% 0.025 272);
+
+  border-radius: 10px;
+}
+
+.detail-table {
+  width: 100%;
+
+  border-collapse: collapse;
+
+  font-size: 0.8125rem;
+}
+
+.detail-table th {
+  padding: 12px 14px;
+
+  text-align: left;
+
+  color: oklch(65% 0.01 272);
+
+  background: oklch(15% 0.02 272);
+
+  border-bottom:
+    1px solid
+    oklch(25% 0.025 272);
+}
+
+.detail-table td {
+  padding: 13px 14px;
+
+  color: oklch(82% 0.01 272);
+
+  border-bottom:
+    1px solid
+    oklch(22% 0.025 272);
+}
+
+.detail-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.detail-table tbody tr:hover {
+  background: oklch(17% 0.02 272);
+}
+
+
+/* Statuses */
+
+.status-complete {
+  color: #35b39c;
+  font-weight: 600;
+}
+
+.status-pending {
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: 7px;
+
+  color: #e6bc62;
+
+  font-weight: 600;
+}
+
+.status-none {
+  color: oklch(48% 0.01 272);
+}
+
+
+/* Same little clock as assignment analytics */
+
+.status-clock {
+  position: relative;
+
+  display: inline-block;
+
+  width: 13px;
+  height: 13px;
+
+  border: 1.7px solid #e6bc62;
+
+  border-radius: 50%;
+
+  box-sizing: border-box;
+
+  flex-shrink: 0;
+}
+
+.status-clock::before {
+  content: '';
+
+  position: absolute;
+
+  width: 1.5px;
+  height: 4px;
+
+  left: 50%;
+  top: 2px;
+
+  background: #e6bc62;
+
+  transform:
+    translateX(-50%);
+
+  transform-origin:
+    bottom center;
+
+  border-radius: 2px;
+}
+
+.status-clock::after {
+  content: '';
+
+  position: absolute;
+
+  width: 3.5px;
+  height: 1.5px;
+
+  left: 50%;
+  top: 50%;
+
+  background: #e6bc62;
+
+  transform-origin:
+    left center;
+
+  transform:
+    translateY(-50%)
+    rotate(25deg);
+
+  border-radius: 2px;
+}
+
+
+.detail-empty {
+  margin-top: 16px;
+
+  padding: 24px;
+
+  color: oklch(55% 0.01 272);
+
+  background: oklch(12% 0.014 272);
+
+  border:
+    1px solid
+    oklch(24% 0.025 272);
+
+  border-radius: 10px;
+}
+
+
+@media (max-width: 800px) {
+
+  .student-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+}

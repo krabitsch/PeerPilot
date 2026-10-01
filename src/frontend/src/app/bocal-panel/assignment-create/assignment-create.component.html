@@ -179,6 +179,27 @@
       </div>
     }
 
+    @if (editMode()) {
+      <div
+        style="margin-top:16px;padding-top:16px;padding-bottom:16px;margin-bottom:16px;border-top:1px solid oklch(22% 0.025 272);
+              border-bottom:1px solid oklch(22% 0.025 272);display:flex;justify-content:space-between;align-items:center;gap:16px;">
+        <div>
+          <div
+            style="font-size:0.875rem;font-weight:600;color:oklch(72% 0.18 25);margin-bottom:3px;">
+            Delete assignment
+          </div>
+          <div
+            style="font-size:0.75rem;color:oklch(55% 0.01 272);">
+            Permanently delete this assignment and its associated data.
+          </div>
+        </div>
+        <app-btn
+          variant="ghost" size="sm" (clicked)="deleteCurrentAssignment()">
+          Delete assignment
+        </app-btn>
+      </div>
+    }
+
     <div style="display:flex;justify-content:flex-end;gap:8px;padding:14px 18px;border-top:1px solid oklch(22% 0.025 272)">
       <app-btn variant="ghost"   size="md" (clicked)="onCancel()">{{ 'btn_cancel' | translate }}</app-btn>
       <app-btn variant="primary" size="md" (clicked)="onSave()">{{ (editMode() ? 'bocal_btn_save_changes' : 'btn_create_assignment') | translate }}</app-btn>

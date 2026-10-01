@@ -10,7 +10,15 @@ import { IconComponent } from '../shared/icon.component';
 import { AppIconSettings } from './field.types';
 import { LanguageSwitcherComponent } from '../languages/language-switcher.component';
 
-interface NavItem { label: string; route: string; icon: string; roles: string[]; badge?: number; }
+interface NavItem {
+  id: string;
+  label: string;
+  route: string;
+  icon: string;
+  roles: string[];
+  badge?: number;
+  queryParams?: Record<string, string>;
+}
 
 // Routes that should keep a nav item highlighted even though they live under a different path
 const ACTIVE_ALIASES: Record<string, string[]> = {
@@ -18,13 +26,19 @@ const ACTIVE_ALIASES: Record<string, string[]> = {
 };
 
 const NAV_ITEMS: NavItem[] = [
-  { label: 'label_dashboard',   route: '/dashboard',          icon: 'dashboard',  roles: ['Student'] },
-  { label: 'label_my_classes',  route: '/classes',            icon: 'book',       roles: ['Student'] },
-  { label: 'label_assignments', route: '/assignment',         icon: 'file',       roles: ['Student'] },
-  { label: 'label_evaluations', route: '/evaluation',         icon: 'star',       roles: ['Student']},
-  { label: 'label_progress1',   route: '/progress',           icon: 'trending',   roles: ['Student'] },
-  { label: 'label_bocal',       route: '/bocal',              icon: 'building',   roles: ['Bocal','Admin'] },
-  { label: 'label_admin',       route: '/admin/orgs',         icon: 'users',      roles: ['Admin'] },
+  // Student navigation
+  { id: 'student-dashboard',   label: 'label_dashboard',  route: '/dashboard', icon: 'dashboard', roles: ['Student'] },
+  { id: 'student-classes',     label: 'label_my_classes', route: '/classes',   icon: 'book',      roles: ['Student'] },
+  { id: 'student-assignments', label: 'label_assignments',route: '/assignment',icon: 'file',      roles: ['Student'] },
+  { id: 'student-evaluations', label: 'label_evaluations',route: '/evaluation',icon: 'star',      roles: ['Student'] },
+  { id: 'student-progress',    label: 'label_progress1',  route: '/progress',  icon: 'trending',  roles: ['Student'] },
+  // Bocal navigation
+  { id: 'bocal-courses',       label: 'tab_classes',      route: '/bocal/classes',  icon: 'book',    roles: ['Bocal', 'Admin'] },
+  { id: 'bocal-assignments',   label: 'label_assignments',route: '/bocal/classes',  icon: 'file',    roles: ['Bocal', 'Admin'], queryParams: { view: 'assignments' } },
+  { id: 'bocal-students',      label: 'tab_students',     route: '/bocal/students', icon: 'users',   roles: ['Bocal', 'Admin'] },
+  { id: 'bocal-analytics',     label: 'tab_analytics',    route: '/bocal/analytics',icon: 'trending',roles: ['Bocal', 'Admin'] },
+  // Admin navigation
+  { id: 'admin',               label: 'label_admin',      route: '/admin/orgs',     icon: 'users',   roles: ['Admin'] },
 ];
 
 @Component({
@@ -65,11 +79,13 @@ const NAV_ITEMS: NavItem[] = [
 
       <!-- Nav items -->
       <div style="flex:1;padding:12px 8px;display:flex;flex-direction:column;gap:2px;overflow-y:auto">
-        @for (item of visibleItems(); track item.route) {
-          <a [routerLink]="item.route" [ngStyle]="itemStyle(item.route)"
+        @for (item of visibleItems(); track item.id) {
+          <a [routerLink]="item.route"
+             [queryParams]="item.queryParams ?? null"
+             [ngStyle]="navItemStyle(item)"
              (click)="closeMobile()"
-             (mouseenter)="hovered.set(item.route)"
-             (mouseleave)="hovered.set('')">
+             (mouseenter)="hovered.set(item.id)"
+             (mouseleave)="hovered.set('')">      
             <span [innerHTML]="icons[item.icon]" style="display:flex;align-items:center;width:16px;height:16px;flex-shrink:0"></span>
             <span style="flex:1">{{ item.label | translate }}</span>
             @if (item.badge) {
@@ -219,6 +235,67 @@ export class SidebarComponent {
   private matchesRoute(currentPath: string, route: string) {
     return currentPath === route || currentPath.startsWith(route + '/');
   }
+
+navItemStyle(item: NavItem) {
+  const currentUrl = this.router.url;
+  const currentPath = currentUrl.split('?')[0].split('#')[0];
+
+  let active = false;
+
+  if (item.id === 'bocal-courses') {
+    // Course overview: /bocal/classes without a selected class
+    active =
+      currentPath === '/bocal/classes' &&
+      !currentUrl.includes('classId=') &&
+      !currentUrl.includes('view=assignments');
+  }
+  else if (item.id === 'bocal-assignments') {
+    // Assignment management means a particular course is selected.
+    // Keep Assignments active on the assignment-create page as well.
+    active =
+      (
+        currentPath === '/bocal/classes' &&
+        (
+          currentUrl.includes('classId=') ||
+          currentUrl.includes('view=assignments')
+        )
+      ) ||
+      currentPath === '/bocal/assignment-create';
+  }
+  else {
+    active =
+      this.matchesRoute(currentPath, item.route) ||
+      (ACTIVE_ALIASES[item.route] ?? [])
+        .some(alias => this.matchesRoute(currentPath, alias));
+  }
+
+  const hovered = this.hovered() === item.id;
+
+  return {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    padding: '8px 12px',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    transition: 'all 150ms',
+    background: active
+      ? DS.colors.violetSubtle
+      : hovered
+        ? DS.colors.surfaceRaised
+        : 'transparent',
+    color: active
+      ? DS.colors.violet
+      : hovered
+        ? DS.colors.fg1
+        : DS.colors.fg2,
+    border: `1px solid ${active ? DS.colors.violetBorder : 'transparent'}`,
+    fontSize: '0.875rem',
+    fontWeight: active ? '500' : '400',
+    fontFamily: DS.fonts.body,
+    textDecoration: 'none',
+  };
+}
 
   itemStyle(route: string) {
     const currentPath = this.router.url.split('?')[0].split('#')[0];

@@ -1,7 +1,7 @@
 <div [ngStyle]="pageStyle">
 
   <!-- ── Section nav (route-driven tabs) ───────────────────── -->
-  <nav [ngStyle]="navStyle">
+  <!-- <nav [ngStyle]="navStyle">
     @for (tab of tabs; track tab.path; let i = $index) {
       <app-btn
         [variant]="activeTab() === i ? 'primary' : 'ghost'"
@@ -11,7 +11,7 @@
         {{ tab.label | translate }}
       </app-btn>
     }
-  </nav>
+  </nav> -->
 
   <router-outlet />
 

@@ -389,6 +389,48 @@ export class AssignmentCreateComponent implements OnInit {
     else this.router.navigate(['/bocal/classes']);
   }
 
+
+  deleteCurrentAssignment() {
+    const assId = this.assignmentId;
+    const classId = this.classId;
+
+    if (!assId || !classId || !this.editMode()) return;
+
+    const firstConfirm = confirm(
+      `Are you sure you want to delete "${this.name()}"?\n\n` +
+      `This will permanently delete this assignment and its associated data.`
+    );
+
+    if (!firstConfirm) return;
+
+    const finalConfirm = confirm(
+      `This action is permanent and irreversible.\n\n` +
+      `Delete "${this.name()}"?`
+    );
+
+    if (!finalConfirm) return;
+
+    this.loading.show();
+
+    this.assignService.deleteAssignment(assId).subscribe({
+      next: () => {
+        this.loading.hide();
+
+        this.router.navigate(['/bocal/classes'], {
+          queryParams: { classId }
+        });
+      },
+
+      error: (err) => {
+        this.error.set(
+          err?.error?.message ?? 'Failed to delete assignment.'
+        );
+        this.loading.hide();
+      },
+    });
+  }
+  
+
   // ── Styles ─────────────────────────────────────────────────
   readonly pageStyle     = { display: 'flex', flexDirection: 'column' as const, gap: '16px', maxWidth: '620px' };
   readonly crumbStyle    = { fontSize: '0.8125rem', color: DS.colors.violet, cursor: 'pointer', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' };
