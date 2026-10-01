@@ -113,7 +113,9 @@ the list, so catchable); password reset depends on the admin being reachable.
 
 - **Managed object storage.** MinIO runs as a container on a local volume. Move
   to managed S3 (or MinIO with backups + lifecycle). The code is already
-  parameterised (`MINIO_*`, `BASE_URL`).
+  parameterised (`MINIO_*`, `BASE_URL`). Note: the image is currently
+  `coollabsio/minio` (a community mirror, merged from main 2026-10-01) — for
+  production, pin the official `minio/minio` image or move to managed S3.
 - **Managed Postgres + backups.** Postgres runs containerised on a local
   volume. Production wants managed Postgres or, at minimum, a backup job for
   the `postgres` volume.
