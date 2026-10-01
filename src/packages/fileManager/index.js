@@ -27,13 +27,32 @@ const uploader = multer({
 })
 
 // ── Storage (per bucket) ─────────────────────────────
+const isProd = process.env.NODE_ENV === 'production'
+
+// In production the credentials must be supplied; falling back to a
+// well-known default there would leave object storage wide open.
+const requireCredential = (name) => {
+  const value = process.env[name]
+  if (value) return value
+  if (isProd) throw new Error(`${name} must be set in production`)
+  return 'minioadmin'
+}
+
 const client = new Minio.Client({
   endPoint:  process.env.MINIO_ENDPOINT || 'minio',
   port:      parseInt(process.env.MINIO_PORT) || 9000,
-  useSSL:    false,
-  accessKey: process.env.MINIO_ACCESS_KEY || 'minioadmin',
-  secretKey: process.env.MINIO_SECRET_KEY || 'minioadmin',
+  useSSL:    process.env.MINIO_USE_SSL === 'true',
+  accessKey: requireCredential('MINIO_ACCESS_KEY'),
+  secretKey: requireCredential('MINIO_SECRET_KEY'),
 })
+
+// Where a browser reaches the files: nginx proxies /files/ to MinIO, so this
+// is the public origin of the stack, not of the MinIO container.
+const publicBase = `${(process.env.BASE_URL || 'https://localhost').replace(/\/+$/, '')}/files`
+
+// The origin MinIO itself signs URLs with, which has to be rewritten to the
+// public one before a presigned link is handed to a browser.
+const internalOrigin = `http://${process.env.MINIO_ENDPOINT || 'minio'}:${parseInt(process.env.MINIO_PORT) || 9000}`
 
 const createStorage = (bucket) => {
   return {
@@ -44,7 +63,7 @@ const createStorage = (bucket) => {
       const url = await client.presignedGetObject(bucket, fileName, expirySeconds, {
         'response-content-disposition': `attachment; filename="${originalName}"`
       })
-      return url.replace('http://minio:9000', 'https://localhost/files')
+      return url.replace(internalOrigin, publicBase)
     },
 
     delete: (fileName) =>
@@ -69,7 +88,7 @@ const createStorage = (bucket) => {
     },
 
     getPublicUrl: (fileName) =>
-      `https://localhost/files/${bucket}/${fileName}`
+      `${publicBase}/${bucket}/${fileName}`
   }
 }
 

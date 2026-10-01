@@ -1,0 +1,28 @@
+services:
+  api:
+    container_name: api
+    build:
+      context: ..
+      dockerfile: api/Dockerfile
+    env_file:
+      - ../.env
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${POSTGRES_DB}
+    # Not published to the host: the only way in is nginx, which terminates TLS.
+    # docker-compose.dev.yml republishes it for local debugging.
+    expose:
+      - "3000"
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - database-network
+      - backend-network
+
+networks:
+  database-network:
+
+  backend-network:

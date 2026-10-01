@@ -1,18 +1,23 @@
 services:
   minio:
-    #image: minio/minio
-    #image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     image: coollabsio/minio:RELEASE.2025-10-15T17-29-55Z
     container_name: minio
     command: server /data --console-address ":9001"
+    env_file:
+      - ../.env
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    ports:
-      - "9000:9000"   # API
-      - "9001:9001"   # Web console
+      # Credentials come from src/.env instead of the hardcoded minioadmin pair
+      # the stack used to ship with. Same values the API authenticates with.
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
     volumes:
       - minio_data:/data
+    # Object storage is reached through nginx's /files/ location, never
+    # directly from the host. The console is dev-only (docker-compose.dev.yml).
+    expose:
+      - 9000
+      - 9001
+    restart: unless-stopped
     healthcheck:
       #test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       test: ["CMD", "mc", "ready", "local"]
@@ -24,3 +29,6 @@ services:
 
 volumes:
   minio_data:
+
+networks:
+  backend-network:

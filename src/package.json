@@ -1,0 +1,13 @@
+{
+  "name": "peerpilot",
+  "private": true,
+  "description": "PeerPilot backend workspace: the api service plus its shared packages.",
+  "workspaces": [
+    "api",
+    "packages/*"
+  ],
+  "scripts": {
+    "start": "npm start -w @transcendence/api",
+    "dev": "npm run dev -w @transcendence/api"
+  }
+}

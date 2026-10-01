@@ -8,6 +8,7 @@ export interface CreateAssignmentPayload {
   description: string;
   maxScore: number;
   reqEval: number;
+  passThreshold: number;
   createdBy: number;
   file?: File;
 }

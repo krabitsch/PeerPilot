@@ -70,6 +70,12 @@ ask() {
     echo "${value:-$default}"
 }
 
+# Random default for anything that must not ship with a known value. Prompted
+# the same way, so you can still type your own.
+rand() {
+    openssl rand -base64 "${1:-24}" 2>/dev/null | tr -d '\n/+=' | cut -c1-"${2:-32}"
+}
+
 # -----------------------------------------------------------------------------
 # Don't overwrite existing .env
 # -----------------------------------------------------------------------------
@@ -100,7 +106,7 @@ echo -e "${BLUE}PostgreSQL${RESET}"
 
 POSTGRES_USER=$(ask "Postgres User" "user")
 POSTGRES_DB=$(ask "Postgres Database" "db")
-DB_PASSWORD=$(ask "Postgres Password" "password" "yes")
+DB_PASSWORD=$(ask "Postgres Password" "$(rand 24 32)" "yes")
 
 DB_HOST="database"
 DB_PORT="5432"
@@ -119,8 +125,8 @@ echo -e "${BLUE}MinIO${RESET}"
 
 MINIO_ENDPOINT=$(ask "Endpoint" "minio")
 MINIO_PORT=$(ask "Port" "9000")
-MINIO_ACCESS_KEY=$(ask "Access Key" "minioadmin")
-MINIO_SECRET_KEY=$(ask "Secret Key" "minioadmin" "yes")
+MINIO_ACCESS_KEY=$(ask "Access Key" "$(rand 18 24)")
+MINIO_SECRET_KEY=$(ask "Secret Key" "$(rand 30 40)" "yes")
 MINIO_BUCKET=$(ask "Bucket" "submissions")
 MINIO_PUBLIC_HOST=$(ask "Public Host" "localhost")
 MINIO_PUBLIC_PORT=$(ask "Public Port" "9000")
@@ -138,11 +144,11 @@ DB_NAME=$(ask "Auth DB Name" "auth_db")
 
 ACCESS_TOKEN_SECRET=$(ask \
     "Access Token Secret" \
-    "change_this_to_random_string_1")
+    "$(rand 48 64)")
 
 REFRESH_TOKEN_SECRET=$(ask \
     "Refresh Token Secret" \
-    "change_this_to_random_string_2")
+    "$(rand 48 64)")
 
 JWT_ACCESS_EXPIRY=$(ask "JWT Access Expiry" "15m")
 JWT_REFRESH_EXPIRY=$(ask "JWT Refresh Expiry" "7d")

@@ -32,14 +32,6 @@ export class UserService {
         return this.http.post(`${this.base}/${id}/avatar`, form)
     }
 
-    loginUser(data: { email: string, username: string, password: string }) {
-        return this.http.post(`${this.base}/login`, data)
-    }
-
-    registerUser(data: { email: string, username: string, password: string }) {
-        return this.http.post(`${this.base}/register`, data)
-    }
-
     deleteUser(id: number) {
         return this.http.delete(`${this.base}/${id}`)
     }

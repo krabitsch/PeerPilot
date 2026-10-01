@@ -11,11 +11,12 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+    # Reachable only from the database network. docker-compose.dev.yml maps it
+    # to the host so Prisma migrate/studio/seed can run from your machine.
     expose:
       - 5432
 
-    ports:
-      - "5433:5432"
+    restart: unless-stopped
 
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
@@ -25,10 +26,9 @@ services:
 
     env_file:
       - ../.env
-    
+
     environment:
       - POSTGRES_PASSWORD=${DB_PASSWORD}
-
 
 
 networks:

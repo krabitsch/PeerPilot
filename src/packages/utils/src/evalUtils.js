@@ -1,7 +1,7 @@
-const { prisma } = require("../../database");
+const { prisma } = require('@transcendence/database');
 const utils = require("../src/classUtils")
-const {NotFoundError} = require("../../errors")
-const {ValidationError} = require('../../errors')
+const {NotFoundError} = require('@transcendence/errors')
+const {ValidationError} = require('@transcendence/errors')
 
 
 const getEvalSheetById = async(id, select = null, include = null)=>{
