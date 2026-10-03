@@ -313,4 +313,5 @@ export interface EvalResponse {
   reply?: string | null;
   rating?: number | null;
   scores?: EvalSectionScore[];
+  recordingFile?: { id: number; name: string } | null;
 }

@@ -117,6 +117,18 @@
         }
       </div>
 
+      <!-- Recording (required) -->
+      <div [ngStyle]="panelStyle">
+        <div [ngStyle]="sectionHeadStyle">Evaluation recording</div>
+        <p style="font-size:0.8125rem;color:oklch(60% 0 0);margin:0 0 10px">
+          Upload an audio recording of the whole evaluation. This is required and is kept so the professor can verify the evaluation took place.
+        </p>
+        <input type="file" accept="audio/*" (change)="onRecordingSelected($event)" />
+        @if (recording(); as rec) {
+          <span style="margin-left:8px;font-size:0.8125rem">🎙️ {{ rec.name }}</span>
+        }
+      </div>
+
       @if (submitError()) {
         <div [ngStyle]="errorStyle">{{ submitError() }}</div>
       }

@@ -145,8 +145,19 @@ export class EvalService {
         return this.http.post<StartEvaluationResponse>(`${this.base}/evaluate/start`, data)
     }
 
-    submitEvaluation(data: { evalAssignmentId: number, evaluatorUserId: number, comment: string, scores: { sectionId: number, score: number }[] }) {
-        return this.http.post<SubmitEvaluationResponse>(`${this.base}/evaluate/submit`, data)
+    // A recording of the evaluation is required; the request is multipart.
+    submitEvaluation(data: { evalAssignmentId: number, comment: string, scores: { sectionId: number, score: number }[], recording: File }) {
+        const form = new FormData()
+        form.append('evalAssignmentId', String(data.evalAssignmentId))
+        form.append('comment', data.comment)
+        form.append('scores', JSON.stringify(data.scores))
+        form.append('recording', data.recording)
+        return this.http.post<SubmitEvaluationResponse>(`${this.base}/evaluate/submit`, form)
+    }
+
+    // Presigned URL to play/download an evaluation's recording (access-gated server-side).
+    getRecordingUrl(responseId: number) {
+        return this.http.get<{ url: string }>(`${this.base}/responses/${responseId}/recording`)
     }
 
     // all eval feedback (EvalResponse rows) left on one submission
