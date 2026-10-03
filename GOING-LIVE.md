@@ -57,7 +57,15 @@ Legend: ✅ done · 🚧 in progress · 🔴 blocker · 🟠 should-do · 🟡 h
   `BASE_URL=https://<domain>/` in `src/.env`. `make cert` itself is untested
   against the live Let's Encrypt service (no domain yet).
 
-### Remove the email dependency (controlled-environment auth)
+### Remove the email dependency (controlled-environment auth)  ✅ DONE (2026-10-03)
+
+Shipped on branch `peter` (commits de26086 backend, 94733f0 frontend, 5b778a5
+tests): registration auto-verifies and sends no mail; login's email_verified
+gate is gone; emailed forgot/reset + verify-email routes, the nodemailer
+transport and the hardcoded Mailtrap creds are removed; admin password reset is
+`POST /api/user/:id/reset-password` (Admin only) → system-generated one-time
+password, surfaced on the admin org-detail page. 50/50 e2e green. Original plan
+below for reference.
 
 Decided 2026-09-30: for a small, controlled deployment we remove email from the
 auth flow rather than run an SMTP provider. How auth works today (for context):
@@ -98,6 +106,12 @@ Changes (not yet implemented):
 Accepted trade-offs (fine at ~60 vetted users): no email verification means a
 typo'd whitelist entry could register a slightly-wrong address (admin controls
 the list, so catchable); password reset depends on the admin being reachable.
+
+### Remove OAuth — frontend hidden ✅ (2026-10-03); backend left dormant
+Done in the frontend (commit 94733f0): GitHub/Google buttons, divider,
+handlers, the oauth-callback route/component and the dead scaffold copies are
+gone. The backend `/google` + `/github` routes remain in place but unreachable
+(decided: hide in frontend only). Remaining optional cleanup (backend) below.
 
 ### Remove OAuth (follow-up to the no-social-login decision)
 - Backend: `/auth/google`, `/auth/google/callback`, `/auth/github`,
