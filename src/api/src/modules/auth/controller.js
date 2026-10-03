@@ -7,30 +7,20 @@ require('dotenv').config();
 
 const {
     findOrCreateOAuthUser,
-    saveResetToken,
-    findUserByResetToken,
-    clearResetToken,
-    updatePassword,
     createUser,
     findUserByEmail,
     findUserById,
     storeRefreshToken,
     findRefreshToken,
     deleteRefreshToken,
-    deleteAllUserRefreshTokens,
-    verifyEmail,
-    findUserByVerificationToken,
-    storeVerificationToken,
     isEmailAllowed,
     markEmailAsUsed,
-    unmarkEmailAsUsed,
-    deleteUserById,
     addAllowedEmail,
     getAllowedEmails,
     revokeAllowedEmail,
 } = require('./userModel');
 const { generateAccessToken, generateRefreshToken, verifyRefreshToken,
-        validatePasswordStrength, sendResetEmail, sendVerificationEmail } = require('./utils');
+        validatePasswordStrength } = require('./utils');
 
 
 
@@ -66,30 +56,15 @@ exports.register = async (req, res, next) => {
       throw err;
     }
 
-    const verificationToken = crypto.randomBytes(32).toString('hex');
-    const tokenHash = crypto.createHash('sha256').update(verificationToken).digest('hex');
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1hr
-
-    const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
-
-    // Create user (new version returns user object with id, email, username)
+    // No mail service in this deployment: whitelisted accounts are created
+    // already verified and can sign in immediately. (See GOING-LIVE.md.)
     const user = await createUser(email, password, allowedEmail.orgId);
-    await storeVerificationToken(user.id, tokenHash, expiresAt);
-    await markEmailAsUsed(email);   // mark the allowed email as used
-
-    try {
-      await sendVerificationEmail(email, verificationUrl);
-    } catch (emailErr) {
-      logger.error('auth-service', 'Verification email failed, rolling back registration', { message: emailErr.message, stack: emailErr.stack });
-      await deleteUserById(user.id);
-      await unmarkEmailAsUsed(email);
-      throw new AppError('Registration failed: could not send verification email. Please try again.', 500);
-    }
+    await markEmailAsUsed(email);   // consume the whitelist entry
 
     return res.status(201).json({
       id: user.id,
       email: user.email,
-      message: 'Registration successful. Please verify your email before logging in.'
+      message: 'Registration successful. You can now sign in.'
     });
   } catch (err) {
     return next(err);
@@ -109,9 +84,6 @@ exports.login = async (req, res, next) => {
     const valid = await bcrypt.compare(password, user.pass_hash);
     if (!valid) {
       throw new UnauthorizedError('Invalid credentials');
-    }
-    if (!user.email_verified) {
-      throw new ForbiddenError('Please verify your email before logging in.');
     }
 
     const accessToken = generateAccessToken(user.id, user.email);
@@ -209,73 +181,10 @@ exports.getMe = async (req, res, next) => {
 
 
 // ---------- Forgot Password ----------
-exports.forgotPassword = async (req, res, next) => {
-    try {
-        const { email } = req.body;
-        if (!email) throw new ValidationError('Email required');
-
-        const user = await findUserByEmail(email);
-        // Always respond with generic success (avoid user enumeration)
-        if (!user || user.provider !== 'local') {
-            // Still return 200 to not leak existence
-            return res.status(200).json({ message: 'If an account with that email exists, a reset link has been sent.' });
-        }
-
-        // Generate random token (32 bytes hex)
-        const resetToken = crypto.randomBytes(32).toString('hex');
-        const tokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
-        const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-
-        await saveResetToken(user.id, tokenHash, expiresAt);
-
-        // Build reset URL (frontend route)
-        const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
-
-        // In development, log to the service logs. In production, send email.
-        logger.info('auth-service', 'Password reset link generated', { resetUrl });
-
-        await sendResetEmail(email, resetUrl);
-        // TODO: Send email via nodemailer (example below)
-        // await sendEmail(email, 'Reset your password', `Click here: ${resetUrl}`);
-
-        res.status(200).json({ message: 'If an account with that email exists, a reset link has been sent.' });
-    } catch (err) {
-        next(err);
-    }
-};
-
-// ---------- Reset Password ----------
-exports.resetPassword = async (req, res, next) => {
-    try {
-        const { token, newPassword } = req.body;
-        if (!token || !newPassword) {
-            throw new ValidationError('Token and new password required');
-        }
-        const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-        const user = await findUserByResetToken(tokenHash);
-        if (!user) {
-            throw new ValidationError('Invalid or expired reset token');
-        }
-        const passwordStrength = validatePasswordStrength(newPassword);
-        if (!passwordStrength.isValid) {
-            const err = new ValidationError('Password too weak');
-            err.suggestions = passwordStrength.suggestions;
-            throw err;
-        }
-
-        // Hash new password
-        const hashedPassword = await bcrypt.hash(newPassword, 10);
-        await updatePassword(user.id, hashedPassword);
-        await clearResetToken(user.id);
-
-        // Revoke all refresh tokens (logout from all devices)
-        // await deleteAllRefreshTokensForUser(user.id);
-
-        res.status(200).json({ message: 'Password reset successfully. Please log in.' });
-    } catch (err) {
-        next(err);
-    }
-};
+// Password reset is handled out-of-band: this deployment sends no email, so a
+// user who forgets their password asks an admin, who resets it from the admin
+// panel (POST /api/user/:id/reset-password). The emailed forgot/reset flow is
+// gone. See GOING-LIVE.md.
 
 // ---------- Google OAuth ----------
 // Set up Google OAuth2 client
@@ -447,22 +356,6 @@ exports.githubCallback = async (req, res) => {
     }
 };
 
-
-exports.verifyEmail = async (req, res, next) => {
-    try {
-        const { token } = req.query;
-        if (!token) throw new ValidationError('Token required');
-
-        const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-        const user = await findUserByVerificationToken(tokenHash);
-        if (!user) throw new ValidationError('Invalid or expired token');
-
-        await verifyEmail(user.id);
-        res.status(200).json({ message: 'Email verified successfully.' });
-    } catch (err) {
-        next(err);
-    }
-};
 
 // ---------- Invitations ----------
 exports.createInvite = async (req, res, next) => {

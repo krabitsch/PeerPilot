@@ -55,4 +55,14 @@ router.delete('/:id', requireRole('Admin'), async(req, res, next)=>{
   }
 })
 
+// Admin resets a user's password (no mail service — the admin relays the
+// returned one-time password out of band). Returns { password } once.
+router.post('/:id/reset-password', requireRole('Admin'), async(req, res, next)=>{
+  try{
+    res.json(await userService.resetPassword(req.params.id))
+  }catch(err){
+    next(err)
+  }
+})
+
 module.exports = router

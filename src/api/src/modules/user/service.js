@@ -3,6 +3,8 @@ const { NotFoundError, ValidationError } = require('@transcendence/errors')
 const utils = require('@transcendence/utils')
 const logger = require('@transcendence/logger')
 const {createStorage} = require('@transcendence/filemanager')
+const bcrypt = require('bcrypt')
+const crypto = require('crypto')
 
 let storage
 (async () => {
@@ -89,4 +91,25 @@ const deleteUser = async (id)=>{
 }
 
 
-module.exports = { getAllUsers, getUserById, getRole, getProfile, updateProfile, deleteUser, uploadAvatar}
+// Admin-driven password reset (there is no mail service). Generates a strong
+// temporary password, stores its hash, and returns the plaintext ONCE so the
+// admin can relay it to the user. Upserts the auth row, so it also gives a
+// login to admin-provisioned members that never had credentials.
+const resetPassword = async (id) => {
+  const user = await utils.getUserById(id)
+  if (!user) throw new NotFoundError('User not found')
+
+  const password = crypto.randomBytes(12).toString('base64url')  // ~16 chars, mixed
+  const pass_hash = await bcrypt.hash(password, 12)
+
+  await prisma.userAuth.upsert({
+    where: { userId: parseInt(id) },
+    update: { pass_hash },
+    create: { userId: parseInt(id), pass_hash, provider: 'local', email_verified: true },
+  })
+
+  logger.info('user-service', 'Admin reset a password', { userId: parseInt(id) })
+  return { password }
+}
+
+module.exports = { getAllUsers, getUserById, getRole, getProfile, updateProfile, deleteUser, uploadAvatar, resetPassword }
