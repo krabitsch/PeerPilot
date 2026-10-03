@@ -1,7 +1,8 @@
 const express = require('express')
 const route = express.Router()
 const service = require('./service')
-const { requireStaff } = require('../../middleware/authenticate')
+const { requireStaff, isStaff } = require('../../middleware/authenticate')
+const { recordingUploader } = require('@transcendence/filemanager')
 
 // Eval sheets and the pairing table are course machinery: staff build them,
 // students only read them. The evaluation flow itself stays open to students,
@@ -118,9 +119,21 @@ route.post('/evaluate/start', async (req, res, next) => {
     }catch(err){next(err)}
 })
 
-route.post('/evaluate/submit', async (req, res, next) => {
+// Multipart: a required audio recording ('recording') plus the comment and
+// scores. scores arrives as a JSON string in the form body.
+route.post('/evaluate/submit', recordingUploader.single('recording'), async (req, res, next) => {
     try{
-        res.json(await service.submitEvaluation({ ...req.body, evaluatorUserId: req.user.userId }))
+        let scores = req.body.scores
+        if (typeof scores === 'string') {
+            try { scores = JSON.parse(scores) } catch { scores = undefined }
+        }
+        res.json(await service.submitEvaluation({
+            evalAssignmentId: req.body.evalAssignmentId,
+            comment: req.body.comment,
+            scores,
+            evaluatorUserId: req.user.userId,
+            recording: req.file,
+        }))
     }catch(err){next(err)}
 })
 
@@ -128,6 +141,14 @@ route.post('/evaluate/submit', async (req, res, next) => {
 route.get('/submission/:subId/responses', async (req, res, next) => {
     try{
         res.json(await service.getEvalResponsesForSubmission(req.params.subId))
+    }catch(err){next(err)}
+})
+
+// presigned download of an evaluation's recording — gated to staff, the
+// evaluator, or a member of the evaluated group (GET /api/eval/responses/:id/recording)
+route.get('/responses/:id/recording', async (req, res, next) => {
+    try{
+        res.json(await service.getRecordingUrl(req.params.id, { userId: req.user.userId, isStaff: isStaff(req) }))
     }catch(err){next(err)}
 })
 

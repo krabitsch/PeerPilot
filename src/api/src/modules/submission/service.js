@@ -163,7 +163,7 @@ const removeFile = async (groupId, userId) =>{
     if(!existingSub.file) throw new NotFoundError('File not found')
     if(existingSub.status !== 'Open') throw new ValidationError('Submission is already closed')
     
-    await storage.deleteFromMinio(existingSub.file.url)
+    await storage.delete(existingSub.file.url)
     await prisma.submission.update({
         where:{id: existingSub.id},
         data:{fileId: null}
