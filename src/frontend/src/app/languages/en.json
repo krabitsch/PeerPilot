@@ -653,7 +653,7 @@
     "pts_with_plus": "+{{value}} pts",
     "register_already_have_account": "Already have an account?",
     "register_subtitle": "You need an invite to register.",
-    "register_success_banner": "Registration successful! Check your email for a verification link before signing in.",
+    "register_success_banner": "Registration successful! You can now sign in.",
     "register_title": "Create account",
     "reset_password_invalid_link": "Invalid reset link. Please request a new one.",
     "reset_password_set_subtitle": "Choose a strong password for your account.",

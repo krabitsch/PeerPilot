@@ -623,7 +623,7 @@
     "pts_with_plus": "+{{value}} pont",
     "register_already_have_account": "Már van fiókja?",
     "register_subtitle": "A regisztrációhoz meghívás szükséges.",
-    "register_success_banner": "Sikeres regisztráció! A bejelentkezés előtt ellenőrizze e-mailjeit a megerősítő linkért.",
+    "register_success_banner": "Sikeres regisztráció! Most már bejelentkezhet.",
     "register_title": "Fiók létrehozása",
     "reset_password_invalid_link": "Érvénytelen visszaállítási link. Kérjen egy újat.",
     "reset_password_set_subtitle": "Válasszon erős jelszót a fiókjához.",

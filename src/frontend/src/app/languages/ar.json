@@ -651,7 +651,7 @@
     "pts_with_plus": "+{{value}} نقطة",
     "register_already_have_account": "هل لديك حساب بالفعل؟",
     "register_subtitle": "تحتاج إلى دعوة للتسجيل.",
-    "register_success_banner": "تم التسجيل بنجاح! تحقق من بريدك الإلكتروني للحصول على رابط التحقق قبل تسجيل الدخول.",
+    "register_success_banner": "تم التسجيل بنجاح! يمكنك الآن تسجيل الدخول.",
     "register_title": "إنشاء حساب",
     "reset_password_invalid_link": "رابط إعادة التعيين غير صالح. يرجى طلب رابط جديد.",
     "reset_password_set_subtitle": "اختر كلمة مرور قوية لحسابك.",

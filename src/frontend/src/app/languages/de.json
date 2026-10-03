@@ -653,7 +653,7 @@
     "pts_with_plus": "+{{value}} Pkt.",
     "register_already_have_account": "Sie haben bereits ein Konto?",
     "register_subtitle": "Sie benötigen eine Einladung, um sich zu registrieren.",
-    "register_success_banner": "Registrierung erfolgreich! Überprüfen Sie Ihre E-Mails auf einen Bestätigungslink, bevor Sie sich anmelden.",
+    "register_success_banner": "Registrierung erfolgreich! Sie können sich jetzt anmelden.",
     "register_title": "Konto erstellen",
     "reset_password_invalid_link": "Ungültiger Link zum Zurücksetzen. Bitte fordern Sie einen neuen an.",
     "reset_password_set_subtitle": "Wählen Sie ein starkes Passwort für Ihr Konto.",
