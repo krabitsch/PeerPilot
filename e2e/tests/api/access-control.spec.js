@@ -157,3 +157,24 @@ test.describe('the user directory', () => {
     expect(bob.email).toBe('bob@e2e.test')
   })
 })
+
+test.describe('admin password reset (no mail service)', () => {
+  test('only an Admin can reset, and it returns a working password', async ({ api }) => {
+    const { users } = seeded()
+
+    // A non-admin cannot reset anyone.
+    await expectError(await (await api('bocal')).post(`user/${users.bob}/reset-password`, { data: {} }), 403)
+    await expectError(await (await api('alice')).post(`user/${users.alice}/reset-password`, { data: {} }), 403)
+
+    // Admin resets and gets a one-time password back.
+    const body = await expectOk(await (await api('admin')).post(`user/${users.dave}/reset-password`, { data: {} }))
+    expect(typeof body.password).toBe('string')
+    expect(body.password.length).toBeGreaterThanOrEqual(12)
+
+    // That password actually logs the user in.
+    const login = await (await api('anon')).post('auth/login', {
+      data: { email: 'dave@e2e.test', password: body.password },
+    })
+    expect((await login.json()).accessToken).toBeTruthy()
+  })
+})
