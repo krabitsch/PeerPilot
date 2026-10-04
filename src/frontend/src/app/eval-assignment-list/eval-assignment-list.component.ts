@@ -21,6 +21,7 @@ interface EvalAssignmentDisplayRow {
   id: number;
   round: number;
   status: string;
+  evalResponseId: number | null;
 
   evalueeGroupId: number;
   evalueeGroupName: string;
@@ -403,6 +404,15 @@ readonly modalStyle = { background: '#0d0f1a', border: '1px solid #2a2f45', bord
   }
 
   // delete one EvalAssignment-pairing 
+  // Staff: play the evaluator's recording to verify the evaluation happened.
+  playRecording(row: EvalAssignmentDisplayRow): void {
+    if (!row.evalResponseId) return;
+    this.evalService.getRecordingUrl(row.evalResponseId).subscribe({
+      next: (res) => window.open(res.url, '_blank', 'noopener'),
+      error: () => this.error.set('Could not load the recording.'),
+    });
+  }
+
   deleteEvalAssignment(row: EvalAssignmentDisplayRow): void {
     const ok = window.confirm(this.translate.instant('confirm_delete_pairing', { evaluee: row.evalueeGroupName, evaluator: row.evaluatorName }));
     if (!ok) return;
@@ -544,6 +554,7 @@ readonly modalStyle = { background: '#0d0f1a', border: '1px solid #2a2f45', bord
                 id: row.id,
                 round: row.round,
                 status: row.status,
+                evalResponseId: row.evalResponseId ?? null,
 
                 evalueeGroupId: row.evalueeGroupId,
                 evalueeGroupName:
