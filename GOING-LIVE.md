@@ -130,6 +130,10 @@ gone. The backend `/google` + `/github` routes remain in place but unreachable
   parameterised (`MINIO_*`, `BASE_URL`). Note: the image is currently
   `coollabsio/minio` (a community mirror, merged from main 2026-10-01) — for
   production, pin the official `minio/minio` image or move to managed S3.
+  Buckets: `submissions`, `assignment-subjects`, `user-profile` (public via
+  nginx `/files/`), and `eval-recordings` (private; presigned access only — the
+  evaluation recordings are audit artifacts and must be backed up). The
+  recordings especially argue for durable/managed storage + backups.
 - **Managed Postgres + backups.** Postgres runs containerised on a local
   volume. Production wants managed Postgres or, at minimum, a backup job for
   the `postgres` volume.
