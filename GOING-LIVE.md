@@ -137,8 +137,10 @@ gone. The backend `/google` + `/github` routes remain in place but unreachable
 - **Managed Postgres + backups.** Postgres runs containerised on a local
   volume. Production wants managed Postgres or, at minimum, a backup job for
   the `postgres` volume.
-- **Backups** for both the `postgres` and `minio` volumes — nothing backs them
-  up today.
+- **Backups** ✅ tooling added (2026-10-04): `make backup-db` / `make backup-files`
+  / `make restore-db` + `docs/BACKUPS.md` (see also `docs/STORAGE.md`). Still to
+  do operationally: schedule them (cron), copy `backups/` off-host, and set a
+  retention policy — the scripts exist and round-trip, but nothing runs them yet.
 - **Secrets out of source / git.** The hardcoded Mailtrap SMTP creds in
   `auth/utils.js` are a committed secret. They go away with *Remove the email
   dependency* (step 4); they should also be rotated/invalidated since they're
