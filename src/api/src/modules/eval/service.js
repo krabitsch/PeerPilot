@@ -465,10 +465,6 @@ const submitEvaluation = async ({evalAssignmentId, evaluatorUserId, comment, sco
     const evaluatorUserIdInt = parseInt(evaluatorUserId)
     if(!evalAssignmentIdInt || !evaluatorUserIdInt || !validateString(comment) || !Array.isArray(scores) || scores.length === 0)
         throw new ValidationError('evalAssignmentId, evaluatorUserId, comment and scores are required')
-    // The audio recording of the evaluation is mandatory — it's the professor's
-    // proof the evaluation actually took place.
-    if(!recording || !recording.buffer)
-        throw new ValidationError('A recording of the evaluation is required')
 
     const evalAssignment = await utils.getEvalAssignmentById(evalAssignmentIdInt)
     if(!evalAssignment)
@@ -504,6 +500,12 @@ const submitEvaluation = async ({evalAssignmentId, evaluatorUserId, comment, sco
         if(section.sectionType === 'Toggle' && scoreInt !== 0 && scoreInt !== section.marks)
             throw new ValidationError(`"${section.name}" is a yes/no section — score must be 0 or ${section.marks}`)
     }
+
+    // The audio recording is mandatory — the professor's proof the evaluation
+    // happened. Checked after identity/state so a non-evaluator is refused
+    // (401) rather than prompted for a file.
+    if(!recording || !recording.buffer)
+        throw new ValidationError('A recording of the evaluation is required')
 
     const givenMarks = scores.reduce((sum, s) => sum + parseInt(s.score), 0)
 

@@ -43,4 +43,10 @@ const samplePdf = (dir, name = 'report.pdf') => {
   return path
 }
 
-module.exports = { signIn, pageAs, plantVerificationToken, samplePdf, expect }
+// A tiny in-memory audio "file" for the evaluation recording input. The bytes
+// don't matter — only that the multipart part carries an allowed audio type.
+const sampleAudioUpload = (name = 'evaluation.webm') => ({
+  name, mimeType: 'audio/webm', buffer: Buffer.from('fake-evaluation-audio'),
+})
+
+module.exports = { signIn, pageAs, plantVerificationToken, samplePdf, sampleAudioUpload, expect }
