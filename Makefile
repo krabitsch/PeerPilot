@@ -13,7 +13,7 @@ YELLOW = \033[0;33m
 BLUE   = \033[0;34m
 RESET  = \033[0m
 
-.PHONY: setup build up down clean restart run re dev prod check_env studio populateDB resetDB genPrismaClient seedAdmin seedAdmin_prod migrate migrate_prod generateUsers e2e e2e-up e2e-seed e2e-down e2e-install e2e-summary e2e-report cert cert-renew
+.PHONY: setup build up down clean restart run re dev prod check_env studio populateDB resetDB genPrismaClient seedAdmin seedAdmin_prod migrate migrate_prod generateUsers e2e e2e-up e2e-seed e2e-down e2e-install e2e-summary e2e-report cert cert-renew backup-db restore-db backup-files
 
 setup: check_env
 	@echo "$(GREEN)Setup complete.$(RESET)"
@@ -148,6 +148,18 @@ status:
 
 logs:
 	@docker compose -f $(COMPOSE_FILE) logs -f
+
+# ── Backups ──────────────────────────────────────────────────
+# Database → backups/db/<ts>.sql.gz ; files → backups/files/<bucket>.
+# Keep the backups/ output off this host for a real backup. See docs/BACKUPS.md.
+backup-db:
+	@bash scripts/backup-db.sh
+
+restore-db:
+	@bash scripts/restore-db.sh $(FILE)
+
+backup-files:
+	@bash scripts/backup-files.sh
 
 populateDB:
 	@echo "$(YELLOW)WARNING: This will wipe the current database and populate it with fake/sample data.$(RESET)"
