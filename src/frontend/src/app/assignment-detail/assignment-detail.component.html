@@ -51,6 +51,53 @@
     </div>
   </app-container>
 
+  @if (assignment()!.file; as assignmentFile) {
+
+    <app-container [config]="flatConfig">
+
+        <div class="desc-body">
+
+        <div class="desc-label">
+            Assignment file
+        </div>
+
+        <div
+            style="
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:16px;
+            ">
+
+            <span
+            style="
+                font-size:0.875rem;
+                color:oklch(84% 0.01 272);
+            ">
+            📄 {{ assignmentFile.name }}
+            </span>
+
+            <a
+            [href]="assignmentFile.url"
+            target="_blank"
+            rel="noopener noreferrer"
+            style="
+                color:oklch(68% 0.24 296);
+                font-size:0.875rem;
+                font-weight:600;
+                text-decoration:none;
+            ">
+            Open assignment ↗
+            </a>
+
+        </div>
+
+        </div>
+
+    </app-container>
+
+    }
+
   <!-- ── Subject file ──────────────────────────────────────────── -->
   @if (assignment()!.file) {
     <app-container [config]="flatConfig">
@@ -304,9 +351,6 @@
        ════════════════════════════════════════════════════════════ -->
   @if (viewAsStaff()) {
 
-    <div class="action-row">
-      <app-btn variant="secondary" (clicked)="goToEvalAssignments()">{{ 'btn_manage_eval_pairings' | translate }}</app-btn>
-    </div>
 
     <div class="staff-stats">
       <div class="sstat">

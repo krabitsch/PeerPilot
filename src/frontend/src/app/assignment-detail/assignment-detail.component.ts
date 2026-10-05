@@ -909,12 +909,6 @@ export class AssignmentDetailComponent implements OnInit {
     });
   }
 
-  goToEvalAssignments(): void {
-    const a = this.assignment();
-    if (!a) return;
-    this.router.navigate(['/eval-assignments'], { queryParams: { assignmentId: a.id } });
-  }
-
   acceptInvite(inviteId: number) {
     const userId = this.currentUserId();
     if (!userId) return;
