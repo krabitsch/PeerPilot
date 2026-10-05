@@ -13,7 +13,7 @@ YELLOW = \033[0;33m
 BLUE   = \033[0;34m
 RESET  = \033[0m
 
-.PHONY: setup build up down clean restart run re dev prod check_env studio populateDB resetDB genPrismaClient seedAdmin seedAdmin_prod migrate migrate_prod generateUsers e2e e2e-up e2e-seed e2e-down e2e-install e2e-summary e2e-report cert cert-renew backup-db restore-db backup-files
+.PHONY: setup build up down clean restart run re dev prod check_env studio populateDB resetDB genPrismaClient seedAdmin seedAdmin_prod migrate migrate_prod generateUsers e2e e2e-up e2e-seed e2e-down e2e-install e2e-summary e2e-report cert cert-renew backup backup-db restore-db backup-files
 
 setup: check_env
 	@echo "$(GREEN)Setup complete.$(RESET)"
@@ -150,8 +150,12 @@ logs:
 	@docker compose -f $(COMPOSE_FILE) logs -f
 
 # ── Backups ──────────────────────────────────────────────────
-# Database → backups/db/<ts>.sql.gz ; files → backups/files/<bucket>.
-# Keep the backups/ output off this host for a real backup. See docs/BACKUPS.md.
+# `make backup` is the one-shot entry point for cron: DB dump + file mirror +
+# prune. Individual targets below still work. Output goes to $BACKUP_DIR
+# (default backups/); copy it off this host for a real backup. See docs/BACKUPS.md.
+backup:
+	@bash scripts/backup.sh
+
 backup-db:
 	@bash scripts/backup-db.sh
 
