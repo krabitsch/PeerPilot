@@ -26,9 +26,13 @@
           <textarea [ngStyle]="textAreaStyle" [value]="description()" (input)="description.set($any($event.target).value)"></textarea>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px">
+
           <div>
-            <label [ngStyle]="fieldLabelStyle">{{ 'label_max_score' | translate }}</label>
+            <label [ngStyle]="fieldLabelStyle">
+              {{ 'label_max_score' | translate }}
+            </label>
+
             <input
               [ngStyle]="inputStyle"
               type="number"
@@ -37,8 +41,12 @@
               (input)="maxScore.set(+$any($event.target).value)" />
           </div>
 
+
           <div>
-            <label [ngStyle]="fieldLabelStyle">{{ 'label_required_evals' | translate }}</label>
+            <label [ngStyle]="fieldLabelStyle">
+              {{ 'label_required_evals' | translate }}
+            </label>
+
             <input
               [ngStyle]="inputStyle"
               type="number"
@@ -47,8 +55,26 @@
               (input)="reqEval.set(+$any($event.target).value)" />
           </div>
 
+
           <div>
-            <label [ngStyle]="fieldLabelStyle">{{ 'bocal_label_pass_threshold_pct' | translate }}</label>
+            <label [ngStyle]="fieldLabelStyle">
+              {{ 'label_group_size' | translate }}
+            </label>
+
+            <input
+              [ngStyle]="inputStyle"
+              type="number"
+              min="1"
+              [value]="groupSize()"
+              (input)="groupSize.set(+$any($event.target).value)" />
+          </div>
+
+
+          <div>
+            <label [ngStyle]="fieldLabelStyle">
+              {{ 'bocal_label_pass_threshold_pct' | translate }}
+            </label>
+
             <input
               [ngStyle]="inputStyle"
               type="number"
@@ -57,9 +83,20 @@
               [value]="passThreshold()"
               (input)="passThreshold.set(+$any($event.target).value)" />
           </div>
+
         </div>
         <div>
-          <label [ngStyle]="fieldLabelStyle">{{ 'label_subject_file' | translate }}</label>
+          <label [ngStyle]="fieldLabelStyle">
+            {{ 'label_assignment_file_optional' | translate }}
+          </label>
+          <div
+            style="
+              font-size:0.75rem;
+              color:oklch(55% 0.01 272);
+              margin-bottom:6px;
+            ">
+            {{ 'assignment_file_help' | translate }}
+          </div>
           <div style="font-size:0.8125rem;color:oklch(68% 0.01 272);margin-bottom:6px">
             {{ fileName() ?? ('bocal_no_subject_file' | translate) }}
           </div>
@@ -181,8 +218,16 @@
 
     @if (editMode()) {
       <div
-        style="margin-top:16px;padding-top:16px;padding-bottom:16px;margin-bottom:16px;border-top:1px solid oklch(22% 0.025 272);
-              border-bottom:1px solid oklch(22% 0.025 272);display:flex;justify-content:space-between;align-items:center;gap:16px;">
+        style="
+          margin:16px 18px;
+          padding:16px 0;
+          border-top:1px solid oklch(22% 0.025 272);
+          border-bottom:1px solid oklch(22% 0.025 272);
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          gap:16px;
+        ">
         <div>
           <div
             style="font-size:0.875rem;font-weight:600;color:oklch(72% 0.18 25);margin-bottom:3px;">

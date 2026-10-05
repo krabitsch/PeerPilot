@@ -231,6 +231,7 @@
     "label_pass_rate": "معدل النجاح",
     "label_pending_evaluations": "التقييمات المعلقة",
     "label_password": "كلمة المرور",
+    "label_group_size": "حجم المجموعة",
     "login_title": "تسجيل الدخول",
     "login_subtitle": "منصة التعلم من الأقران الخاصة بك.",
     "login_verified_banner": "تم التحقق من بريدك الإلكتروني. يمكنك الآن تسجيل الدخول.",

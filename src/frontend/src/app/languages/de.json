@@ -231,6 +231,7 @@
     "label_pass_rate": "Bestehensquote",
     "label_pending_evaluations": "Ausstehende Bewertungen",
     "label_password": "Passwort",
+    "label_group_size": "Gruppengröße",
     "login_title": "Anmelden",
     "login_subtitle": "Deine Peer-to-Peer-Lernplattform.",
     "login_verified_banner": "Deine E-Mail wurde bestätigt. Du kannst dich jetzt anmelden.",
@@ -667,5 +668,7 @@
     "verify_email_loading": "Ihre E-Mail-Adresse wird überprüft…",
     "verify_email_success": "Ihre E-Mail-Adresse wurde bestätigt. Sie werden zur Anmeldung weitergeleitet…",
     "label_admin": "Admin",
-    "label_bocal": "Bocal"
+    "label_bocal": "Bocal",
+    "label_assignment_file_optional": "Aufgabendatei (optional)",
+    "assignment_file_help": "Laden Sie die Aufgabenstellung oder Anweisungen für die Studierenden hoch."
 }

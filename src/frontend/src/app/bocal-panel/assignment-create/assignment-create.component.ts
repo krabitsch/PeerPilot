@@ -236,17 +236,22 @@ export class AssignmentCreateComponent implements OnInit {
     const classId   = this.classId;
     const name      = this.name().trim();
     const desc      = this.description().trim();
-    const maxScore  = this.maxScore();
-    const reqEval   = this.reqEval();
+    const maxScore      = this.maxScore();
+    const reqEval       = this.reqEval();
+    const groupSize     = this.groupSize();
     const passThreshold = this.passThreshold();
-    const createdBy = this.auth.user()?.id;
+    const createdBy     = this.auth.user()?.id;
 
-    if (!classId)                          { this.error.set(this.translate.instant('error_missing_class_id')); return; }
-    if (!createdBy)                        { this.error.set(this.translate.instant('error_user_not_identified')); return; }
-    if (!name)                             { this.error.set(this.translate.instant('error_name_required')); return; }
-    if (!desc)                             { this.error.set(this.translate.instant('error_description_required')); return; }
-    if (!maxScore || maxScore <= 0)        { this.error.set(this.translate.instant('error_invalid_max_score')); return; }
-    if (!reqEval  || reqEval  <= 0)        { this.error.set(this.translate.instant('error_invalid_req_eval')); return; }
+
+
+    if (!groupSize || groupSize <= 0)         { this.error.set('Enter a valid group size.'); return; }
+    if (!passThreshold || passThreshold <= 0) { this.error.set('Enter a valid pass threshold.'); return; }
+    if (!classId)                             { this.error.set(this.translate.instant('error_missing_class_id')); return; }
+    if (!createdBy)                           { this.error.set(this.translate.instant('error_user_not_identified')); return; }
+    if (!name)                                { this.error.set(this.translate.instant('error_name_required')); return; }
+    if (!desc)                                { this.error.set(this.translate.instant('error_description_required')); return; }
+    if (!maxScore || maxScore <= 0)           { this.error.set(this.translate.instant('error_invalid_max_score')); return; }
+    if (!reqEval  || reqEval  <= 0)           { this.error.set(this.translate.instant('error_invalid_req_eval')); return; }
     if (!passThreshold || passThreshold <= 0) { this.error.set(this.translate.instant('error_invalid_pass_threshold')); return; }
     if (this.pendingSections().length === 0) {
       this.activeTab.set(1);
@@ -262,7 +267,13 @@ export class AssignmentCreateComponent implements OnInit {
     this.error.set(null);
     this.loading.show();
     this.assignService.createAssignment(classId, {
-      name, description: desc, maxScore, reqEval, passThreshold, createdBy,
+      name,
+      description: desc,
+      groupSize,
+      maxScore,
+      reqEval,
+      passThreshold,
+      createdBy,
       file: this.file ?? undefined,
     }).subscribe({
       next: (assignment) => this.createEvalSheet(assignment, classId),
