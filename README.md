@@ -219,8 +219,8 @@ Throughout development the team used three main tools to coordinate work:
 | ORM              | Prisma v5                |
 | Reverse Proxy    | nginx                    |
 | Containerization | Docker & Docker Compose  |
-| Authentication   | JWT + OAuth 2.0          |
-| File Storage     | MinIO                    |
+| Authentication   | JWT (email + password)   |
+| File Storage     | MinIO (S3-compatible)    |
 | Localization     | ngx-translate            |
 
 ### Why These Technologies?
@@ -233,7 +233,7 @@ Throughout development the team used three main tools to coordinate work:
 
 **Prisma ORM** drives all database access. A single `schema.prisma` file defines every model across all services, migrations are tracked in version control, and the generated client provides full TypeScript type safety.
 
-**MinIO** is used as an S3-compatible object store for user avatars, assignment subject files, and student submission files. A shared `packages/fileManager` package wraps the MinIO client and Multer uploader so every service that needs file handling uses the same interface.
+**MinIO** is used as an S3-compatible object store for user avatars, assignment subject files, student submission files, and evaluation recordings. A shared `packages/fileManager` package wraps the MinIO client and Multer uploader so every service that needs file handling uses the same interface. The three former buckets are public-read (served through nginx `/files/`); the fourth, `eval-recordings`, is private and reached only through short-lived presigned URLs. In production MinIO runs on the official, pinned `quay.io/minio/minio` image and its data is covered by the backup tooling (`make backup`; see `docs/STORAGE.md` and `docs/BACKUPS.md`). Because the client is S3-compatible, pointing `MINIO_*` at a managed S3 provider later is configuration, not code.
 
 **Docker** ensures every developer runs an identical environment. The `Makefile` automates environment generation, database health-gating, migration deployment, and service startup so a fresh clone is a single `make` command away.
 
@@ -281,7 +281,7 @@ The frontend is a single-page Angular 17 application using standalone components
 
 ## ✔ Public API Interacting with the Database (2 Points)
 
-Every service exposes a REST API for CRUD operations on its domain. The user service manages user accounts and profiles. The organization service handles organizations, membership, and org profiles. The class service owns classes, assignments, and their associated evaluation sheets. The enrollment service manages the student–class relationship. The group service handles assignment groups and peer invitations. The submission service manages file uploads to MinIO and submission lifecycle. The evaluation service drives the eval sheet, pairing algorithm, and scoring flow. All services share a single Prisma client generated from one central schema.
+Every service exposes a REST API for CRUD operations on its domain. The user service manages user accounts and profiles. The organization service handles organizations, membership, and org profiles. The class service owns classes, assignments, and their associated evaluation sheets. The enrollment service manages the student–class relationship. The group service handles assignment groups and peer invitations. The submission service manages file uploads to MinIO and submission lifecycle. The evaluation service drives the eval sheet, pairing algorithm, and scoring flow, and stores a required audio recording of each evaluation (private, presigned access). All services share a single Prisma client generated from one central schema.
 
 **Primary Contributors:** *Yamen, Adam, Katrin, Albert*
 
@@ -289,7 +289,9 @@ Every service exposes a REST API for CRUD operations on its domain. The user ser
 
 ## ✔ Standard User Management & Authentication (2 Points)
 
-Authentication is handled by a dedicated auth service. Registration requires an invited email address (stored in `auth_allowed_emails`), a strong password validated by `zxcvbn`, and email verification before the account can be used. Login issues a short-lived JWT access token (default 15 minutes) and a long-lived refresh token stored as a hashed value in the database and delivered via an httpOnly cookie. The Angular `AuthInterceptor` attaches the Bearer token to every outgoing request and transparently refreshes it on 401 responses using a queued retry mechanism.
+Authentication is handled by a dedicated auth service. Registration requires an invited email address (stored in `auth_allowed_emails`) and a strong password validated by `zxcvbn`. Login issues a short-lived JWT access token (default 15 minutes) and a long-lived refresh token stored as a hashed value in the database and delivered via an httpOnly cookie. The Angular `AuthInterceptor` attaches the Bearer token to every outgoing request and transparently refreshes it on 401 responses using a queued retry mechanism.
+
+**Production change (email-free auth).** This deployment runs without an email provider (controlled cohort of vetted users). Registration auto-verifies the account — no verification email is sent — and emailed forgot/reset-password has been removed. A forgotten password is recovered through an **Admin-only reset** (`POST /api/user/:id/reset-password`) that generates a one-time password surfaced on the admin org-detail page. The `email_verified` column is kept so real verification can be re-enabled if the platform grows. See `GOING-LIVE.md`.
 
 **Primary Contributors:** *Adam, Yamen*
 
@@ -359,7 +361,7 @@ The `packages/utils` shared query helpers provide flexible search across entitie
 
 ## ✔ File Upload & Management (1 Point)
 
-File handling is centralized in `packages/fileManager`, which wraps `multer` (memory storage, 50 MB limit, MIME type allowlist) and the MinIO client. It exposes `uploader` for route middleware and `createStorage(bucket)` for per-bucket upload, presigned URL generation, public URL generation, and deletion. Three separate MinIO buckets are used in production: `user-profile` for avatars, `assignment-subjects` for Bocal-uploaded subject PDFs, and `submissions` for student submission files.
+File handling is centralized in `packages/fileManager`, which wraps `multer` (memory storage, MIME type allowlist) and the MinIO client. It exposes `uploader` (documents, 50 MB limit) and `recordingUploader` (audio only, 200 MB limit) for route middleware, and `createStorage(bucket)` for per-bucket upload, presigned URL generation, public URL generation, and deletion. Four MinIO buckets are used in production: `user-profile` for avatars, `assignment-subjects` for Bocal-uploaded subject PDFs, and `submissions` for student submission files (all public-read via nginx `/files/`), plus `eval-recordings` for evaluation recordings — private, served only through short-lived presigned URLs gated to staff, the evaluator, or the evaluated group.
 
 **Primary Contributors:** *Yamen*
 
@@ -392,6 +394,8 @@ The Angular application targets ES2022 and uses standard Web APIs. The landing p
 ## ✔ OAuth 2.0 Authentication (1 Point)
 
 GitHub and Google OAuth flows are implemented in the auth service. Both use a `state` cookie for CSRF protection. On successful OAuth callback the service finds or creates a user (checking the allowed-email list for new accounts), issues access and refresh tokens, sets the refresh cookie, and redirects to the Angular `OAuthCallbackComponent` with the access token in the URL fragment. The Angular `AuthService.handleOAuthCallback()` extracts the token and calls `getMe()` to complete the session.
+
+> **Production change — OAuth disabled.** The deployment decision is no social login (access is by whitelisted email + password only). The GitHub/Google buttons and the `oauth-callback` route/component have been removed from the frontend; the backend `/auth/google` and `/auth/github` routes remain registered but are dormant and unreachable from the UI. See `GOING-LIVE.md`.
 
 **Primary Contributors:** *Adam*
 
@@ -626,6 +630,10 @@ The seed password for all generated users is printed in green at the end of the 
 | `make seedAdmin_prod` | Ensure the admin account exists, in the stack (prod)     |
 | `make cert`           | Obtain a Let's Encrypt cert (`DOMAIN=… CERTBOT_EMAIL=…`)  |
 | `make cert-renew`     | Renew certificates near expiry and reload nginx          |
+| `make backup`         | One-shot backup: DB dump + file mirror + prune (for cron) |
+| `make backup-db`      | Dump the database to `$BACKUP_DIR/db/` (gzipped)          |
+| `make backup-files`   | Mirror the MinIO buckets to `$BACKUP_DIR/files/`          |
+| `make restore-db`     | Restore a dump (`FILE=backups/db/<file>.sql.gz`) - destructive |
 | `make studio`         | Open Prisma Studio at http://localhost:5555              |
 | `make generateUsers`  | Create additional users (`ARGS="--count 10 --org 1"`)    |
 | `make resetDB`        | Wipe the database and re-apply migrations                |
@@ -678,9 +686,9 @@ rate limit.
 | ----- | ------ |
 | `tests/api/access-control.spec.js` | Anonymous callers are refused everywhere; students are refused on staff routes; identity comes from the token, not the request body; submission lists are scoped to the caller; enrolment is staff-only |
 | `tests/api/platform.spec.js` | Health, the login rate limit, removed routes stay removed |
-| `tests/journeys/auth.spec.js` | Sign in per role, wrong password, unverified account, invite-only registration with email verification, sign out |
+| `tests/journeys/auth.spec.js` | Sign in per role, wrong password, invite-only registration that activates immediately (no email step), admin password reset, the login page offering no OAuth or forgot-password, sign out |
 | `tests/journeys/student.spec.js` | Dashboard, classes, the full submission flow through to the passkey, profile editing |
-| `tests/journeys/evaluation.spec.js` | A student evaluates another group by passkey; the group leader replies; the final grade is computed |
+| `tests/journeys/evaluation.spec.js` | A student evaluates another group by passkey (uploading the required recording); the group leader replies; the final grade is computed; recording access is gated |
 | `tests/journeys/bocal.spec.js` | Creating classes, assignments with eval sheets, and groups for students |
 | `tests/journeys/admin.spec.js` | Creating organisations, whitelisting and revoking registration invites |
 
@@ -693,11 +701,12 @@ get IDs from `seeded()` rather than hardcoding them, and pick a session with
 `test.use({ storageState: sessionFile('alice') })`. Don't rely on data another
 test creates — each file should pass on its own.
 
-The test stack differs from dev in three settings, all in
-`src/docker-compose.e2e.yml`: emails are built but not sent
-(`EMAIL_TRANSPORT=json`), auth rate limits are scaled up because every request
-comes from one IP (`AUTH_RATE_LIMIT_SCALE`, ignored when
-`NODE_ENV=production`), and access tokens last long enough for a full run.
+The test stack differs from dev in two settings that matter, both in
+`src/docker-compose.e2e.yml`: auth rate limits are scaled up because every
+request comes from one IP (`AUTH_RATE_LIMIT_SCALE`, ignored when
+`NODE_ENV=production`), and access tokens last long enough for a full run
+(`JWT_ACCESS_EXPIRY`). (A leftover `EMAIL_TRANSPORT=json` is still set but is now
+a no-op — the email dependency has been removed.)
 
 CI runs the suite on every pull request (the `e2e` job) and attaches the
 Playwright report and traces when it fails.
@@ -778,7 +787,7 @@ Internet
     ├── /                    → Angular frontend   (frontend-network)
     ├── /api/                → api                (backend-network)
     │        │
-    │        ├── /auth/        public: login, register, OAuth, password reset
+    │        ├── /auth/        public: login, register, token refresh
     │        ├── /user/    ┐
     │        ├── /org/     │
     │        ├── /class/   │
@@ -877,7 +886,8 @@ status. (This is a known wart, kept for frontend compatibility.)
 | GET    | `/:id/profile` | Get user profile       |
 | PATCH  | `/:id/profile` | Update bio             |
 | POST   | `/:id/avatar`  | Upload avatar to MinIO |
-| DELETE | `/:id`         | Delete user            |
+| DELETE | `/:id`         | Delete user (Admin)    |
+| POST   | `/:id/reset-password` | Admin: set a new system-generated one-time password |
 
 ### Auth module (`/api/auth/`)
 
@@ -888,16 +898,15 @@ status. (This is a known wart, kept for frontend compatibility.)
 | POST   | `/refresh`             | Rotate refresh token             |
 | POST   | `/logout`              | Invalidate refresh token         |
 | GET    | `/me`                  | Get current user from token      |
-| POST   | `/forgot-password`     | Send password reset email        |
-| POST   | `/reset-password`      | Reset password via token         |
-| GET    | `/verify-email`        | Verify email address             |
-| GET    | `/github`              | Start GitHub OAuth flow          |
-| GET    | `/github/callback`     | GitHub OAuth callback            |
-| GET    | `/google`              | Start Google OAuth flow          |
-| GET    | `/google/callback`     | Google OAuth callback            |
+| GET    | `/github`              | Start GitHub OAuth flow *(dormant)* |
+| GET    | `/github/callback`     | GitHub OAuth callback *(dormant)* |
+| GET    | `/google`              | Start Google OAuth flow *(dormant)* |
+| GET    | `/google/callback`     | Google OAuth callback *(dormant)* |
 | POST   | `/invite`              | Whitelist an email (Admin/Bocal) |
 | GET    | `/invites`             | List whitelisted emails          |
 | DELETE | `/invite/:id`          | Revoke a whitelist entry         |
+
+> Registration auto-verifies, so there are no verify-email / forgot-password / reset-password routes — those were removed with the email dependency (password recovery is Admin-only via `POST /api/user/:id/reset-password`). The OAuth routes remain registered but are **dormant** — no frontend entry point offers them. See `GOING-LIVE.md`.
 
 ### Organization module (`/api/org/`)
 
@@ -987,8 +996,9 @@ status. (This is a known wart, kept for frontend compatibility.)
 | PUT    | `/eval-assignments/:id`                    | Update pairing                          |
 | DELETE | `/eval-assignments/:id`                    | Delete pairing                          |
 | POST   | `/evaluate/start`                          | Start evaluation (passkey + email)      |
-| POST   | `/evaluate/submit`                         | Submit evaluation scores and feedback   |
+| POST   | `/evaluate/submit`                         | Submit scores, feedback, and the required audio recording (multipart) |
 | GET    | `/submission/:subId/responses`             | Get all feedback for a submission       |
+| GET    | `/responses/:id/recording`                 | Presigned download of an eval's recording (staff / evaluator / evaluated group) |
 | PATCH  | `/responses/:id/reply`                     | Leader replies to evaluator feedback    |
 
 ---
@@ -1071,7 +1081,7 @@ chore(docker): add eval service to compose
 
 ## Landing Page & Login
 
-Every visitor arrives at the landing page, which showcases the platform's peer-to-peer evaluation model with animated statistics, floating evaluation cards, and a peer network diagram. From there, users navigate to the login page where they can sign in with email and password, or use GitHub or Google OAuth. New users require an invitation from an Admin or Bocal before they can register.
+Every visitor arrives at the landing page, which showcases the platform's peer-to-peer evaluation model with animated statistics, floating evaluation cards, and a peer network diagram. From there, users navigate to the login page where they sign in with email and password. New users require an invitation (a whitelisted email) from an Admin or Bocal before they can register, and registration activates the account immediately — there is no email verification step.
 
 All authenticated users have access to four common features from the sidebar: their own user profile (editable bio and avatar), a language switcher (English, German, Hungarian, Arabic), application settings, and sign-out.
 
@@ -1085,7 +1095,7 @@ After login, a Student lands on the Dashboard, which shows four stat tiles (scor
 
 **Assignment Detail** — the core student workflow page. A student creates a group (or clicks "Join assignment" for solo work), waits for or accepts group invitations, starts a submission, uploads files, and closes the submission when ready. The closed submission displays a six-digit passkey. An evaluation progress tracker shows how many of the required peer evaluations have been received, and completed evaluations show the evaluator's score and comment, to which the group leader can reply. Replies trigger final score computation.
 
-**Evaluations** — navigates to the evaluation flow. The student enters the leader email and passkey of the group they are evaluating, loads the eval sheet, scores each section (Toggle or Slider), writes at least 20 characters of feedback, and submits.
+**Evaluations** — navigates to the evaluation flow. The student enters the leader email and passkey of the group they are evaluating, loads the eval sheet, scores each section (Toggle or Slider), writes at least 20 characters of feedback, attaches the required audio recording of the evaluation, and submits. Staff and the parties to an evaluation can play the recording back from the pairing/feedback views.
 
 **Progress** — a drill-down view: class list → assignment list → evaluation results per assignment, showing each eval assignment's round, status, and final score if available.
 
@@ -1127,9 +1137,13 @@ Artificial Intelligence tools were used to understand unfamiliar frameworks, res
   the directory is enumerable. This is accepted: email addresses are not
   treated as sensitive in this deployment. The bulk listing at `GET /api/user/`
   does not include them.
-* **MinIO is run as a container with a local volume.** For production, an
-  external S3-compatible store with lifecycle and backup policies is a better
-  fit.
+* **MinIO is run as a container with a local volume.** This is a deliberate
+  choice at this scale (see `docs/STORAGE.md`): it runs on the official pinned
+  image and its data is protected by the backup tooling (`make backup`;
+  `docs/BACKUPS.md`) rather than by a managed store. The one operational step
+  that isn't automated is copying `$BACKUP_DIR` off-host. A managed
+  S3-compatible store remains a drop-in upgrade path (`MINIO_*` config) if the
+  platform outgrows a single box.
 * **`make populateDB` is destructive** and intended for development only.
 * **Students still see an Enroll button.** Enrolment is staff-only, so on
   *My classes → Browse classes* the button always fails with "Failed to
