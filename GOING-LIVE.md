@@ -125,22 +125,26 @@ gone. The backend `/google` + `/github` routes remain in place but unreachable
 
 ## 🟠 Should-do for a real deployment
 
-- **Managed object storage.** MinIO runs as a container on a local volume. Move
-  to managed S3 (or MinIO with backups + lifecycle). The code is already
-  parameterised (`MINIO_*`, `BASE_URL`). Note: the image is currently
-  `coollabsio/minio` (a community mirror, merged from main 2026-10-01) — for
-  production, pin the official `minio/minio` image or move to managed S3.
-  Buckets: `submissions`, `assignment-subjects`, `user-profile` (public via
-  nginx `/files/`), and `eval-recordings` (private; presigned access only — the
-  evaluation recordings are audit artifacts and must be backed up). The
-  recordings especially argue for durable/managed storage + backups.
+- **Object storage** ✅ decided (2026-10-05): **stay on self-hosted MinIO + the
+  backups below** — managed S3 isn't warranted at ~60 users and there's no
+  audit/compliance obligation; the bar is just not losing files. Done: pinned the
+  **official `quay.io/minio/minio`** image (was the `coollabsio` community mirror).
+  The code stays parameterised (`MINIO_*`, `BASE_URL`), so a managed S3-compatible
+  store remains a config-level upgrade path if we outgrow this (see
+  `docs/STORAGE.md`). Buckets: `submissions`, `assignment-subjects`,
+  `user-profile` (public via nginx `/files/`), and `eval-recordings` (private;
+  presigned access only — the recordings are the teacher's proof a peer
+  evaluation happened, irreplaceable, so they must be backed up).
 - **Managed Postgres + backups.** Postgres runs containerised on a local
   volume. Production wants managed Postgres or, at minimum, a backup job for
   the `postgres` volume.
-- **Backups** ✅ tooling added (2026-10-04): `make backup-db` / `make backup-files`
-  / `make restore-db` + `docs/BACKUPS.md` (see also `docs/STORAGE.md`). Still to
-  do operationally: schedule them (cron), copy `backups/` off-host, and set a
-  retention policy — the scripts exist and round-trip, but nothing runs them yet.
+- **Backups** ✅ tooling + automation-ready (2026-10-05): `make backup` is the
+  one-shot entry point (DB dump + file mirror + prune) for cron; `make backup-db`
+  / `make backup-files` / `make restore-db` still exist; retention is built in
+  (`BACKUP_KEEP_DAYS`, default 14) and `BACKUP_DIR` controls the output location.
+  See `docs/BACKUPS.md` for the cron snippet. Remaining operational step (by
+  design, manual): **move `$BACKUP_DIR` off-host** after each run — nothing
+  auto-ships it off the box.
 - **Secrets out of source / git.** The hardcoded Mailtrap SMTP creds in
   `auth/utils.js` are a committed secret. They go away with *Remove the email
   dependency* (step 4); they should also be rotated/invalidated since they're

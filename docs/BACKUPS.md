@@ -2,11 +2,11 @@
 
 How to back up and restore PeerPilot's two pieces of state: the **PostgreSQL
 database** and the **MinIO file storage**. Companion to `docs/STORAGE.md` and
-`GOING-LIVE.md`. Last updated 2026-10-04.
+`GOING-LIVE.md`. Last updated 2026-10-05.
 
-Nothing backs these up automatically yet — run the targets below (ideally on a
-schedule, see *Scheduling*). Output goes to `backups/` (git-ignored); **copy it
-off this host** for it to count as a real backup.
+Run `make backup` (or put it on a schedule, see *Scheduling*). Output goes to
+`$BACKUP_DIR` (default `backups/`, git-ignored); **copy it off this host** for it
+to count as a real backup — moving it off-host is a manual step by design.
 
 ## What there is to back up
 
@@ -15,16 +15,24 @@ off this host** for it to count as a real backup.
 | Database (users, classes, submissions, evaluations, …) | Postgres `database` container, volume `src_postgres_data` | `make backup-db` |
 | Files (submissions, assignment subjects, avatars, **evaluation recordings**) | MinIO `minio` container, volume `src_minio_data`, buckets `submissions` / `assignment-subjects` / `user-profile` / `eval-recordings` | `make backup-files` |
 
-The `eval-recordings` bucket holds audit artifacts (proof evaluations happened),
-so it is the most important thing to back up and keep.
+The `eval-recordings` bucket holds the recordings a teacher uploads as proof
+that a peer evaluation actually happened. They can't be re-created once the
+evaluation is over, so this is the most important thing to back up and keep.
 
 ## Commands
 
 ```bash
+make backup          # db dump + file mirror + prune old dumps (use this / cron)
 make backup-db       # → backups/db/peerpilot-<db>-<timestamp>.sql.gz
 make backup-files    # → backups/files/<bucket>/...
 make restore-db FILE=backups/db/peerpilot-db-20261004-164437.sql.gz
 ```
+
+`make backup` is the single entry point (what the cron job below calls): it runs
+the DB dump, mirrors the buckets, then prunes DB dumps older than
+`BACKUP_KEEP_DAYS` (default 14). `BACKUP_DIR` (default `backups/`) controls where
+everything is written — point it at a dedicated disk/dir, then move that
+off-host yourself.
 
 All three run against the **running stack** (dev or prod) using the containers'
 own tools — no extra images to pull.
@@ -51,27 +59,32 @@ To restore **files**, copy objects back with `mc mirror` in the other direction
 
 ## Scheduling (cron example)
 
-Nightly DB dump + weekly file mirror, from the repo root:
+Nightly full backup (dump + mirror + prune), from the repo root:
 
 ```cron
 # m h  dom mon dow   command
-0 2 * * *   cd /srv/peerpilot && make backup-db      >> /var/log/pp-backup.log 2>&1
-0 3 * * 0   cd /srv/peerpilot && make backup-files   >> /var/log/pp-backup.log 2>&1
+0 2 * * *   cd /srv/peerpilot && make backup >> /var/log/pp-backup.log 2>&1
 ```
 
-Then sync `backups/` to off-host storage (object storage or another machine),
-e.g. `mc mirror backups/ <remote>/peerpilot-backups/` or `rclone`/`rsync`.
+`make backup` already prunes old DB dumps (`BACKUP_KEEP_DAYS`). It does **not**
+move anything off-host — that is a deliberate manual step: after the run, copy
+`$BACKUP_DIR` (default `backups/`) to another machine or medium (e.g. an external
+disk, a NAS, or a bucket). A backup that only ever lives on this host is not a
+backup.
 
 ## Retention & off-host (do before go-live)
 
 - **Keep backups off this host.** A backup on the same disk as the data is not a
-  backup. Mirror `backups/` to a second location on each run.
-- **Retention:** keep, say, 14 daily DB dumps + 8 weekly file mirrors; prune
-  older ones. (Add a `find backups/db -mtime +14 -delete` step, or use the
-  object store's lifecycle rules.)
-- **Managed-storage note:** if we move files to a managed S3-compatible store
-  (see `docs/STORAGE.md`), enable **versioning** there and `make backup-files`
-  becomes a secondary copy rather than the only one. For managed Postgres, use
-  the provider's automated backups and keep `make backup-db` as a portable
+  backup. After each `make backup`, copy `$BACKUP_DIR` to a second location
+  (external disk / NAS / another machine). This is the one step that isn't
+  automated — on purpose: the team moves the data off-host manually.
+- **Retention:** `make backup` prunes DB dumps older than `BACKUP_KEEP_DAYS`
+  (default 14). The bucket mirrors overwrite in place (always the current state),
+  so they don't accumulate — only DB dumps are one-file-per-run.
+- **Managed-storage note (not the plan):** the decision is to **stay on
+  self-hosted MinIO + these backups** — managed object storage isn't warranted at
+  ~60 users (see `docs/STORAGE.md`). If that ever changes, a managed S3-compatible
+  store with **versioning** would make `make backup-files` a secondary copy rather
+  than the only one, and managed Postgres would make `make backup-db` a portable
   extra.
 - **Test restores periodically** — a backup you've never restored is a guess.
