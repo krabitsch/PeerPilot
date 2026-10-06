@@ -82,7 +82,11 @@
         <div class="section-card">
           <div>
             <div class="section-title">{{ s.name }}</div>
-            <div class="section-desc">{{ s.description }}</div>
+            <div class="section-desc">
+              <app-markdown-math
+                [text]="s.description">
+              </app-markdown-math>
+            </div>
           </div>
 
           @if (s.sectionType === 'Toggle') {

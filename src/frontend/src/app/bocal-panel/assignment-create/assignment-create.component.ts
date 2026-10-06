@@ -12,6 +12,7 @@ import { CourseService } from '../../core/services/course-service/course-service
 import { AssignmentService, AssignmentResponse } from '../../core/services/course-service/Assignment.service';
 import { EvalService, EvalSectionType } from '../../core/services/eval-service/eval-service';
 import { LoadingService } from '../../core/services/loading-service/loading.service';
+import { MarkdownMathComponent } from '../../shared/markdown-math.component';
 
 interface PendingSection {
   id?: number;
@@ -24,7 +25,7 @@ interface PendingSection {
 @Component({
   selector: 'app-assignment-create',
   standalone: true,
-  imports: [NgStyle, BtnComponent, ContainerComponent, TabListComponent, TabDirective, TranslateModule],
+  imports: [NgStyle, BtnComponent, ContainerComponent, TabListComponent, TabDirective, TranslateModule, MarkdownMathComponent],
   templateUrl: './assignment-create.component.html',
 })
 export class AssignmentCreateComponent implements OnInit {
@@ -49,8 +50,8 @@ export class AssignmentCreateComponent implements OnInit {
   description   = signal('');
   maxScore      = signal<number | null>(null);
   reqEval       = signal<number | null>(null);
-  groupSize     = signal<number | null>(null);
-  passThreshold = signal<number | null>(null);
+  groupSize     = signal<number | null>(1);
+  passThreshold = signal<number | null>(80);
   fileName      = signal<string | null>(null);
   private file: File | null = null;
 
