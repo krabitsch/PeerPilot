@@ -77,6 +77,16 @@ export class BocalStudentsComponent implements OnInit {
 
   students = computed(() => this.members().filter(m => m.role === 'Student'));
 
+  // Students in the org who are not yet enrolled in the selected course — the
+  // candidates for the "add student to class" picker. Empty until a course is
+  // selected and its roster has loaded.
+  addStudentId = signal<number | null>(null);
+  enrollableStudents = computed(() => {
+    const enrolled = this.classStudentIds();
+    if (this.classFilter() === null || !enrolled) return [];
+    return this.students().filter(m => !enrolled.has(m.id));
+  });
+
   readonly memberTrackFn = (m: OrgMember) => m.id;
 
   private get orgId() { return this.auth.user()?.orgId; }
@@ -142,6 +152,27 @@ export class BocalStudentsComponent implements OnInit {
     });
   }
 
+  // ── Enrol a student into the currently filtered class ──────
+  addToClass() {
+    const classId = this.classFilter();
+    const studentId = this.addStudentId();
+    if (!classId || !studentId) return;
+
+    this.loading.show();
+    this.enrollService.enrollStudent({ classId, studentId }).subscribe({
+      next: () => {
+        this.classStudentIds.update(ids => {
+          const next = new Set(ids ?? []);
+          next.add(studentId);
+          return next;
+        });
+        this.addStudentId.set(null);
+        this.loading.hide();
+      },
+      error: () => this.loading.hide(),
+    });
+  }
+
   // ── Advanced filters: class & subject ──────────────────────
   onClassFilterChanged(value: string) {
     const classId = value ? parseInt(value, 10) : null;
@@ -149,6 +180,7 @@ export class BocalStudentsComponent implements OnInit {
     this.subjectFilter.set(null);
     this.subjects.set([]);
     this.subjectStudentIds.set(null);
+    this.addStudentId.set(null);
 
     if (classId === null) {
       this.classStudentIds.set(null);

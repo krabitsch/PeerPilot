@@ -64,6 +64,31 @@
     </span>
   </div>
 
+  <!-- ── Add a student to the selected course ───────────────── -->
+  @if (classFilter()) {
+    <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:16px">
+      <label [ngStyle]="filterLabelStyle">{{ 'label_add_student_to_class' | translate }}</label>
+      @if (enrollableStudents().length === 0) {
+        <div style="font-size:0.8125rem;color:oklch(48% 0.01 272)">{{ 'bocal_all_students_enrolled' | translate }}</div>
+      } @else {
+        <div style="display:flex;gap:8px;align-items:center">
+          <select
+            [ngStyle]="inputStyle" style="max-width:320px"
+            [value]="addStudentId() ?? ''"
+            (change)="addStudentId.set(+$any($event.target).value)">
+            <option value="" disabled [selected]="addStudentId() === null">{{ 'label_student' | translate }}</option>
+            @for (s of enrollableStudents(); track s.id) {
+              <option [value]="s.id">{{ s.username }} · {{ s.email }}</option>
+            }
+          </select>
+          <app-btn variant="secondary" size="sm" [disabled]="!addStudentId()" (clicked)="addToClass()">
+            {{ 'btn_add_to_class' | translate }}
+          </app-btn>
+        </div>
+      }
+    </div>
+  }
+
   <app-list
     [items]="filteredMembers()"
     [trackBy]="memberTrackFn"

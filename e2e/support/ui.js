@@ -1,8 +1,15 @@
 // Small UI helpers shared by the journey specs.
 const crypto = require('crypto')
-const { expect } = require('@playwright/test')
+const { test, expect, request } = require('@playwright/test')
 const { sessionFile } = require('./sessions')
+const { BASE_URL } = require('./env')
 const { db } = require('./db')
+
+// With VIDEO=1 the journeys that build their own contexts record too (the
+// config's `video` option only covers the default `page` fixture). Videos land
+// in the running test's output dir, so `make e2e-report` can show them.
+const recordVideoOpts = () =>
+  process.env.VIDEO ? { recordVideo: { dir: test.info().outputDir } } : {}
 
 const signIn = async (page, email, password) => {
   await page.goto('/login')
@@ -14,10 +21,36 @@ const signIn = async (page, email, password) => {
 // A page already signed in as `role`, in its own browser context — for
 // journeys where two people take turns (an evaluator, then the evaluated).
 const pageAs = async (browser, role) => {
-  const context = await browser.newContext({ storageState: sessionFile(role) })
+  const context = await browser.newContext({ storageState: sessionFile(role), ...recordVideoOpts() })
   const page = await context.newPage()
   page.on('dialog', (d) => d.accept())
   return page
+}
+
+// A browser context already signed in as an account that was created during
+// the test (so it has no session saved by global-setup). Logs in through the
+// API and injects the token exactly as global-setup does, then opens a page.
+const freshContext = async (browser, email, password) => {
+  const api = await request.newContext({ baseURL: BASE_URL, ignoreHTTPSErrors: true })
+  const res = await api.post('/api/auth/login', { data: { email, password } })
+  const body = await res.json()
+  if (!body.accessToken) {
+    await api.dispose()
+    throw new Error(`Could not log in as ${email}: ${JSON.stringify(body)}`)
+  }
+  const state = await api.storageState()
+  state.origins = [{
+    origin: BASE_URL,
+    localStorage: [
+      { name: 'access_token', value: body.accessToken },
+      { name: 'language', value: 'en' },
+    ],
+  }]
+  await api.dispose()
+  const context = await browser.newContext({ storageState: state, ignoreHTTPSErrors: true, ...recordVideoOpts() })
+  const page = await context.newPage()
+  page.on('dialog', (d) => d.accept())
+  return { context, page }
 }
 
 // Registration emails aren't delivered in the e2e stack, so the test plants a
@@ -49,4 +82,4 @@ const sampleAudioUpload = (name = 'evaluation.webm') => ({
   name, mimeType: 'audio/webm', buffer: Buffer.from('fake-evaluation-audio'),
 })
 
-module.exports = { signIn, pageAs, plantVerificationToken, samplePdf, sampleAudioUpload, expect }
+module.exports = { signIn, pageAs, freshContext, recordVideoOpts, plantVerificationToken, samplePdf, sampleAudioUpload, expect }
