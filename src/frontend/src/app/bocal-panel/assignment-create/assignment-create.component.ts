@@ -12,6 +12,7 @@ import { CourseService } from '../../core/services/course-service/course-service
 import { AssignmentService, AssignmentResponse } from '../../core/services/course-service/Assignment.service';
 import { EvalService, EvalSectionType } from '../../core/services/eval-service/eval-service';
 import { LoadingService } from '../../core/services/loading-service/loading.service';
+import { MarkdownMathComponent } from '../../shared/markdown-math.component';
 
 interface PendingSection {
   id?: number;
@@ -24,7 +25,7 @@ interface PendingSection {
 @Component({
   selector: 'app-assignment-create',
   standalone: true,
-  imports: [NgStyle, BtnComponent, ContainerComponent, TabListComponent, TabDirective, TranslateModule],
+  imports: [NgStyle, BtnComponent, ContainerComponent, TabListComponent, TabDirective, TranslateModule, MarkdownMathComponent],
   templateUrl: './assignment-create.component.html',
 })
 export class AssignmentCreateComponent implements OnInit {
@@ -49,8 +50,8 @@ export class AssignmentCreateComponent implements OnInit {
   description   = signal('');
   maxScore      = signal<number | null>(null);
   reqEval       = signal<number | null>(null);
-  groupSize     = signal<number | null>(null);
-  passThreshold = signal<number | null>(null);
+  groupSize     = signal<number | null>(1);
+  passThreshold = signal<number | null>(80);
   fileName      = signal<string | null>(null);
   private file: File | null = null;
 
@@ -236,17 +237,22 @@ export class AssignmentCreateComponent implements OnInit {
     const classId   = this.classId;
     const name      = this.name().trim();
     const desc      = this.description().trim();
-    const maxScore  = this.maxScore();
-    const reqEval   = this.reqEval();
+    const maxScore      = this.maxScore();
+    const reqEval       = this.reqEval();
+    const groupSize     = this.groupSize();
     const passThreshold = this.passThreshold();
-    const createdBy = this.auth.user()?.id;
+    const createdBy     = this.auth.user()?.id;
 
-    if (!classId)                          { this.error.set(this.translate.instant('error_missing_class_id')); return; }
-    if (!createdBy)                        { this.error.set(this.translate.instant('error_user_not_identified')); return; }
-    if (!name)                             { this.error.set(this.translate.instant('error_name_required')); return; }
-    if (!desc)                             { this.error.set(this.translate.instant('error_description_required')); return; }
-    if (!maxScore || maxScore <= 0)        { this.error.set(this.translate.instant('error_invalid_max_score')); return; }
-    if (!reqEval  || reqEval  <= 0)        { this.error.set(this.translate.instant('error_invalid_req_eval')); return; }
+
+
+    if (!groupSize || groupSize <= 0)         { this.error.set('Enter a valid group size.'); return; }
+    if (!passThreshold || passThreshold <= 0) { this.error.set('Enter a valid pass threshold.'); return; }
+    if (!classId)                             { this.error.set(this.translate.instant('error_missing_class_id')); return; }
+    if (!createdBy)                           { this.error.set(this.translate.instant('error_user_not_identified')); return; }
+    if (!name)                                { this.error.set(this.translate.instant('error_name_required')); return; }
+    if (!desc)                                { this.error.set(this.translate.instant('error_description_required')); return; }
+    if (!maxScore || maxScore <= 0)           { this.error.set(this.translate.instant('error_invalid_max_score')); return; }
+    if (!reqEval  || reqEval  <= 0)           { this.error.set(this.translate.instant('error_invalid_req_eval')); return; }
     if (!passThreshold || passThreshold <= 0) { this.error.set(this.translate.instant('error_invalid_pass_threshold')); return; }
     if (this.pendingSections().length === 0) {
       this.activeTab.set(1);
@@ -262,7 +268,13 @@ export class AssignmentCreateComponent implements OnInit {
     this.error.set(null);
     this.loading.show();
     this.assignService.createAssignment(classId, {
-      name, description: desc, maxScore, reqEval, passThreshold, createdBy,
+      name,
+      description: desc,
+      groupSize,
+      maxScore,
+      reqEval,
+      passThreshold,
+      createdBy,
       file: this.file ?? undefined,
     }).subscribe({
       next: (assignment) => this.createEvalSheet(assignment, classId),

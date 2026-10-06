@@ -8,11 +8,12 @@ import { BtnComponent } from '../shared/btn.component';
 import { AuthService } from '../services/auth.service';
 import { LoadingService } from '../core/services/loading-service/loading.service';
 import { EvalService, EvalSection, StartEvaluationResponse } from '../core/services/eval-service/eval-service';
+import { MarkdownMathComponent } from '../shared/markdown-math.component';
 
 @Component({
   selector: 'app-evaluation-flow',
   standalone: true,
-  imports: [NgStyle, AvatarComponent, BtnComponent, TranslateModule],
+  imports: [NgStyle, AvatarComponent, BtnComponent, TranslateModule, MarkdownMathComponent],
   templateUrl: './evaluation-flow.component.html',
   styles: [`
     .section-card {

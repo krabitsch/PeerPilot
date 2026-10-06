@@ -24,11 +24,34 @@
         <div>
           <label [ngStyle]="fieldLabelStyle">{{ 'label_description' | translate }}</label>
           <textarea [ngStyle]="textAreaStyle" [value]="description()" (input)="description.set($any($event.target).value)"></textarea>
+          @if (description().trim()) {
+            <div style="margin-top:10px">
+              <div [ngStyle]="fieldLabelStyle">
+                Preview
+              </div>
+              <div
+                style="
+                  margin-top:6px;
+                  padding:14px 16px;
+                  border:1px solid oklch(27% 0.03 272);
+                  border-radius:8px;
+                  background:oklch(15% 0.025 272);
+                ">
+                <app-markdown-math
+                  [text]="description()">
+                </app-markdown-math>
+              </div>
+            </div>
+          }
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px">
+
           <div>
-            <label [ngStyle]="fieldLabelStyle">{{ 'label_max_score' | translate }}</label>
+            <label [ngStyle]="fieldLabelStyle">
+              {{ 'label_max_score' | translate }}
+            </label>
+
             <input
               [ngStyle]="inputStyle"
               type="number"
@@ -37,8 +60,12 @@
               (input)="maxScore.set(+$any($event.target).value)" />
           </div>
 
+
           <div>
-            <label [ngStyle]="fieldLabelStyle">{{ 'label_required_evals' | translate }}</label>
+            <label [ngStyle]="fieldLabelStyle">
+              {{ 'label_required_evals' | translate }}
+            </label>
+
             <input
               [ngStyle]="inputStyle"
               type="number"
@@ -47,8 +74,26 @@
               (input)="reqEval.set(+$any($event.target).value)" />
           </div>
 
+
           <div>
-            <label [ngStyle]="fieldLabelStyle">{{ 'bocal_label_pass_threshold_pct' | translate }}</label>
+            <label [ngStyle]="fieldLabelStyle">
+              {{ 'label_group_size' | translate }}
+            </label>
+
+            <input
+              [ngStyle]="inputStyle"
+              type="number"
+              min="1"
+              [value]="groupSize()"
+              (input)="groupSize.set(+$any($event.target).value)" />
+          </div>
+
+
+          <div>
+            <label [ngStyle]="fieldLabelStyle">
+              {{ 'bocal_label_pass_threshold_pct' | translate }}
+            </label>
+
             <input
               [ngStyle]="inputStyle"
               type="number"
@@ -57,9 +102,20 @@
               [value]="passThreshold()"
               (input)="passThreshold.set(+$any($event.target).value)" />
           </div>
+
         </div>
         <div>
-          <label [ngStyle]="fieldLabelStyle">{{ 'label_subject_file' | translate }}</label>
+          <label [ngStyle]="fieldLabelStyle">
+            {{ 'label_assignment_file_optional' | translate }}
+          </label>
+          <div
+            style="
+              font-size:0.75rem;
+              color:oklch(55% 0.01 272);
+              margin-bottom:6px;
+            ">
+            {{ 'assignment_file_help' | translate }}
+          </div>
           <div style="font-size:0.8125rem;color:oklch(68% 0.01 272);margin-bottom:6px">
             {{ fileName() ?? ('bocal_no_subject_file' | translate) }}
           </div>
@@ -113,6 +169,20 @@
                     <div>
                       <label [ngStyle]="fieldLabelStyle">{{ 'label_description' | translate }}</label>
                       <textarea [ngStyle]="textAreaStyle" [value]="editDesc()" (input)="editDesc.set($any($event.target).value)"></textarea>
+                      @if (editDesc().trim()) {
+                        <div
+                          style="
+                            margin-top:8px;
+                            padding:12px 14px;
+                            border:1px solid oklch(27% 0.03 272);
+                            border-radius:8px;
+                            background:oklch(15% 0.025 272);
+                          ">
+                          <app-markdown-math
+                            [text]="editDesc()">
+                          </app-markdown-math>
+                        </div>
+                      }
                     </div>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
                       <div>
@@ -133,8 +203,11 @@
                     </div>
                   </div>
                 } @else {
-                  <div style="font-size:0.8125rem;color:oklch(68% 0.01 272);padding-top:6px;border-top:1px solid oklch(27% 0.03 272)">
-                    {{ s.description }}
+                  <div
+                    style="font-size:0.8125rem; color:oklch(68% 0.01 272); padding-top:6px; border-top:1px solid oklch(27% 0.03 272);">
+                    <app-markdown-math
+                      [text]="s.description">
+                    </app-markdown-math>
                   </div>
                 }
               }
@@ -152,6 +225,20 @@
           <div>
             <label [ngStyle]="fieldLabelStyle">{{ 'label_description' | translate }}</label>
             <textarea [ngStyle]="textAreaStyle" [value]="sectionDesc()" (input)="sectionDesc.set($any($event.target).value)"></textarea>
+            @if (sectionDesc().trim()) {
+              <div
+                style="
+                  margin-top:8px;
+                  padding:12px 14px;
+                  border:1px solid oklch(27% 0.03 272);
+                  border-radius:8px;
+                  background:oklch(15% 0.025 272);
+                ">
+                <app-markdown-math
+                  [text]="sectionDesc()">
+                </app-markdown-math>
+              </div>
+            }
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
             <div>
@@ -181,8 +268,16 @@
 
     @if (editMode()) {
       <div
-        style="margin-top:16px;padding-top:16px;padding-bottom:16px;margin-bottom:16px;border-top:1px solid oklch(22% 0.025 272);
-              border-bottom:1px solid oklch(22% 0.025 272);display:flex;justify-content:space-between;align-items:center;gap:16px;">
+        style="
+          margin:16px 18px;
+          padding:16px 0;
+          border-top:1px solid oklch(22% 0.025 272);
+          border-bottom:1px solid oklch(22% 0.025 272);
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          gap:16px;
+        ">
         <div>
           <div
             style="font-size:0.875rem;font-weight:600;color:oklch(72% 0.18 25);margin-bottom:3px;">

@@ -126,17 +126,19 @@ test.describe.serial('full lifecycle, bottom-up through the UI', () => {
     // "Add student to class" control added for this flow.
     await teacher.goto(`/bocal/students?classId=${S.classId}`)
 
-    const addControl = teacher.locator('div')
-      .filter({ hasText: 'Add student to class' })
-      .filter({ has: teacher.locator('select') })
+    // Anchor on the control's unique "Add to class" button (not the filter-bar
+    // selects), and wait for it — the student list loads async.
+    const addRow = teacher.locator('div')
+      .filter({ has: teacher.getByRole('button', { name: 'Add to class' }) })
       .last()
+    await expect(addRow.getByRole('button', { name: 'Add to class' })).toBeVisible()
 
     for (const email of STUDENTS) {
       const id = S.idByEmail[email]
-      await addControl.locator('select').selectOption(String(id))
-      await addControl.getByRole('button', { name: 'Add to class' }).click()
+      await addRow.locator('select').selectOption(String(id))
+      await addRow.getByRole('button', { name: 'Add to class' }).click()
       // The student leaves the "enrollable" picker once enrolled.
-      await expect(addControl.locator(`option[value="${id}"]`)).toHaveCount(0)
+      await expect(addRow.locator(`option[value="${id}"]`)).toHaveCount(0)
     }
 
     const enrolled = await db().enrollment.findMany({ where: { classId: S.classId, status: 'Active' } })
@@ -161,7 +163,8 @@ test.describe.serial('full lifecycle, bottom-up through the UI', () => {
     await main.getByRole('textbox').nth(1).fill('Each student submits solo, then peers evaluate.')
     await main.getByRole('spinbutton').nth(0).fill('100')  // max score
     await main.getByRole('spinbutton').nth(1).fill('2')    // required evaluations = rounds
-    await main.getByRole('spinbutton').nth(2).fill('50')   // pass threshold
+    await main.getByRole('spinbutton').nth(2).fill('1')    // group size (one student per group)
+    await main.getByRole('spinbutton').nth(3).fill('50')   // pass threshold
 
     // Subject file — a throwaway PDF.
     await main.locator('input[type=file]').setInputFiles(samplePdf(testInfo.outputDir, 'subject.pdf'))

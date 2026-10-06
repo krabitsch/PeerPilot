@@ -20,10 +20,12 @@ import { BtnComponent } from '../shared/btn.component';
 import { AvatarComponent } from '../shared/avatar.component';
 import { ScorePillComponent } from '../shared/score-pill.component';
 
+import { MarkdownMathComponent } from '../shared/markdown-math.component';
+
 @Component({
   selector: 'app-assignment-detail',
   standalone: true,
-  imports: [DecimalPipe, ContainerComponent, BadgeComponent, BtnComponent, AvatarComponent, ScorePillComponent, TranslateModule],
+  imports: [DecimalPipe, ContainerComponent, BadgeComponent, BtnComponent, AvatarComponent, ScorePillComponent, TranslateModule, MarkdownMathComponent],
   templateUrl: './assignment-detail.component.html',
   styles: [`
     .page {
@@ -907,12 +909,6 @@ export class AssignmentDetailComponent implements OnInit {
         this.loading.hide();
       },
     });
-  }
-
-  goToEvalAssignments(): void {
-    const a = this.assignment();
-    if (!a) return;
-    this.router.navigate(['/eval-assignments'], { queryParams: { assignmentId: a.id } });
   }
 
   acceptInvite(inviteId: number) {

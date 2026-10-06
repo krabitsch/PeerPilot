@@ -6,6 +6,7 @@ import { Assignment } from "../../../tokens";
 export interface CreateAssignmentPayload {
   name: string;
   description: string;
+  groupSize: number;
   maxScore: number;
   reqEval: number;
   passThreshold: number;

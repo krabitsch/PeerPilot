@@ -203,6 +203,7 @@
     "label_pass_rate": "Átmenési arány",
     "label_pending_evaluations": "Függőben lévő értékelések",
     "label_password": "Jelszó",
+    "label_group_size": "Csoportméret",
     "login_title": "Bejelentkezés",
     "login_subtitle": "A te peer-to-peer tanulási platformod.",
     "login_verified_banner": "Az e-mail címed megerősítve lett. Most már bejelentkezhetsz.",
