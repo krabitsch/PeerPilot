@@ -94,24 +94,4 @@ export class AuthService {
     return this.http.post(`${this.api}/register`, { email, password });
   }
 
-  verifyEmail(token: string): Observable<any> {
-    return this.http.get(`${this.api}/verify-email`, { params: { token } });
-  }
-
-  forgotPassword(email: string): Observable<any> {
-    return this.http.post(`${this.api}/forgot-password`, { email });
-  }
-
-  resetPassword(token: string, newPassword: string): Observable<any> {
-    return this.http.post(`${this.api}/reset-password`, { token, newPassword });
-  }
-
-  loginWithGitHub(): void { window.location.href = `${this.api}/github`; }
-
-  handleOAuthCallback(fragment: string): boolean {
-    const token = new URLSearchParams(fragment).get('accessToken');
-    if (token) { this.setToken(token); return true; }
-    return false;
-  }
-  
 }

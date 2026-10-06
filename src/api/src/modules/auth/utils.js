@@ -1,60 +1,6 @@
-const nodemailer = require('nodemailer');
-
-
-// const transporter = nodemailer.createTransport({
-//   host: process.env.EMIAL_HOST,
-//   port: process.env.EMAIL_PORT,
-//   auth: {
-//     user: process.env.EMAIL_USER,
-//     pass: process.env.EMAIL_PASS
-//   }
-// });
-
-// EMAIL_TRANSPORT=json swaps SMTP for nodemailer's JSON transport, which builds
-// the message and delivers nothing. The e2e stack uses it so test runs don't
-// send mail (or trip the SMTP provider's rate limit).
-const transporter = process.env.EMAIL_TRANSPORT === 'json'
-  ? nodemailer.createTransport({ jsonTransport: true })
-  : nodemailer.createTransport({
-      host: "sandbox.smtp.mailtrap.io",
-      port: 2525,
-      auth: {
-        user: "abd7afb8b22993",
-        pass: "2d08047fd50cc6"
-      }
-    });
-
-const sendResetEmail = async (to, resetUrl) => {
-    const mailOptions = {
-        from: '"Auth Service" <noreply@yourapp.com>',
-        to,
-        subject: 'Password Reset Request',
-        html: `
-            <p>You requested a password reset.</p>
-            <p>Click <a href="${resetUrl}">here</a> to reset your password.</p>
-            <p>This link expires in 1 hour.</p>
-            <p>If you did not request this, ignore this email.</p>
-        `,
-    };
-    await transporter.sendMail(mailOptions);
-};
-
-// services/emailService.js
-const sendVerificationEmail = async (to, verificationUrl) => {
-    const mailOptions = {
-        from: '"Auth Service" <noreply@yourapp.com>',
-        to:to,
-        subject: 'Verify your email address',
-        html: `
-            <p>Thank you for registering.</p>
-            <p>Please click the link below to verify your email address (valid for 24 hours):</p>
-            <a href="${verificationUrl}">${verificationUrl}</a>
-            <p>If you did not create an account, ignore this email.</p>
-        `,
-    };
-    await transporter.sendMail(mailOptions);
-};
-
+// This deployment sends no email. Account verification and password reset are
+// handled without mail (auto-verify on registration; admin-driven password
+// reset). The nodemailer transport and the send* helpers have been removed.
 
 const zxcvbn = require('zxcvbn');
 
@@ -95,4 +41,4 @@ const verifyRefreshToken = (token) => {
     return jwt.verify(token, process.env.REFRESH_TOKEN_SECRET);
 };
 
-module.exports = { generateAccessToken, generateRefreshToken, verifyAccessToken, verifyRefreshToken, validatePasswordStrength,  sendResetEmail,sendVerificationEmail };
+module.exports = { generateAccessToken, generateRefreshToken, verifyAccessToken, verifyRefreshToken, validatePasswordStrength };

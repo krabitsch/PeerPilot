@@ -27,6 +27,11 @@ module.exports = defineConfig({
     locale: 'en-US',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
+    // Set VIDEO=1 (make e2e-video) to record every test to test-results/ and
+    // attach them to the HTML report (`make e2e-report`). Off by default — video
+    // slows runs and takes disk. Covers the default `page`; the journeys that
+    // build their own contexts (freshContext/pageAs) opt in via support/ui.js.
+    video: process.env.VIDEO ? 'on' : 'off',
   },
 
   projects: [

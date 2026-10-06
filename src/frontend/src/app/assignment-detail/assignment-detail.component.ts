@@ -877,6 +877,14 @@ export class AssignmentDetailComponent implements OnInit {
     this.replyDrafts.update(map => new Map(map).set(responseId, value));
   }
 
+  // Fetch a presigned URL for the evaluation recording and open it in a new tab.
+  playRecording(responseId: number) {
+    this.evalService.getRecordingUrl(responseId).subscribe({
+      next: (res) => window.open(res.url, '_blank', 'noopener'),
+      error: () => this.replyError.set('Could not load the recording.'),
+    });
+  }
+
   submitReply(response: EvalResponse) {
     const userId = this.currentUserId();
     const reply = this.replyDraft(response.id).trim();

@@ -46,6 +46,15 @@
           <div>{{ 'label_actions' | translate }}</div>
         </div>
 
+        @if (resetResult(); as rr) {
+          <div style="margin:12px 0;padding:12px 14px;border:1px solid #b58900;border-radius:8px;background:#fff8e1;color:#5c4b00">
+            New password for <strong>{{ rr.label }}</strong>:
+            <code style="font-size:1rem;user-select:all">{{ rr.password }}</code>
+            — copy it and send it to the user. It won't be shown again.
+            <button type="button" (click)="resetResult.set(null)" style="margin-left:8px;cursor:pointer">Dismiss</button>
+          </div>
+        }
+
         @if (members().length === 0) {
           <div [ngStyle]="emptyStateStyle">{{ 'org_detail_no_members' | translate }}</div>
         } @else {
@@ -74,6 +83,14 @@
                   } @else {
                     {{ 'btn_change' | translate }}
                   }
+                </app-btn>
+                <app-btn
+                  variant="secondary"
+                  size="sm"
+                  [disabled]="busy() || resettingId() === m.id"
+                  (clicked)="resetPassword(m)"
+                >
+                  @if (resettingId() === m.id) { Resetting… } @else { Reset password }
                 </app-btn>
                 <app-btn
                   variant="danger"

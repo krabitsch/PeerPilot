@@ -23,6 +23,7 @@ export class AdminOrgDetailComponent {
   private http = inject(HttpClient)
   private orgBase = '/api/org'
   private authBase = '/api/auth'
+  private userBase = '/api/user'
 
   org = signal<any | null>(null)
   orgId = signal<number | null>(null)
@@ -31,6 +32,9 @@ export class AdminOrgDetailComponent {
   allInvitedEmails = signal<Set<string>>(new Set())
   busy = signal(false)
   removingId = signal<number | null>(null)
+  resettingId = signal<number | null>(null)
+  // The one-time generated password, shown for the admin to copy and relay.
+  resetResult = signal<{ label: string; password: string } | null>(null)
   removingInviteId = signal<number | null>(null)
   changingRoleId = signal<number | null>(null)
 
@@ -160,6 +164,23 @@ export class AdminOrgDetailComponent {
       error: () => {
         this.removingId.set(null)
         this.removeNotice = `Failed to remove ${label}`
+      },
+    })
+  }
+
+  resetPassword(member: any) {
+    const label = member?.username ? `${member.username} <${member.email}>` : member.email
+    if (!confirm(`Reset the password for ${label}? They will need the new password to sign in.`)) return
+    this.resettingId.set(member.id)
+    this.resetResult.set(null)
+    this.http.post<{ password: string }>(`${this.userBase}/${member.id}/reset-password`, {}).subscribe({
+      next: (res) => {
+        this.resettingId.set(null)
+        this.resetResult.set({ label, password: res.password })
+      },
+      error: () => {
+        this.resettingId.set(null)
+        this.roleNotice = `Failed to reset password for ${label}`
       },
     })
   }

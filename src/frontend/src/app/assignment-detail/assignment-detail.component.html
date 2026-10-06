@@ -230,6 +230,10 @@
                 </div>
                 <p class="feedback-comment">{{ r.comment }}</p>
 
+                @if (r.recordingFile) {
+                  <app-btn variant="ghost" size="sm" (clicked)="playRecording(r.id)">▶ Play evaluation recording</app-btn>
+                }
+
                 @if (r.reply) {
                   <div class="feedback-reply">
                     <div class="feedback-reply-label">{{ 'label_your_reply' | translate }}</div>

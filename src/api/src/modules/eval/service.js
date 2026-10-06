@@ -2,7 +2,15 @@ const { prisma } = require('@transcendence/database')
 const {NotFoundError, ValidationError, ConflictError, UnauthorizedError} = require('@transcendence/errors')
 const utils = require('@transcendence/utils')
 const { createStorage } = require('@transcendence/filemanager')
+const logger = require('@transcendence/logger')
 const storage = createStorage('submissions')
+
+// Private bucket for evaluation recordings — NOT made public; downloads go
+// through presigned URLs gated by getRecordingUrl().
+const recordingStorage = createStorage('eval-recordings')
+const recordingReady = (async () => {
+    await recordingStorage.ensureBucket()
+})().catch(err => logger.error('eval-service', 'Failed to init eval-recordings bucket', { message: err.message }))
 
 // TODO Move to Class Service cuz its not place here XD
 const getAssignment = async(assId)=>{
@@ -452,7 +460,7 @@ const startEvaluation = async ({evaluatorUserId, leaderEmail, passkey})=>{
     }
 }
 
-const submitEvaluation = async ({evalAssignmentId, evaluatorUserId, comment, scores})=>{
+const submitEvaluation = async ({evalAssignmentId, evaluatorUserId, comment, scores, recording})=>{
     const evalAssignmentIdInt = parseInt(evalAssignmentId)
     const evaluatorUserIdInt = parseInt(evaluatorUserId)
     if(!evalAssignmentIdInt || !evaluatorUserIdInt || !validateString(comment) || !Array.isArray(scores) || scores.length === 0)
@@ -493,9 +501,31 @@ const submitEvaluation = async ({evalAssignmentId, evaluatorUserId, comment, sco
             throw new ValidationError(`"${section.name}" is a yes/no section — score must be 0 or ${section.marks}`)
     }
 
+    // The audio recording is mandatory — the professor's proof the evaluation
+    // happened. Checked after identity/state so a non-evaluator is refused
+    // (401) rather than prompted for a file.
+    if(!recording || !recording.buffer)
+        throw new ValidationError('A recording of the evaluation is required')
+
     const givenMarks = scores.reduce((sum, s) => sum + parseInt(s.score), 0)
 
+    // Store the recording object first; the File row + link are created in the
+    // transaction below. (A failed transaction leaves an orphan object, which
+    // can be swept later — acceptable for an audit artifact.)
+    const objectKey = `${evalAssignment.submissionId}-${evaluatorUserIdInt}-${Date.now()}-${recording.originalname}`
+    await recordingStorage.upload(objectKey, recording.buffer, recording.mimetype, recording.size)
+
     const response = await prisma.$transaction(async (tx) => {
+        const file = await tx.file.create({
+            data: {
+                name: recording.originalname,
+                mimiType: recording.mimetype,
+                size: recording.size,
+                url: objectKey,
+                uploadedBy: evaluatorUserIdInt,
+            }
+        })
+
         const evalResponse = await tx.evalResponse.upsert({
             where: { subId_userId: { subId: evalAssignment.submissionId, userId: evaluatorUserIdInt } },
             create: {
@@ -503,11 +533,13 @@ const submitEvaluation = async ({evalAssignmentId, evaluatorUserId, comment, sco
                 userId: evaluatorUserIdInt,
                 givenMarks,
                 comment,
+                recordingFileId: file.id,
                 scores: { create: scores.map(s => ({ sectionId: parseInt(s.sectionId), score: parseInt(s.score) })) }
             },
             update: {
                 givenMarks,
                 comment,
+                recordingFileId: file.id,
                 scores: {
                     deleteMany: {},
                     create: scores.map(s => ({ sectionId: parseInt(s.sectionId), score: parseInt(s.score) }))
@@ -545,11 +577,43 @@ const getEvalResponsesForSubmission = async (subId) => {
         select: {
             id: true, isStaffReview: true, givenMarks: true, comment: true, reply: true, rating: true, userId: true,
             user: { select: { id: true, username: true } },
+            recordingFile: { select: { id: true, name: true } },
             scores: { select: { id: true, sectionId: true, score: true,
                        section: { select: { id: true, name: true, description: true, marks: true, sectionType: true } } } }
         },
         orderBy: { id: 'asc' }
     })
+}
+
+// Presigned download URL for an evaluation recording, gated to the people
+// allowed to hear it: staff, the evaluator who made it, or any member of the
+// evaluated group. `requester` is { userId, isStaff }.
+const getRecordingUrl = async (responseId, requester) => {
+    const responseIdInt = parseInt(responseId)
+    if(!responseIdInt)
+        throw new ValidationError('Invalid response id')
+
+    const response = await prisma.evalResponse.findUnique({
+        where: { id: responseIdInt },
+        select: {
+            userId: true,
+            recordingFile: { select: { url: true, name: true } },
+            submission: { select: { group: { select: { leaderId: true, members: { select: { userId: true } } } } } },
+        }
+    })
+    if(!response || !response.recordingFile)
+        throw new NotFoundError('No recording for this evaluation')
+
+    const uid = parseInt(requester?.userId)
+    const groupUserIds = response.submission?.group?.members?.map(m => m.userId) ?? []
+    const allowed = requester?.isStaff
+        || response.userId === uid
+        || groupUserIds.includes(uid)
+    if(!allowed)
+        throw new UnauthorizedError('You cannot access this recording')
+
+    const url = await recordingStorage.getUrl(response.recordingFile.url, response.recordingFile.name)
+    return { url }
 }
 
 // recomputes a submission's finalScore/passed from the avg of givenMarks across replied-to EvalResponses
@@ -608,5 +672,6 @@ module.exports = {getEvalSheetById, getEvalSheetByAssId, getAssignment, createEv
     updateEvalSheetSection, removeSection,
     getEvalAssignments, deleteEvalAssignments, getEvalAssignmentById, createEvalAssignment,
     updateEvalAssignment, deleteEvalAssignment, generateSimpleEvalAssignmentPairings,
-    startEvaluation, submitEvaluation, getEvalResponsesForSubmission, replyToEvalResponse
+    startEvaluation, submitEvaluation, getEvalResponsesForSubmission, replyToEvalResponse,
+    getRecordingUrl
 }

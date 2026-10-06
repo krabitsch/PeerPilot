@@ -220,6 +220,7 @@ model File {
   uploadedBy Int
   uploader   User        @relation(fields: [uploadedBy], references: [id], onDelete: Cascade)
   submission Submission?
+  evalRecording EvalResponse? @relation("EvalRecording")
   createdAt  DateTime    @default(now())
 
   @@map("file")
@@ -300,6 +301,12 @@ model EvalResponse {
   reply   String?
 
   rating Int?
+
+  // Audio recording of the evaluation, uploaded by the evaluator at submit
+  // time so staff can verify the evaluation happened. Nullable in the DB for
+  // migration safety; required by the API on new submits.
+  recordingFileId Int?  @unique
+  recordingFile   File? @relation("EvalRecording", fields: [recordingFileId], references: [id], onDelete: SetNull)
 
   scores         EvalSectionScore[]
   evalAssignment EvalAssignment?

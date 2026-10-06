@@ -15,16 +15,36 @@ const ALLOWED_TYPES = [
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 ]
 
-const uploader = multer({
+// Audio recordings of evaluations. Kept separate from ALLOWED_TYPES so the
+// general document uploader doesn't start accepting media, and so recordings
+// can have their own (larger) size limit.
+const AUDIO_TYPES = [
+  'audio/webm',
+  'audio/ogg',
+  'audio/mpeg',   // .mp3
+  'audio/mp4',    // .m4a (some browsers)
+  'audio/x-m4a',
+  'audio/wav',
+  'audio/x-wav',
+]
+
+const makeUploader = (allowed, maxBytes) => multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 },
+  limits: { fileSize: maxBytes },
   fileFilter: (req, file, cb) => {
-    if (ALLOWED_TYPES.includes(file.mimetype))
+    if (allowed.includes(file.mimetype))
       cb(null, true)
     else
       cb(new Error(`File type not allowed: ${file.mimetype}`))
   }
 })
+
+// Documents/images (submissions, avatars, assignment subjects): 50 MB.
+const uploader = makeUploader(ALLOWED_TYPES, 50 * 1024 * 1024)
+
+// Evaluation recordings: audio only, up to 200 MB (a full evaluation can run
+// long). nginx's client_max_body_size must allow at least this on the upload path.
+const recordingUploader = makeUploader(AUDIO_TYPES, 200 * 1024 * 1024)
 
 // ── Storage (per bucket) ─────────────────────────────
 const isProd = process.env.NODE_ENV === 'production'
@@ -92,4 +112,4 @@ const createStorage = (bucket) => {
   }
 }
 
-module.exports = { uploader, createStorage }
+module.exports = { uploader, recordingUploader, createStorage }

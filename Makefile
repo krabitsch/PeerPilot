@@ -13,7 +13,7 @@ YELLOW = \033[0;33m
 BLUE   = \033[0;34m
 RESET  = \033[0m
 
-.PHONY: setup build up down clean restart run re dev prod check_env studio populateDB resetDB genPrismaClient seedAdmin seedAdmin_prod migrate migrate_prod generateUsers e2e e2e-up e2e-seed e2e-down e2e-install e2e-summary e2e-report cert cert-renew
+.PHONY: setup build up down clean restart run re dev prod check_env studio populateDB resetDB genPrismaClient seedAdmin seedAdmin_prod migrate migrate_prod generateUsers e2e e2e-video e2e-up e2e-seed e2e-down e2e-install e2e-summary e2e-report cert cert-renew backup backup-db restore-db backup-files
 
 setup: check_env
 	@echo "$(GREEN)Setup complete.$(RESET)"
@@ -149,6 +149,22 @@ status:
 logs:
 	@docker compose -f $(COMPOSE_FILE) logs -f
 
+# ── Backups ──────────────────────────────────────────────────
+# `make backup` is the one-shot entry point for cron: DB dump + file mirror +
+# prune. Individual targets below still work. Output goes to $BACKUP_DIR
+# (default backups/); copy it off this host for a real backup. See docs/BACKUPS.md.
+backup:
+	@bash scripts/backup.sh
+
+backup-db:
+	@bash scripts/backup-db.sh
+
+restore-db:
+	@bash scripts/restore-db.sh $(FILE)
+
+backup-files:
+	@bash scripts/backup-files.sh
+
 populateDB:
 	@echo "$(YELLOW)WARNING: This will wipe the current database and populate it with fake/sample data.$(RESET)"
 	@printf "Type 'yes' to continue: "; \
@@ -196,6 +212,13 @@ resetDB:
 e2e: e2e-up e2e-install
 	@echo "$(BLUE)Running Playwright...$(RESET)"
 	@cd e2e && npx playwright test
+
+# Same as `make e2e` but records a video of every test. Videos land in
+# e2e/test-results/ and attach to the HTML report (`make e2e-report`).
+e2e-video: e2e-up e2e-install
+	@echo "$(BLUE)Running Playwright with video recording (VIDEO=1)...$(RESET)"
+	@cd e2e && VIDEO=1 npx playwright test
+	@echo "$(GREEN)Done. View recordings with 'make e2e-report' (or open e2e/test-results/).$(RESET)"
 
 e2e-up: setup genPrismaClient
 	@echo "$(BLUE)Starting the e2e stack (https://localhost:8443)...$(RESET)"

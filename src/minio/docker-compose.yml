@@ -1,6 +1,9 @@
 services:
   minio:
-    image: coollabsio/minio:RELEASE.2025-10-15T17-29-55Z
+    # Official MinIO image (published on quay.io, not Docker Hub), pinned.
+    # Bundles both `mc` and `curl`, so the healthcheck and the backup scripts
+    # (which run `mc` inside this container) work without a separate client.
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: minio
     command: server /data --console-address ":9001"
     env_file:

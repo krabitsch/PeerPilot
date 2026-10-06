@@ -386,6 +386,16 @@
                 </div>
 
                 <span [ngStyle]="cardActionsStyle">
+                  @if (ea.evalResponseId) {
+                    <app-btn
+                      variant="ghost"
+                      size="sm"
+                      [disabled]="loading()"
+                      (clicked)="playRecording(ea)">
+                      ▶ Recording
+                    </app-btn>
+                  }
+
                   <app-btn
                     variant="ghost"
                     size="sm"

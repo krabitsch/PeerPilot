@@ -57,7 +57,15 @@ Legend: ✅ done · 🚧 in progress · 🔴 blocker · 🟠 should-do · 🟡 h
   `BASE_URL=https://<domain>/` in `src/.env`. `make cert` itself is untested
   against the live Let's Encrypt service (no domain yet).
 
-### Remove the email dependency (controlled-environment auth)
+### Remove the email dependency (controlled-environment auth)  ✅ DONE (2026-10-03)
+
+Shipped on branch `peter` (commits de26086 backend, 94733f0 frontend, 5b778a5
+tests): registration auto-verifies and sends no mail; login's email_verified
+gate is gone; emailed forgot/reset + verify-email routes, the nodemailer
+transport and the hardcoded Mailtrap creds are removed; admin password reset is
+`POST /api/user/:id/reset-password` (Admin only) → system-generated one-time
+password, surfaced on the admin org-detail page. 50/50 e2e green. Original plan
+below for reference.
 
 Decided 2026-09-30: for a small, controlled deployment we remove email from the
 auth flow rather than run an SMTP provider. How auth works today (for context):
@@ -99,6 +107,12 @@ Accepted trade-offs (fine at ~60 vetted users): no email verification means a
 typo'd whitelist entry could register a slightly-wrong address (admin controls
 the list, so catchable); password reset depends on the admin being reachable.
 
+### Remove OAuth — frontend hidden ✅ (2026-10-03); backend left dormant
+Done in the frontend (commit 94733f0): GitHub/Google buttons, divider,
+handlers, the oauth-callback route/component and the dead scaffold copies are
+gone. The backend `/google` + `/github` routes remain in place but unreachable
+(decided: hide in frontend only). Remaining optional cleanup (backend) below.
+
 ### Remove OAuth (follow-up to the no-social-login decision)
 - Backend: `/auth/google`, `/auth/google/callback`, `/auth/github`,
   `/auth/github/callback` and `findOrCreateOAuthUser` in the auth module.
@@ -111,16 +125,26 @@ the list, so catchable); password reset depends on the admin being reachable.
 
 ## 🟠 Should-do for a real deployment
 
-- **Managed object storage.** MinIO runs as a container on a local volume. Move
-  to managed S3 (or MinIO with backups + lifecycle). The code is already
-  parameterised (`MINIO_*`, `BASE_URL`). Note: the image is currently
-  `coollabsio/minio` (a community mirror, merged from main 2026-10-01) — for
-  production, pin the official `minio/minio` image or move to managed S3.
+- **Object storage** ✅ decided (2026-10-05): **stay on self-hosted MinIO + the
+  backups below** — managed S3 isn't warranted at ~60 users and there's no
+  audit/compliance obligation; the bar is just not losing files. Done: pinned the
+  **official `quay.io/minio/minio`** image (was the `coollabsio` community mirror).
+  The code stays parameterised (`MINIO_*`, `BASE_URL`), so a managed S3-compatible
+  store remains a config-level upgrade path if we outgrow this (see
+  `docs/STORAGE.md`). Buckets: `submissions`, `assignment-subjects`,
+  `user-profile` (public via nginx `/files/`), and `eval-recordings` (private;
+  presigned access only — the recordings are the teacher's proof a peer
+  evaluation happened, irreplaceable, so they must be backed up).
 - **Managed Postgres + backups.** Postgres runs containerised on a local
   volume. Production wants managed Postgres or, at minimum, a backup job for
   the `postgres` volume.
-- **Backups** for both the `postgres` and `minio` volumes — nothing backs them
-  up today.
+- **Backups** ✅ tooling + automation-ready (2026-10-05): `make backup` is the
+  one-shot entry point (DB dump + file mirror + prune) for cron; `make backup-db`
+  / `make backup-files` / `make restore-db` still exist; retention is built in
+  (`BACKUP_KEEP_DAYS`, default 14) and `BACKUP_DIR` controls the output location.
+  See `docs/BACKUPS.md` for the cron snippet. Remaining operational step (by
+  design, manual): **move `$BACKUP_DIR` off-host** after each run — nothing
+  auto-ships it off the box.
 - **Secrets out of source / git.** The hardcoded Mailtrap SMTP creds in
   `auth/utils.js` are a committed secret. They go away with *Remove the email
   dependency* (step 4); they should also be rotated/invalidated since they're

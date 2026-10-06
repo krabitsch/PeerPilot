@@ -38,7 +38,9 @@ const createUser = async (email, plainPassword, orgId = null) => {
       username,
       role: 'Student',
       orgId,
-      userAuth: { create: { pass_hash, provider: 'local', email_verified: false } },
+      // Auto-verified: this deployment has no mail service to verify through,
+      // and access is already gated by the email whitelist at registration.
+      userAuth: { create: { pass_hash, provider: 'local', email_verified: true } },
     },
     select: { id: true, email: true, username: true, created_at: true },
   });

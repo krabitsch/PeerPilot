@@ -25,11 +25,13 @@ router.post('/login',           limiter(10, 'Too many attempts. Please try again
 router.post('/refresh',         authController.refresh);
 router.post('/logout',          authController.logout);
 router.get('/me',               authenticate, authController.getMe);
-router.post('/forgot-password', limiter(5,  'Too many requests. Please try again in 15 minutes.'),  authController.forgotPassword);
-router.post('/reset-password',  limiter(5,  'Too many requests. Please try again in 15 minutes.'),  authController.resetPassword);
+// Password reset is admin-driven and out-of-band (no mail service): see
+// POST /api/user/:id/reset-password. The emailed forgot/reset and the email-
+// verification routes have been removed; registration auto-verifies.
+// The OAuth routes below are left in place but are unreachable — the frontend
+// no longer offers GitHub/Google sign-in.
 router.get('/google', authController.googleAuth);
 router.get('/google/callback', authController.googleCallback);
-router.get('/verify-email', authController.verifyEmail);
 router.get('/github', authController.githubAuth);
 router.get('/github/callback', authController.githubCallback);
 

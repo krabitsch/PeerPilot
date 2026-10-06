@@ -46,8 +46,6 @@ import { LogoComponent } from '../shared/logo.component';
             <div style="display:flex;flex-direction:column;gap:5px">
               <label [ngStyle]="labelStyle">
                 {{ 'label_password' | translate }}
-                <span (click)="router.navigate(['/forgot-password'])"
-                      [ngStyle]="forgotLinkStyle">{{ 'forgot_password' | translate }}</span>
               </label>
               <input type="password" [value]="password()"
                      (input)="password.set($any($event.target).value)"
@@ -68,32 +66,6 @@ import { LogoComponent } from '../shared/logo.component';
               </button>
             </div>
 
-            <div [ngStyle]="dividerStyle">
-              <span [ngStyle]="dividerLineStyle"></span>
-              <span [ngStyle]="dividerTextStyle">{{ 'divider_or_continue_with' | translate }}</span>
-              <span [ngStyle]="dividerLineStyle"></span>
-            </div>
-
-            <!-- GitHub — full width, brand colour -->
-            <button (click)="loginWithGitHub()" [ngStyle]="oauthBtnStyle('github')"
-                    (mouseenter)="oauthHover.set('github')" (mouseleave)="oauthHover.set('')">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0">
-                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
-              </svg>
-              {{ 'btn_sign_in_github' | translate }}
-            </button>
-
-            <!-- Google — full width, brand colour -->
-            <button (click)="loginWithGoogle()" [ngStyle]="oauthBtnStyle('google')"
-                    (mouseenter)="oauthHover.set('google')" (mouseleave)="oauthHover.set('')">
-              <svg width="20" height="20" viewBox="0 0 24 24" style="flex-shrink:0">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-              </svg>
-              {{ 'btn_sign_in_google' | translate }}
-            </button>
           </div>
 
           @if (errorMsg()) {
@@ -161,10 +133,6 @@ export class LoginComponent implements OnInit {
     });
   }
 
-  loginWithGitHub()  { this.auth.loginWithGitHub(); }
-  loginWithGoogle()  { window.location.href = '/api/auth/google'; }
-
-  oauthHover = signal('');
   authHover  = signal('');
 
   authBtnStyle(btn: 'signin' | 'signup') {
@@ -190,30 +158,6 @@ export class LoginComponent implements OnInit {
       border: `1px solid ${DS.colors.border}`,
     };
   }
-
-  oauthBtnStyle(provider: 'github' | 'google') {
-    const h = this.oauthHover() === provider;
-    const base = {
-      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
-      width: '100%', padding: '11px 20px', borderRadius: '8px', cursor: 'pointer',
-      fontSize: '0.9375rem', fontFamily: DS.fonts.body, fontWeight: '500',
-      transition: 'background 150ms', outline: 'none',
-    };
-    if (provider === 'github') {
-      return { ...base, background: h ? '#2d333b' : '#24292e', color: '#fff', border: '1px solid #444c56' };
-    }
-    return { ...base, background: h ? '#f1f3f4' : '#ffffff', color: '#3c4043', border: '1px solid #dadce0' };
-  }
-
-  readonly dividerStyle = {
-    display: 'flex', alignItems: 'center', gap: '10px', margin: '4px 0',
-  };
-  readonly dividerLineStyle = {
-    flex: '1', height: '1px', background: DS.colors.border,
-  };
-  readonly dividerTextStyle = {
-    fontSize: '0.75rem', color: DS.colors.fg3, whiteSpace: 'nowrap',
-  };
 
   readonly pageStyle = {
     minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -244,7 +188,6 @@ export class LoginComponent implements OnInit {
     fontSize: '0.8125rem', fontWeight: '500', color: DS.colors.fg2,
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
   };
-  readonly forgotLinkStyle = { color: DS.colors.violet, cursor: 'pointer', fontWeight: '400' };
   readonly legalLinksStyle = {
     display: 'flex', justifyContent: 'center', gap: '8px',
     marginTop: '20px', fontSize: '0.75rem',
