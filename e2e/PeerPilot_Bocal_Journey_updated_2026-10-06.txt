@@ -1,0 +1,1048 @@
+# Bocal Journey
+
+The **Bocal Panel** is the staff-facing area of PeerPilot. It is used by users with the `Bocal` or `Admin` role to manage courses, assignments, students, groups and peer-evaluation workflows, and to monitor student progress.
+
+The Bocal workflow is intentionally organized around four persistent navigation areas:
+
+```text
+Courses
+Assignments
+Students
+Analytics
+```
+
+The left sidebar is the primary navigation mechanism. Pages should not require redundant “back to Courses” links except where the user has drilled down into a deeper Analytics or management page.
+
+> **Terminology note:** the backend and parts of the frontend code still use `Class`, `classId`, etc. The user-facing Bocal interface consistently refers to these entities as **Courses**.
+
+---
+
+## 1. Entry into the Bocal Panel
+
+The Bocal area is available to authenticated users with role:
+
+```text
+Bocal
+Admin
+```
+
+The main route is:
+
+```text
+/bocal
+```
+
+and should redirect to:
+
+```text
+/bocal/classes
+```
+
+Users without Bocal/Admin privileges must not gain access to Bocal routes.
+
+The Bocal sidebar remains visible throughout the normal Bocal workflow and contains:
+
+```text
+PeerPilot
+
+[current user]
+BOCAL
+
+Courses
+Assignments
+Students
+Analytics
+
+Language
+Sign out
+```
+
+The currently active Bocal area should remain visually highlighted, including on nested Analytics pages.
+
+---
+
+# 2. Courses Journey
+
+## Route
+
+```text
+/bocal/classes
+```
+
+## Purpose
+
+The Courses page is the highest-level overview of the courses available to the Bocal user’s organization.
+
+The user should see:
+
+```text
+BOCAL PANEL
+
+Courses                                      + New course
+```
+
+followed by one card for each course.
+
+A typical course card contains:
+
+```text
+PI 1421 Foundations of Macroeconomics
+
+2 assignments · 20 students · Last change: <date>
+
+[ Edit course ] [ Open assignments ] [ Show students ]
+```
+
+The course description remains stored but is deliberately not shown in the compact overview card.
+
+### Expected actions
+
+**New course** opens the course-creation workflow.
+
+**Edit course** opens the course editing interface. The user can change the course metadata.
+
+Deletion is intentionally **not** exposed as a separate button on the course overview. `Delete course` belongs inside the Edit Course workflow and requires explicit confirmation because it is destructive.
+
+**Open assignments** navigates directly into the selected course’s assignment context:
+
+```text
+/bocal/classes?classId=<courseId>
+```
+
+**Show students** navigates directly into the Students page with that course already selected:
+
+```text
+/bocal/students?classId=<courseId>
+```
+
+Course IDs are database-generated and must never be hard-coded in tests.
+
+---
+
+# 3. Assignments Journey
+
+## Entry from the sidebar
+
+Selecting **Assignments** from the Bocal sidebar enters the assignment area.
+
+Internally the initial navigation may use:
+
+```text
+/bocal/classes?view=assignments
+```
+
+If no particular course has been selected, PeerPilot selects the first available course and normalizes the state to:
+
+```text
+/bocal/classes?classId=<courseId>
+```
+
+## Entry from a Course card
+
+Selecting:
+
+```text
+Courses
+→ PI 1421
+→ Open assignments
+```
+
+must open the Assignments page with PI 1421 selected immediately.
+
+The selected course must be determined dynamically from its actual `classId`.
+
+---
+
+## Assignments page structure
+
+The top of the page should clearly establish the current context:
+
+```text
+BOCAL PANEL
+
+Assignments
+```
+
+followed by a prominent current-course panel:
+
+```text
+CURRENT COURSE
+
+PI 1421 Foundations of Macroeconomics
+
+<course description>
+
+SELECT COURSE
+[ PI 1421 Foundations of Macroeconomics ▼ ]
+```
+
+The dropdown must display the **currently selected course**, rather than simply showing the first course in the list.
+
+Changing the dropdown changes the course and loads that course’s assignments.
+
+Below this appears:
+
+```text
+Assignments for PI 1421 Foundations of Macroeconomics
+
+                                      + New assignment
+```
+
+There is deliberately no `← Courses` button. Navigation to Courses is performed through the sidebar.
+
+There is also deliberately no `Edit course` button on the Assignments page. Course editing belongs to the Courses area.
+
+---
+
+# 4. Assignment Cards
+
+Each assignment belonging to the selected course is displayed as a separate card.
+
+A typical card contains:
+
+```text
+Assignment 1: data and stylized facts
+
+3 evals required
+· 20 students
+· 5 groups
+· 0 unallocated students
+· 100 pts
+· 100% threshold
+
+[ Edit assignment ]
+[ Manage groups ]
+[ Manage evaluation pairings ]
+```
+
+The exact group and unallocated-student counts must reflect the current state of that assignment.
+
+The cards deliberately separate three different responsibilities.
+
+---
+
+## 4.1 Edit assignment
+
+Selecting:
+
+```text
+Edit assignment
+```
+
+opens the Bocal assignment editor, using the selected assignment ID.
+
+The assignment editor is responsible for assignment content and configuration, including properties such as:
+
+```text
+name
+description
+maximum score
+required evaluations
+group size
+pass threshold
+optional assignment file
+evaluation sheet / evaluation sections
+```
+
+The main assignment settings are shown together so that the Bocal user can configure the assignment at a glance:
+
+```text
+MAX SCORE | REQUIRED EVALS | GROUP SIZE | PASS THRESHOLD
+```
+
+`GROUP SIZE` is the intended size used by the assignment-specific grouping workflow. It is part of the assignment configuration and must be stored for both newly created and edited assignments.
+
+The instructor may also attach an **optional assignment file** containing the assignment questions or instructions, for example a PDF or document. This is distinct from a later student/group submission file: the assignment file belongs to the instructor-defined assignment, while the submission file is the student's answer. If an assignment file exists, it should be available from the student-facing/Preview Assignment page.
+
+### Markdown + LaTeX authoring
+
+Assignment descriptions support **Markdown + LaTeX**. The database stores the original source text, while the frontend renders it for display. This allows instructors to combine normal prose, headings, lists, emphasis and mathematical notation without storing generated HTML in the database.
+
+For example, an instructor can write:
+
+```markdown
+## Question 1
+
+Consider the household problem
+
+$$
+\max_{\{c_t,k_{t+1}\}} E_0 \sum_{t=0}^{\infty} \beta^t u(c_t)
+$$
+
+1. Derive the **Euler equation**.
+2. Explain the role of $\beta$.
+```
+
+The Bocal assignment editor should provide a rendered preview of the description while the instructor is editing it.
+
+The same Markdown + LaTeX capability applies to **evaluation-sheet section descriptions**. Both newly entered section descriptions and existing section descriptions should render through the same reusable Markdown/math renderer. Consequently, mathematical criteria such as
+
+```text
+$$
+u'(c_t)=\beta E_t[(1+r_{t+1})u'(c_{t+1})]
+$$
+```
+
+can be displayed correctly to the evaluator. The same renderer is intended to be reused for written peer-feedback comments when that feedback field is added.
+
+Deletion of an assignment belongs inside this editing workflow rather than on the assignment card itself.
+
+`Delete assignment` is therefore treated as a destructive editing action and should require confirmation.
+
+Saving, cancelling or deleting should return the Bocal user to the assignments context of the relevant course rather than losing the selected course.
+
+### Preview assignment
+
+Selecting `Preview assignment` opens the student-facing assignment page. The preview should show the same assignment content a student sees, including:
+
+```text
+assignment title
+assignment metadata
+Markdown + LaTeX rendered description
+optional instructor-provided assignment file
+student-facing assignment/submission content
+```
+
+Staff-only controls such as `Manage evaluation pairings` must not appear on this preview/student-facing page. Pairing management remains in the Bocal Assignments workflow.
+
+---
+
+# 5. Group Management Journey
+
+Selecting:
+
+```text
+Manage groups
+```
+
+expands group management for that assignment.
+
+The user can inspect the assignment’s current groups and their members.
+
+A group entry can display:
+
+```text
+Group name
+
+studentA · studentB · studentC
+```
+
+with the leader indicated where appropriate.
+
+The Bocal can perform group-management actions such as:
+
+```text
+Generate all groups
+Add single group
+Edit group members
+Remove group
+Delete all groups
+```
+
+The interface should prevent nonsensical actions where possible. For example, generating all groups should not remain enabled when groups already exist.
+
+After group changes:
+
+```text
+X groups
+X unallocated students
+```
+
+on the assignment card should reflect the new state.
+
+Group membership is assignment-specific.
+
+---
+
+# 6. Evaluation Pairing Management Journey
+
+Selecting:
+
+```text
+Manage evaluation pairings
+```
+
+opens the evaluation-pairing management page for that assignment.
+
+The route carries the selected assignment:
+
+```text
+/eval-assignments?assignmentId=<assignmentId>
+```
+
+The page must load the correct:
+
+```text
+course
+assignment
+groups
+students
+required evaluation rounds
+existing evaluation pairings
+```
+
+The pairing workflow supports management of which student evaluates which group in each evaluation round.
+
+Evaluation-pairing records currently distinguish statuses such as:
+
+```text
+Pending
+Submitted
+Cancelled
+```
+
+The Bocal can inspect and manage pairings, including the workflows already implemented for generated/manual pairings, evaluator workload and unmatched students.
+
+### Returning from pairing management
+
+The navigation button must not return to the generic/student-facing assignment-detail page.
+
+Instead:
+
+```text
+← Back to assignments
+```
+
+must return to:
+
+```text
+/bocal/classes?classId=<originalCourseId>
+```
+
+with the correct course still selected.
+
+---
+
+# 7. Students Journey
+
+## Direct entry
+
+The Students sidebar route is:
+
+```text
+/bocal/students
+```
+
+The page provides organization-level student/member browsing and filtering.
+
+The filter area contains clearly labelled controls:
+
+```text
+SEARCH
+ROLE
+COURSE
+ASSIGNMENT
+```
+
+For example:
+
+```text
+SEARCH                    ROLE          COURSE                          ASSIGNMENT
+[ username or email... ]  [ All roles ] [ All courses ▼ ]              [ ... ▼ ]
+```
+
+---
+
+## Course-specific entry
+
+From:
+
+```text
+Courses
+→ PI 1421
+→ Show students
+```
+
+PeerPilot navigates to:
+
+```text
+/bocal/students?classId=<PI1421Id>
+```
+
+and must initialize the page so that:
+
+```text
+ROLE   = Student
+COURSE = PI 1421 Foundations of Macroeconomics
+```
+
+The list should then contain only students enrolled in PI 1421.
+
+For the development seed this means, for example, the PI 1421 course should expose its own 20 enrolled students rather than all organization members.
+
+The course selector must visibly show the selected course.
+
+The role selector must visibly show `Student`.
+
+Changing filters updates the list.
+
+The course filter also determines which assignments can be selected in the assignment filter.
+
+---
+
+## Student list pagination
+
+The original list displayed only eight entries per page, which was too fragmented for course administration.
+
+The expected behavior is therefore to allow **many students on one page**, currently targeting approximately:
+
+```text
+50 entries per page
+```
+
+A normal 20-student course should consequently be visible as a single vertically scrollable list.
+
+---
+
+# 8. Analytics Journey
+
+Analytics is structured as a drill-down:
+
+```text
+Course
+  ↓
+Assignment
+  ↓
+Student
+```
+
+The URL should retain this context explicitly through query parameters.
+
+---
+
+# 9. Analytics — Course Overview
+
+## Route
+
+```text
+/bocal/analytics
+```
+
+or, with a selected course:
+
+```text
+/bocal/analytics?classId=<courseId>
+```
+
+The page begins:
+
+```text
+BOCAL PANEL
+
+Analytics
+```
+
+followed by:
+
+```text
+COURSE
+
+[ PI 1421 Foundations of Macroeconomics ▼ ]
+```
+
+If Analytics is opened with a `classId`, that course must already be selected.
+
+If no course has been supplied, the first available course can be selected.
+
+---
+
+## Assignment overview
+
+Below the course selector:
+
+```text
+Assignments
+
+Overview of peer-evaluation progress
+```
+
+Each assignment receives an analytics card.
+
+A card contains information such as:
+
+```text
+Assignment 1: data and stylized facts
+
+5 groups · 3 required evaluations
+
+Round 1    3 / 5
+Round 2    2 / 5
+Round 3    No pairings
+
+5 of 10 evaluations completed
+
+View assignment analytics →
+```
+
+Progress must be derived from actual evaluation-pairing records rather than fabricated statistics.
+
+Cancelled pairings are not counted as active pairings.
+
+The distinction must remain clear between:
+
+```text
+pairing exists but is Pending
+pairing is Submitted
+no pairing exists
+```
+
+Selecting:
+
+```text
+View assignment analytics →
+```
+
+navigates to:
+
+```text
+/bocal/analytics/assignment
+    ?classId=<courseId>
+    &assId=<assignmentId>
+```
+
+---
+
+# 10. Analytics — Assignment Detail
+
+## Route
+
+```text
+/bocal/analytics/assignment?classId=<courseId>&assId=<assignmentId>
+```
+
+The page must preserve both contexts.
+
+It contains:
+
+```text
+BOCAL PANEL
+
+← Analytics
+
+Assignment analytics
+
+PI 1421 Foundations of Macroeconomics
+```
+
+and:
+
+```text
+SELECT ASSIGNMENT
+
+[ Assignment 1: data and stylized facts ▼ ]
+```
+
+The dropdown must display the assignment that was selected on the previous Analytics page.
+
+Changing this dropdown should load the selected assignment while preserving the course.
+
+---
+
+## Assignment-level summary
+
+The page shows five operational metrics:
+
+```text
+Students
+Groups
+Active pairings
+Groups missing pairings
+Unallocated students
+```
+
+The intended interpretation is:
+
+| Metric | Meaning |
+|---|---|
+| Students | Students enrolled in the selected course |
+| Groups | Assignment-specific groups |
+| Active pairings | Non-cancelled evaluation pairings |
+| Groups missing pairings | Groups missing at least one required incoming evaluation pairing |
+| Unallocated students | Enrolled students not belonging to an assignment group |
+
+---
+
+# 11. Assignment Analytics — Student Progress Table
+
+The central table is:
+
+```text
+Student evaluation progress
+```
+
+The table separates the student’s two peer-evaluation roles:
+
+```text
+As evaluee
+As evaluator
+```
+
+A typical structure is:
+
+| Student | Group | As evaluee |  |  | As evaluator |  |  |
+|---|---|---:|---:|---:|---:|---:|---:|
+|  |  | Round 1 | Round 2 | Round 3 | Round 1 | Round 2 | Round 3 |
+| student41 | group1 | status | status | status | status | status | status |
+
+### Meaning
+
+**As evaluee** describes the evaluation state of the student’s own group.
+
+Students belonging to the same group can therefore share the same evaluee-side status.
+
+**As evaluator** describes evaluation work assigned personally to that student.
+
+These two concepts must not be conflated.
+
+### Status symbols
+
+The compact table uses:
+
+```text
+✓      Completed
+clock  Pending
+—      Not assigned
+```
+
+The pending clock should use the custom clock representation rather than a numerical `0/1`.
+
+---
+
+## Assignment Analytics filtering
+
+The student table currently supports:
+
+```text
+All
+Incomplete
+Unallocated
+```
+
+`All` shows every enrolled student.
+
+`Incomplete` highlights students with outstanding relevant progress.
+
+`Unallocated` shows students not currently assigned to an assignment group.
+
+---
+
+## Student drill-down
+
+Student names are clickable.
+
+Selecting:
+
+```text
+student41
+```
+
+navigates to:
+
+```text
+/bocal/analytics/student
+    ?classId=<courseId>
+    &assId=<assignmentId>
+    &studentId=<studentId>
+```
+
+---
+
+# 12. Analytics — Student Detail
+
+## Route
+
+```text
+/bocal/analytics/student
+    ?classId=<courseId>
+    &assId=<assignmentId>
+    &studentId=<studentId>
+```
+
+The page begins:
+
+```text
+BOCAL PANEL
+
+← Assignment analytics
+
+Student analytics
+```
+
+followed by student context:
+
+```text
+STUDENT
+
+student41
+student41@example.com
+
+PI 1421 Foundations of Macroeconomics
+· Assignment 1: data and stylized facts
+· group1
+```
+
+---
+
+## Student summary cards
+
+Three summary cards give an immediate overview:
+
+```text
+┌────────────────────┐
+│ MEMBER OF GROUP    │
+│ group1             │
+└────────────────────┘
+
+┌────────────────────┐
+│ AS EVALUEE         │
+│ 2 / 3              │
+└────────────────────┘
+
+┌────────────────────┐
+│ AS EVALUATOR       │
+│ 1 / 3              │
+└────────────────────┘
+```
+
+These summarize the same two roles used on the assignment-level table.
+
+---
+
+# 13. Student Detail — As evaluee
+
+The first detailed table describes evaluations received by the student’s group.
+
+Example:
+
+| Round | Evaluated by | Evaluator group | Status |
+|---|---|---|---|
+| Round 1 | student37 | group17 | Pending |
+| Round 2 | student26 | group6 | Completed |
+| Round 3 | student21 | group1 | Pending |
+
+Status rendering should again use:
+
+```text
+✓ Completed
+clock Pending
+— Not assigned
+```
+
+If the student is not in any group, the page must handle this state gracefully rather than fail.
+
+---
+
+# 14. Student Detail — As evaluator
+
+The second table describes evaluation work assigned personally to the selected student.
+
+Example:
+
+| Round | Evaluates | Status |
+|---|---|---|
+| Round 1 | group19 | Pending |
+| Round 2 | group18 | Completed |
+| Round 3 | group3 | Pending |
+
+If no evaluator task has been assigned:
+
+```text
+No evaluator tasks assigned.
+```
+
+should be shown.
+
+Selecting:
+
+```text
+← Assignment analytics
+```
+
+must return to:
+
+```text
+/bocal/analytics/assignment
+    ?classId=<sameCourseId>
+    &assId=<sameAssignmentId>
+```
+
+without losing the assignment context.
+
+---
+
+# 15. URL and State Contract
+
+The Bocal frontend deliberately uses URL query parameters for drill-down context.
+
+| Page | Route |
+|---|---|
+| Courses | `/bocal/classes` |
+| Assignments for course | `/bocal/classes?classId=<id>` |
+| Students | `/bocal/students` |
+| Students for course | `/bocal/students?classId=<id>` |
+| Analytics overview | `/bocal/analytics?classId=<id>` |
+| Assignment analytics | `/bocal/analytics/assignment?classId=<id>&assId=<id>` |
+| Student analytics | `/bocal/analytics/student?classId=<id>&assId=<id>&studentId=<id>` |
+| Evaluation-pairing management | `/eval-assignments?assignmentId=<id>` |
+
+Tests should verify **semantic state**, not database IDs.
+
+For example, a Playwright test should not assume:
+
+```text
+PI 1421 = classId 22
+```
+
+because seed/reseed operations can change database-generated IDs.
+
+Instead, select:
+
+```text
+PI 1421 Foundations of Macroeconomics
+```
+
+by its visible name, then verify that a valid `classId` has appeared in the URL and that the correct course is displayed.
+
+---
+
+# 16. Recommended Playwright Journey
+
+A high-value end-to-end Bocal smoke test would follow this sequence:
+
+```text
+Login as Bocal
+
+→ Courses
+→ verify course cards
+
+→ PI 1421 / Open assignments
+→ verify PI 1421 is the current course
+→ verify Assignment 1 + Assignment 2
+
+→ Edit Assignment 1
+→ verify MAX SCORE / REQUIRED EVALS / GROUP SIZE / PASS THRESHOLD controls
+→ verify optional instructor assignment-file control
+→ enter Markdown + LaTeX in the assignment description
+→ verify rendered preview
+→ enter Markdown + LaTeX in an evaluation-sheet section description
+→ verify rendered section preview
+→ save and reopen the assignment
+→ verify group size and Markdown/LaTeX source persist
+→ Preview assignment
+→ verify description renders Markdown + LaTeX
+→ verify optional assignment file is available when attached
+→ verify no staff-only Manage evaluation pairings button is shown
+
+→ Manage groups
+→ verify group-management controls
+
+→ Manage evaluation pairings
+→ verify correct assignment
+→ Back to assignments
+→ verify PI 1421 remains selected
+
+→ Courses
+→ PI 1421 / Show students
+→ verify ROLE = Student
+→ verify COURSE = PI 1421
+→ verify only enrolled students shown
+
+→ Analytics
+→ select PI 1421
+→ verify Assignment cards
+
+→ Assignment 1 / View assignment analytics
+→ verify correct course + assignment
+→ verify five summary metrics
+→ verify student table
+
+→ click student41
+→ verify Student analytics
+→ verify correct student/course/assignment/group
+→ verify As evaluee table
+→ verify As evaluator table
+
+→ Back to Assignment analytics
+→ verify course and assignment context preserved
+
+→ Analytics
+→ verify PI 1421 context preserved where applicable
+```
+
+---
+
+# 17. Suggested Playwright Selector Contract
+
+Before writing many tests, consider adding stable `data-testid` attributes to the Bocal UI.
+
+For example:
+
+```html
+data-testid="nav-courses"
+data-testid="nav-assignments"
+data-testid="nav-students"
+data-testid="nav-analytics"
+
+data-testid="course-card"
+data-testid="course-open-assignments"
+data-testid="course-show-students"
+
+data-testid="assignment-card"
+data-testid="assignment-edit"
+data-testid="assignment-groups"
+data-testid="assignment-pairings"
+
+data-testid="students-role-filter"
+data-testid="students-course-filter"
+
+data-testid="analytics-course-select"
+data-testid="analytics-assignment-card"
+data-testid="analytics-assignment-select"
+
+data-testid="analytics-student-row"
+data-testid="analytics-student-link"
+```
+
+Then Playwright can combine stable selectors with semantic assertions:
+
+```ts
+await page
+  .getByTestId('course-card')
+  .filter({ hasText: 'PI 1421 Foundations of Macroeconomics' })
+  .getByTestId('course-open-assignments')
+  .click();
+
+await expect(page).toHaveURL(/\/bocal\/classes\?classId=\d+/);
+
+await expect(
+  page.getByText('PI 1421 Foundations of Macroeconomics')
+).toBeVisible();
+```
+
+This is substantially more robust than relying on CSS structure or changing database IDs.
+
+---
+
+# 18. Core Philosophy of the Bocal Journey
+
+The Bocal interface should preserve context as the user drills down:
+
+```text
+Course
+→ Assignment
+→ Group / Pairings
+→ Analytics
+→ Student
+```
+
+A user should never have to remember which course or assignment they were working on after following one of the platform’s own links.
+
+That gives us the central testing principle:
+
+> **Every Bocal navigation action must arrive at the expected page with the expected course, assignment and/or student already selected.**
+
+And the reverse-navigation principle is:
+
+> **Returning from a deeper management or analytics page must preserve the parent context rather than send the user back to a generic default page.**
+
+Those two rules capture a large part of the intended Bocal frontend behavior and provide a practical basis for README documentation and Playwright end-to-end tests.

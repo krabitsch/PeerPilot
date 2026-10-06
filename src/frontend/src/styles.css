@@ -1,1 +1,70 @@
 /* You can add global styles to this file, and also import other style files */
+@import 'katex/dist/katex.min.css';
+
+
+/* ============================================================
+   Markdown + LaTeX rendering
+   ============================================================ */
+
+.markdown-math {
+  color: inherit;
+  font: inherit;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.markdown-math > :first-child {
+  margin-top: 0;
+}
+
+.markdown-math > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-math p {
+  margin: 0 0 0.8rem;
+}
+
+.markdown-math h1,
+.markdown-math h2,
+.markdown-math h3,
+.markdown-math h4 {
+  margin: 1.25rem 0 0.6rem;
+  line-height: 1.25;
+}
+
+.markdown-math ul,
+.markdown-math ol {
+  margin: 0.65rem 0 0.9rem;
+  padding-left: 1.5rem;
+}
+
+.markdown-math li {
+  margin: 0.25rem 0;
+}
+
+.markdown-math blockquote {
+  margin: 0.9rem 0;
+  padding-left: 1rem;
+  border-left: 3px solid oklch(56% 0.24 296);
+  color: oklch(72% 0.01 272);
+}
+
+.markdown-math code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.9em;
+}
+
+.markdown-math pre {
+  overflow-x: auto;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: oklch(13% 0.02 272);
+}
+
+.markdown-math .katex-display,
+.markdown-math .texmath {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.25rem 0;
+}

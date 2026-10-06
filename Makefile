@@ -13,7 +13,7 @@ YELLOW = \033[0;33m
 BLUE   = \033[0;34m
 RESET  = \033[0m
 
-.PHONY: setup build up down clean restart run re dev prod check_env studio populateDB resetDB genPrismaClient seedAdmin seedAdmin_prod migrate migrate_prod generateUsers e2e e2e-up e2e-seed e2e-down e2e-install e2e-summary e2e-report cert cert-renew
+.PHONY: setup build up down clean restart run re dev prod check_env studio populateDB resetDB genPrismaClient seedAdmin seedAdmin_prod migrate migrate_prod generateUsers e2e e2e-up e2e-seed e2e-down e2e-install e2e-summary e2e-report cert cert-renew frontend-dev
 
 setup: check_env
 	@echo "$(GREEN)Setup complete.$(RESET)"
@@ -221,3 +221,8 @@ e2e-report:
 e2e-down:
 	@echo "$(RED)Removing the e2e stack and its data...$(RESET)"
 	@$(E2E_COMPOSE) down -v --remove-orphans
+
+frontend-dev:
+	cd src/frontend
+    npm ci
+    npm start -- --proxy-config proxy.conf.json

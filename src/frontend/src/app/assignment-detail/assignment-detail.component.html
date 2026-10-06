@@ -47,7 +47,15 @@
   <app-container [config]="flatConfig">
     <div class="desc-body">
       <div class="desc-label">{{ 'label_description' | translate }}</div>
-      <p class="desc-text">{{ assignment()!.description || ('assignment_no_description' | translate) }}</p>
+      @if (assignment()!.description) {
+        <app-markdown-math
+          [text]="assignment()!.description">
+        </app-markdown-math>
+      } @else {
+        <p class="desc-text">
+          No description provided.
+        </p>
+      }
     </div>
   </app-container>
 
