@@ -246,6 +246,4 @@ e2e-down:
 	@$(E2E_COMPOSE) down -v --remove-orphans
 
 frontend-dev:
-	cd src/frontend
-    npm ci
-    npm start -- --proxy-config proxy.conf.json
+	cd src/frontend && npm ci && npm start -- --proxy-config proxy.conf.json
