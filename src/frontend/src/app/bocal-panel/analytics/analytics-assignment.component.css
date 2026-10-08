@@ -153,6 +153,22 @@
   color: oklch(44% 0.01 272);
 }
 
+/* "As evaluee" states: submitted (handed in, eval pending) and not-submitted */
+.submitted {
+  color: #e6bc62;
+  font-weight: 700;
+}
+
+.not-submitted {
+  color: oklch(58% 0.01 272);
+  font-weight: 700;
+}
+
+.legend-title {
+  color: oklch(74% 0.01 272);
+  font-weight: 600;
+}
+
 .empty-table {
   text-align: center;
   color: oklch(60% 0.01 272);

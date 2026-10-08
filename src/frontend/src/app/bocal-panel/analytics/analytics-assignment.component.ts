@@ -13,6 +13,7 @@ import {
 
 import { GroupService } from '../../core/services/group-service/group-service';
 import { EvalService } from '../../core/services/eval-service/eval-service';
+import { SubmissionService } from '../../core/services/submission-service/submission-service';
 
 
 interface GroupInfo {
@@ -28,9 +29,13 @@ interface PairingInfo {
   evaluatorUserId: number;
 }
 
+// 'complete'/'pending' are used by the "As evaluator" column (did the student
+// do their evaluation task). The "As evaluee" column uses the submission-aware
+// states: 'evaluated' (round's evaluation done), 'submitted' (work handed in,
+// evaluation still pending) and 'notSubmitted' (no closed submission yet).
 interface ProgressCell {
   label: string;
-  kind: 'complete' | 'pending' | 'none';
+  kind: 'complete' | 'pending' | 'none' | 'evaluated' | 'submitted' | 'notSubmitted';
 }
 
 interface StudentProgress {
@@ -72,6 +77,7 @@ export class AnalyticsAssignmentComponent implements OnInit {
   private assignmentService = inject(AssignmentService);
   private groupService = inject(GroupService);
   private evalService = inject(EvalService);
+  private submissionService = inject(SubmissionService);
 
 
   classId = signal<number | null>(null);
@@ -208,7 +214,10 @@ export class AnalyticsAssignmentComponent implements OnInit {
         this.groupService.getGroupsForAssignment(assignment.id),
 
       pairings:
-        this.evalService.getEvalAssignments(assignment.id)
+        this.evalService.getEvalAssignments(assignment.id),
+
+      submissions:
+        this.submissionService.getSubmissionsForAssignment(assignment.id)
 
     }).subscribe({
 
@@ -237,6 +246,14 @@ export class AnalyticsAssignmentComponent implements OnInit {
             evalueeGroupId: Number(p.evalueeGroupId),
             evaluatorUserId: Number(p.evaluatorUserId)
           }));
+
+        // Groups that have handed in work (a closed submission). Submission is
+        // per group, so it gates every round of that group's "As evaluee" cells.
+        const submittedGroupIds = new Set<number>(
+          (data.submissions ?? [])
+            .filter((s: any) => s.status === 'Close')
+            .map((s: any) => Number(s.groupId))
+        );
 
         const requiredRounds = Math.max(
           0,
@@ -317,11 +334,12 @@ export class AnalyticsAssignmentComponent implements OnInit {
 
               if (!group) return this.emptyCell();
 
-              return this.progressCell(
+              return this.evalueeCell(
                 pairings.filter(p =>
                   p.evalueeGroupId === group.id &&
                   p.round === round
-                )
+                ),
+                submittedGroupIds.has(group.id)
               );
             });
 
@@ -346,7 +364,7 @@ export class AnalyticsAssignmentComponent implements OnInit {
               group === null ||
               received
                 .slice(0, requiredRounds)
-                .some(c => c.kind !== 'complete') ||
+                .some(c => c.kind !== 'evaluated') ||
               evaluator.some(c => c.kind === 'pending');
 
 
@@ -396,6 +414,36 @@ export class AnalyticsAssignmentComponent implements OnInit {
       label: '—',
       kind: 'none'
     };
+  }
+
+
+  // "As evaluee" cell: reflects the group's submission + this round's evaluation.
+  //   no pairing          → none ("—", not assigned)
+  //   round fully evaluated → evaluated ("✓")
+  //   work submitted, eval pending → submitted ("●")
+  //   no closed submission yet     → notSubmitted ("○")
+  private evalueeCell(
+    pairings: PairingInfo[],
+    submitted: boolean
+  ): ProgressCell {
+
+    if (pairings.length === 0) {
+      return this.emptyCell();
+    }
+
+    const completed = pairings.filter(
+      p => p.status === 'Submitted'
+    ).length;
+
+    if (completed === pairings.length) {
+      return { label: '✓', kind: 'evaluated' };
+    }
+
+    if (submitted) {
+      return { label: '●', kind: 'submitted' };
+    }
+
+    return { label: '○', kind: 'notSubmitted' };
   }
 
 
