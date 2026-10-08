@@ -42,7 +42,7 @@ router.post('/:groupId/file', uploader.single('file'), async (req, res, next) =>
 
 router.get('/:groupId/file/download', async (req, res, next) => {
   try {
-    res.json(await subService.getDownloadUrl(req.params.groupId, req.user.userId))
+    res.json(await subService.getDownloadUrl(req.params.groupId, { userId: req.user.userId, isStaff: isStaff(req) }))
   } catch (err) { next(err) }
 })
 

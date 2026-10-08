@@ -14,6 +14,7 @@ import {
 import { GroupService } from '../../core/services/group-service/group-service';
 import { EvalService } from '../../core/services/eval-service/eval-service';
 import { SubmissionService } from '../../core/services/submission-service/submission-service';
+import { ExportService } from '../../core/services/export-service/export-service';
 
 
 interface GroupInfo {
@@ -78,6 +79,7 @@ export class AnalyticsAssignmentComponent implements OnInit {
   private groupService = inject(GroupService);
   private evalService = inject(EvalService);
   private submissionService = inject(SubmissionService);
+  private exportService = inject(ExportService);
 
 
   classId = signal<number | null>(null);
@@ -96,6 +98,11 @@ export class AnalyticsAssignmentComponent implements OnInit {
 
   loading = signal(false);
   error = signal<string | null>(null);
+
+  // Downloads (teacher exports).
+  includeRecordings = signal(true);
+  downloading = signal<null | 'archive' | 'csv'>(null);
+  downloadError = signal<string | null>(null);
 
   // Prevent outdated API responses from changing the page
   // when users switch assignments quickly.
@@ -508,6 +515,68 @@ export class AnalyticsAssignmentComponent implements OnInit {
       queryParams: { classId: this.classId() }
     });
   }
+
+  downloadArchive(): void {
+
+    const assId = this.assignmentId();
+    if (!assId || this.downloading()) return;
+
+    this.downloading.set('archive');
+    this.downloadError.set(null);
+
+    this.exportService
+      .downloadAssignmentArchive(assId, { recordings: this.includeRecordings() })
+      .subscribe({
+        next: () => this.downloading.set(null),
+        error: () => {
+          this.downloading.set(null);
+          this.downloadError.set('Could not download the assignment archive.');
+        }
+      });
+  }
+
+
+  downloadCsv(): void {
+
+    const assId = this.assignmentId();
+    if (!assId || this.downloading()) return;
+
+    this.downloading.set('csv');
+    this.downloadError.set(null);
+
+    this.exportService
+      .downloadEvaluationsCsv(assId)
+      .subscribe({
+        next: () => this.downloading.set(null),
+        error: () => {
+          this.downloading.set(null);
+          this.downloadError.set('Could not download the evaluations CSV.');
+        }
+      });
+  }
+
+
+  toggleRecordings(checked: boolean): void {
+    this.includeRecordings.set(checked);
+  }
+
+
+  // A group's submission file, via the staff presigned-URL path. Opening the
+  // presigned URL lets the browser fetch straight from storage (no token).
+  downloadSubmission(groupId: number | null): void {
+
+    if (!groupId) return;
+
+    this.submissionService.getDownloadUrl(groupId).subscribe({
+      next: (res: any) => {
+        if (res?.url) window.open(res.url, '_blank');
+      },
+      error: () => {
+        this.downloadError.set('Could not download that submission.');
+      }
+    });
+  }
+
 
 openStudentAnalytics(studentId: number): void {
   const classId = this.classId();

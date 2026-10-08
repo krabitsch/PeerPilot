@@ -54,6 +54,7 @@ app.use('/enroll',     require('./modules/enroll/routes'))
 app.use('/group',      require('./modules/group/routes'))
 app.use('/submission', require('./modules/submission/routes'))
 app.use('/eval',       require('./modules/eval/routes'))
+app.use('/export',     require('./modules/export/routes'))
 
 app.use(errorHandler)
 

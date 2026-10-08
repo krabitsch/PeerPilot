@@ -131,6 +131,51 @@
 
       </div>
 
+
+      <!-- Downloads (teacher exports) -->
+
+      <div class="downloads-toolbar">
+
+        <button
+          type="button"
+          class="download-btn primary"
+          [disabled]="downloading() !== null"
+          (click)="downloadArchive()">
+          @if (downloading() === 'archive') {
+            Preparing ZIP…
+          } @else {
+            ⬇ Download all (ZIP)
+          }
+        </button>
+
+        <label class="download-toggle">
+          <input
+            type="checkbox"
+            [checked]="includeRecordings()"
+            (change)="toggleRecordings($any($event.target).checked)" />
+          Include recordings
+        </label>
+
+        <button
+          type="button"
+          class="download-btn"
+          [disabled]="downloading() !== null"
+          (click)="downloadCsv()">
+          @if (downloading() === 'csv') {
+            Preparing CSV…
+          } @else {
+            ⬇ Evaluations (CSV)
+          }
+        </button>
+
+      </div>
+
+      @if (downloadError()) {
+        <div class="error-message">
+          {{ downloadError() }}
+        </div>
+      }
+
     </section>
 
 
@@ -256,7 +301,17 @@
                 </td>
 
                 <td class="student-group">
-                  {{ student.groupName }}
+                  <span>{{ student.groupName }}</span>
+                  @if (student.groupId !== null) {
+                    <button
+                      type="button"
+                      class="row-download"
+                      title="Download this group's submission"
+                      aria-label="Download this group's submission"
+                      (click)="downloadSubmission(student.groupId)">
+                      ⬇
+                    </button>
+                  }
                 </td>
 
 

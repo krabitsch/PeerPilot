@@ -32,8 +32,11 @@ export class SubmissionService {
         return this.http.post<Submission>(`${this.base}/${groupId}/file`, form)
     }
 
-    getDownloadUrl(groupId: number, userId: number) {
-        return this.http.get(`${this.base}/${groupId}/file/download`, { params: { userId: String(userId) } })
+    // The caller's identity comes from the token server-side; staff may download
+    // any group's submission, members only their own. `userId` is vestigial.
+    getDownloadUrl(groupId: number, userId?: number) {
+        const params: Record<string, string> = userId != null ? { userId: String(userId) } : {}
+        return this.http.get<{ url: string, expiresIn: string }>(`${this.base}/${groupId}/file/download`, { params })
     }
 
     removeFile(groupId: number, userId: number) {

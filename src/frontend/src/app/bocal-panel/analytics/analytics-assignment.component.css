@@ -277,3 +277,92 @@
   outline-offset: 4px;
   border-radius: 3px;
 }
+
+/* Downloads (teacher exports) */
+
+.downloads-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+
+  margin-top: 20px;
+}
+
+.download-btn {
+  padding: 9px 16px;
+
+  background: oklch(15% 0.02 272);
+  border: 1px solid oklch(28% 0.03 272);
+  border-radius: 8px;
+
+  color: oklch(90% 0.005 272);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.download-btn:hover:not(:disabled) {
+  border-color: #b986fa;
+  color: #fff;
+}
+
+.download-btn.primary {
+  background: #b986fa;
+  border-color: #b986fa;
+  color: oklch(14% 0.02 272);
+}
+
+.download-btn.primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+  color: oklch(14% 0.02 272);
+}
+
+.download-btn:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.download-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+
+  color: oklch(70% 0.01 272);
+  font-size: 0.8rem;
+
+  cursor: pointer;
+}
+
+.student-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.row-download {
+  padding: 2px 6px;
+
+  background: transparent;
+  border: 1px solid oklch(28% 0.03 272);
+  border-radius: 6px;
+
+  color: #b986fa;
+  font: inherit;
+  font-size: 0.75rem;
+  line-height: 1;
+
+  cursor: pointer;
+}
+
+.row-download:hover {
+  border-color: #b986fa;
+  background: oklch(17% 0.02 272);
+}
+
+.row-download:focus-visible {
+  outline: 2px solid #b986fa;
+  outline-offset: 2px;
+}
