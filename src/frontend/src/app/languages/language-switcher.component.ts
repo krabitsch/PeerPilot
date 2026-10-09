@@ -162,9 +162,9 @@ import { isSupportedLang, setLanguage } from './language.service';
 export class LanguageSwitcherComponent {
   languages = [
     { code: 'en', name: 'English', flag: '🇬🇧' },
-    { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
-    { code: 'hu', name: 'Magyar', flag: '🇭🇺' },
-    { code: 'ar', name: 'العربية', flag: '🇸🇦' },
+    // { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
+    // { code: 'hu', name: 'Magyar', flag: '🇭🇺' },
+    // { code: 'ar', name: 'العربية', flag: '🇸🇦' },
   ];
 
   currentLanguage = 'en';

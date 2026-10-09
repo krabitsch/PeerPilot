@@ -41,7 +41,7 @@ import { LogoComponent } from '../shared/logo.component';
               <input [value]="email()" (input)="email.set($any($event.target).value)"
                      [ngStyle]="inputStyle('email')"
                      (focus)="focused.set('email')" (blur)="focused.set('')"
-                     placeholder="you@PeerPilot.school"/>
+                     placeholder="you@peerofessor.school"/>
             </div>
             <div style="display:flex;flex-direction:column;gap:5px">
               <label [ngStyle]="labelStyle">
