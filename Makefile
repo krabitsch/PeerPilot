@@ -224,5 +224,5 @@ e2e-down:
 
 frontend-dev:
 	cd src/frontend
-    npm ci
-    npm start -- --proxy-config proxy.conf.json
+	npm ci
+	npm start -- --proxy-config proxy.conf.json

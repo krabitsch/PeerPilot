@@ -178,6 +178,17 @@ export interface Course {
   enrollments?: Enrollment[];
   creator?: User;
   org?: Organization;
+  term?: string | null;
+  externalCourseCodes?: string[];
+  /** Student-specific code from Enrollment. Present for an enrolled course. */
+  externalCourseCode?: string | null;
+}
+
+export interface EnrollmentEligibility {
+  eligible: boolean;
+  allowedExternalCourseCode: string | null;
+  availableExternalCourseCodes: string[];
+  term: string | null;
 }
 
 export interface Assignment {
@@ -204,6 +215,7 @@ export interface Enrollment {
   status: EnrollmentStatus;
   userId: number;
   classId: number;
+  externalCourseCode?: string | null;
   user: User;
   course: Course;
   enrollDate: string;

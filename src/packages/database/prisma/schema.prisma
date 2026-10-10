@@ -129,9 +129,11 @@ model Class {
   assignments    Assignment[]
   enrollments    Enrollment[]
   pass_threshold Float        @default(100.0)
-
   created_by Int
   org_id     Int
+  term                String?
+  externalCourseCodes String[] @default([])
+  allowedEnrollments  AllowedEnrollment[]
 
   creator User         @relation(fields: [created_by], references: [id])
   org     Organization @relation(fields: [org_id], references: [id], onDelete: Cascade)
@@ -171,11 +173,24 @@ model Enrollment {
   classId Int
   user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   class   Class            @relation(fields: [classId], references: [id], onDelete: Cascade)
-
   enrollDate DateTime @default(now())
+  externalCourseCode String?
 
   @@unique([userId, classId])
   @@map("enrollment")
+  @@index([classId, externalCourseCode])
+}
+
+model AllowedEnrollment {
+  id                 Int    @id @default(autoincrement())
+  email              String
+  classId            Int
+  externalCourseCode String
+
+  course Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@unique([email, classId])
+  @@index([classId])
 }
 
 model GroupMember {
