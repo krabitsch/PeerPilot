@@ -219,19 +219,14 @@
             <app-btn variant="primary" (clicked)="startSubmission()">{{ 'btn_start_submission' | translate }}</app-btn>
           }
 
-          @if (mySubmission()?.status === 'Close') {
-            <div class="passkey-box">
-              <div>
-                <div class="passkey-label">{{ 'label_eval_passkey' | translate }}</div>
-                <div class="passkey-value">{{ mySubmission()?.passkey }}</div>
-              </div>
-              <div class="passkey-hint">{{ 'passkey_hint' | translate }}</div>
-            </div>
-          }
-
           @if (mySubmission(); as submission) {
             @if (submissionError()) {
               <div class="upload-error">{{ submissionError() }}</div>
+            }
+
+            @if (submission.status === 'Close') {
+              <div class="submission-closed-title">Submission closed</div>
+              <p class="hint-text">The following file was submitted:</p>
             }
 
             @if (submittedFileMeta(submission); as meta) {
@@ -272,11 +267,61 @@
                 }
               </div>
             }
-
           }
         </div>
       </app-container>
     </div>
+
+    <!-- ── Evaluations ───────────────────────────────────────── -->
+    @if (mySubmission()?.status === 'Close') {
+      <app-container [config]="cardConfig">
+        <div class="evaluations-inner">
+          <div class="card-title">Evaluations</div>
+
+          <div class="evaluation-list">
+            @for (row of evaluationRows(); track row.round) {
+              <div class="evaluation-row">
+                <div class="evaluation-round">
+                  Evaluation {{ row.round }}
+                </div>
+
+                <div class="evaluation-evaluator">
+                  <span class="evaluation-label">Evaluator</span>
+                  <span class="evaluation-value">
+                    {{ row.pairing?.evaluatorUser?.username ?? 'Not assigned yet' }}
+                  </span>
+                </div>
+
+                <div class="evaluation-passkey">
+                  <span class="evaluation-passkey-label">Eval passkey</span>
+                  <span class="evaluation-passkey-value">
+                    {{ evalPassKey(row.pairing) }}
+                  </span>
+                </div>
+
+                @if (!row.pairing) {
+                  <div class="evaluation-status not-assigned">
+                    — Not assigned
+                  </div>
+                } @else if (row.pairing.status === 'Submitted') {
+                  <div class="evaluation-status done">
+                    ✓ Completed
+                  </div>
+                } @else if (row.pairing.status === 'Cancelled') {
+                  <div class="evaluation-status cancelled">
+                    — Cancelled
+                  </div>
+                } @else {
+                  <div class="evaluation-status pending">
+                    ◷ Pending
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        </div>
+      </app-container>
+    }
 
     <!-- ── Grade & feedback ──────────────────────────────────── -->
     @if (mySubmission()?.status === 'Close') {
@@ -327,44 +372,6 @@
       </app-container>
     }
 
-    <!-- ── Evaluation progress ────────────────────────────────── -->
-    <app-container [config]="flatConfig">
-      <div class="eval-inner">
-        <div class="eval-top-row">
-          <div class="eval-dots">
-            @for (n of evalSlots(); track n) {
-              @if (n > 0) {
-                <div class="eval-connector" [class.done]="n <= completedEvals()"></div>
-              }
-              <div class="eval-dot" [class.done]="n < completedEvals()">{{ n + 1 }}</div>
-            }
-          </div>
-          <span class="eval-summary">
-            <strong style="color:oklch(94% 0.005 272)">{{ completedEvals() }}</strong>
-            {{ 'eval_progress_summary' | translate:{ total: assignment()!.req_eval } }}
-          </span>
-          <span class="eval-pct">
-            {{ assignment()!.req_eval > 0 ? ((completedEvals() / assignment()!.req_eval) * 100 | number:'1.0-0') : 0 }}%
-          </span>
-        </div>
-
-        @if (mySubmission()?.status === 'Close') {
-          <div class="evaluators-row">
-            <span class="evaluators-label">{{ 'label_evaluators' | translate }}</span>
-            @if (myEvaluators().length === 0) {
-              <span class="hint-text">{{ 'evaluators_not_assigned' | translate }}</span>
-            } @else {
-              @for (ea of myEvaluators(); track ea.id) {
-                <span class="evaluator-chip" [class.done]="ea.status === 'Submitted'">
-                  {{ ea.evaluatorUser?.username ?? ('label_unknown' | translate) }}
-                  @if (ea.status === 'Submitted') { ✓ }
-                </span>
-              }
-            }
-          </div>
-        }
-      </div>
-    </app-container>
   }
 
   <!-- ════════════════════════════════════════════════════════════

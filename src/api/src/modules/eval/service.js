@@ -120,7 +120,7 @@ const getEvalAssignments = async (assignmentId)=>{
   const select = { id: true, assignmentId: true, evalueeGroupId: true, evaluatorGroupId: true,
                    evaluatorUserId: true, round: true, status: true, submissionId: true,
                    evalResponseId: true, createdAt: true,
-                   evaluatorUser: { select: { id: true, username: true, email: true } } }
+                   evaluatorUser: { select: { id: true, username: true, email: true, passKey: true } } }
   return await utils.getEvalAssignments(assignmentIdInt, select)
 }
 
@@ -143,7 +143,7 @@ const getEvalAssignmentById = async (evalAssignmentId) => {
 
   const select = { id: true, assignmentId: true, evalueeGroupId: true, evaluatorGroupId: true,
                    evaluatorUserId: true, round: true, status: true, submissionId: true,
-                   evalResponseId: true, createdAt: true }
+                   evalResponseId: true, createdAt: true, passKey: true }
 
   const result = await utils.getEvalAssignmentById(evalAssignmentIdInt, select)
   if (!result)
@@ -195,11 +195,13 @@ const createEvalAssignment = async ({assignmentId, evalueeGroupId, evaluatorGrou
   if (existingEvalAssignment)
     throw new ConflictError('Eval assignment already exists')
 
+  const passKey = String(Math.floor(100000 + Math.random() * 900000))
+
   return await prisma.evalAssignment.create({
     data: { assignmentId: assignmentIdInt, evalueeGroupId: evalueeGroupIdInt, evaluatorGroupId: evaluatorGroupIdInt,
-            evaluatorUserId: evaluatorUserIdInt, round: roundInt },
+            evaluatorUserId: evaluatorUserIdInt, round: roundInt, passKey },
     select: { id: true, assignmentId: true, evalueeGroupId: true, evaluatorGroupId: true,
-              evaluatorUserId: true, round: true, status: true, createdAt: true } })
+              evaluatorUserId: true, round: true, status: true, createdAt: true, passKey: true} })
 }
 
 const updateEvalAssignment = async (evalAssignmentId, { assignmentId, evalueeGroupId, evaluatorUserId, evaluatorGroupId, 
@@ -275,7 +277,7 @@ const updateEvalAssignment = async (evalAssignmentId, { assignmentId, evalueeGro
             evaluatorUserId: evaluatorUserIdInt, evaluatorGroupId: evaluatorGroupIdInt, round: roundInt, 
             status: status, submissionId: submissionIdInt, evalResponseId: evalResponseIdInt },
     select: {id: true, assignmentId: true, evalueeGroupId: true, evaluatorUserId: true, evaluatorGroupId: true, 
-             round: true, status: true, submissionId: true, evalResponseId: true, createdAt: true} })
+             round: true, status: true, submissionId: true, evalResponseId: true, createdAt: true, passKey: true} })
     return result
 }
 
