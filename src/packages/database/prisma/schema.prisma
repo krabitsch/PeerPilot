@@ -338,6 +338,10 @@ model EvalAssignment {
   submissionId   Int?
   evalResponseId Int? @unique
 
+  // One passkey for one specific evaluation pairing.
+  // Nullable so the migration also works if older pairing rows exist.
+  passKey String? @unique
+
   createdAt DateTime @default(now())
 
   assignment     Assignment    @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
