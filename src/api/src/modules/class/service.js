@@ -11,25 +11,28 @@ let storage
   await storage.makePublic()
 })().catch(err => logger.error('class-service', 'Failed to initialize storage', err))
 
-const getClasses = async ()=>{
-    const select = {id:true, name:true, description:true, created_at:true, org_id:true}
-    return await utils.getClasses(select)
+const getClasses = async () => {
+  const select = {id: true, name: true, description: true, created_at: true, org_id: true,
+    term: true, externalCourseCodes: true, assignments: true}
+  return await utils.getClasses(select)
 }
 
-const getClassById = async (classId)=>{
-    const select = {id: true, name:true, description:true, created_at:true, org_id:true}
-    const result = await utils.getClassById(parseInt(classId), select)
-    if(!result)
-        throw new NotFoundError("Class not found")
-    return result
+const getClassById = async (classId) => {
+  const select = {id: true, name: true, description: true, created_at: true, org_id: true,
+    term: true, externalCourseCodes: true, assignments: true}
+  const result = await utils.getClassById(parseInt(classId), select)
+  if (!result)
+    throw new NotFoundError('Class not found')
+  return result
 }
 
-const getClassByOrgId = async (orgId)=>{
-    const select = {id: true, name:true, description:true, created_at:true, org_id:true}
-    const result = await utils.getClassByOrgId(parseInt(orgId), select)
-    if(!result)
-        throw new NotFoundError("Org not found")
-    return result
+const getClassByOrgId = async (orgId) => {
+  const select = {id: true, name: true, description: true, created_at: true, org_id: true,
+    term: true, externalCourseCodes: true, assignments: true}
+  const result = await utils.getClassByOrgId(parseInt(orgId), select)
+  if (!result)
+    throw new NotFoundError('Org not found')
+  return result
 }
 
 const createClass = async ({org_id, created_by, name, description, pass_threshold})=>{

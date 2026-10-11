@@ -30,7 +30,6 @@ import { EnrollService, EnrollmentEligibility} from '../core/services/enroll-ser
         [emptyMessage]="'empty_no_enrolled_classes' | translate"
         [pageSize]="8">
         <ng-template let-course>
-
           <div class="avail-row">
 
             <div class="avail-info">
@@ -47,14 +46,10 @@ import { EnrollService, EnrollmentEligibility} from '../core/services/enroll-ser
 
               <div class="course-meta">
 
-                @if (
-                  (course.externalCourseCodes?.length ?? 0) > 0
-                ) {
+                @if (course.externalCourseCode) {
                   <span>
-                    WU courses
-                    {{ course.externalCourseCodes!.join(' · ') }}
+                    WU course {{ course.externalCourseCode }}
                   </span>
-
                   <span>·</span>
                 }
 
@@ -62,7 +57,6 @@ import { EnrollService, EnrollmentEligibility} from '../core/services/enroll-ser
                   <span>
                     {{ course.term }}
                   </span>
-
                   <span>·</span>
                 }
 
@@ -78,12 +72,11 @@ import { EnrollService, EnrollmentEligibility} from '../core/services/enroll-ser
             <app-btn
               variant="secondary"
               size="sm"
-              (clicked)="openEnrollModal(course)">
-              Enroll →
+              (clicked)="openCourseAssignments(course)">
+              Assignments
             </app-btn>
 
           </div>
-
         </ng-template>
       </app-list>
 
@@ -98,23 +91,49 @@ import { EnrollService, EnrollmentEligibility} from '../core/services/enroll-ser
           <ng-template let-course>
             <div class="avail-row">
               <div class="avail-info">
-                <span class="avail-name">{{ course.name }}</span>
-                <span class="avail-meta">
-                  {{ 'class_list_assignments_count' | translate:{ count: course.assignments?.length ?? 0 } }}
-                  · {{ 'class_list_threshold' | translate:{ threshold: course.pass_threshold } }}
-                  @if (course.description) { · {{ course.description | slice:0:60 }}{{ course.description.length > 60 ? '…' : '' }} }
-                </span>
+                <div class="avail-name">
+                  {{ course.name }}
+                </div>
+                @if (course.description) {
+                  <div class="course-description">
+                    {{ course.description }}
+                  </div>
+                }
+                <div class="course-meta">
+                  @if (
+                    (course.externalCourseCodes?.length ?? 0) > 0
+                  ) {
+                    <span>
+                      WU courses
+                      {{ course.externalCourseCodes!.join(' · ') }}
+                    </span>
+                    <span>·</span>
+                  }
+                  @if (course.term) {
+                    <span>
+                      {{ course.term }}
+                    </span>
+                    <span>·</span>
+                  }
+                  <span>
+                    {{ course.assignments?.length ?? 0 }}
+                    assignments
+                  </span>
+                </div>
               </div>
-              <app-btn variant="secondary" size="sm" (clicked)="openEnrollModal(course)">{{ 'btn_enroll' | translate }}</app-btn>
+              <app-btn
+                variant="secondary"
+                size="sm"
+                (clicked)="openEnrollModal(course)">
+                Enroll →
+              </app-btn>
             </div>
           </ng-template>
         </app-list>
       }
-
       @if (enrollError()) {
         <div class="error-banner">{{ enrollError() }}</div>
       }
-
       @if (enrollCourse(); as course) {
         <div
           class="modal-backdrop"
@@ -589,6 +608,17 @@ export class ClassListComponent implements OnInit {
     this.selectedExternalCourseCode.set('');
     this.enrollModalError.set(null);
     this.eligibilityLoading.set(false);
+  }
+
+  openCourseAssignments(course: Course): void {
+    this.router.navigate(
+      ['/assignment'],
+      {
+        queryParams: {
+          classId: course.id
+        }
+      }
+    );
   }
 
 }

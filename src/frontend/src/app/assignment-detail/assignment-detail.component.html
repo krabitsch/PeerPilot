@@ -28,16 +28,20 @@
     <div class="hero-left">
       <h1 class="hero-title">{{ assignment()!.name }}</h1>
       <div class="hero-badges">
-        @if (!viewAsStaff()) {
+        @if (!isStaff()) {
           <app-badge [variant]="statusBadge()"/>
         }
-        <span class="mono-tag">{{ 'assignment_pts_max' | translate:{ max: assignment()!.max_score } }}</span>
+        <span class="mono-tag">
+          {{ assignment()!.req_eval }}
+          eval{{ assignment()!.req_eval === 1 ? '' : 's' }} required
+        </span>
+        <span class="mono-tag">
+          {{ assignment()!.max_score }} pts max
+        </span>
         @if (assignment()!.pass_threshold) {
-          <span class="mono-tag">{{ 'assignment_threshold' | translate:{ threshold: assignment()!.pass_threshold } }}</span>
-        }
-        <span class="mono-tag">{{ 'assignment_evals_required' | translate:{ count: assignment()!.req_eval } }}</span>
-        @if (assignment()!.groupSize && assignment()!.groupSize! > 1) {
-          <span class="mono-tag">{{ 'assignment_group_max' | translate:{ size: assignment()!.groupSize } }}</span>
+          <span class="mono-tag">
+            {{ assignment()!.pass_threshold }}% threshold
+          </span>
         }
       </div>
     </div>
@@ -46,29 +50,34 @@
   <!-- ── Description ───────────────────────────────────────────── -->
   <app-container [config]="flatConfig">
     <div class="desc-body">
-      <div class="desc-label">{{ 'label_description' | translate }}</div>
-      @if (assignment()!.description) {
-        <app-markdown-math
-          [text]="assignment()!.description">
-        </app-markdown-math>
-      } @else {
-        <p class="desc-text">
-          No description provided.
-        </p>
-      }
+      <div class="desc-header">
+        <div class="desc-label">
+          Assignment description
+        </div>
+        @if (assignment()!.file) {
+          <a
+            class="assignment-file-link"
+            [href]="assignment()!.file!.url"
+            target="_blank"
+            rel="noopener noreferrer">
+            Download assignment instructions ↗
+          </a>
+        }
+      </div>
+      <app-markdown-math
+        [text]="
+          assignment()!.description ||
+          'No description provided.'
+        ">
+      </app-markdown-math>
     </div>
   </app-container>
-
   @if (assignment()!.file; as assignmentFile) {
-
     <app-container [config]="flatConfig">
-
         <div class="desc-body">
-
         <div class="desc-label">
             Assignment file
         </div>
-
         <div
             style="
             display:flex;
@@ -76,7 +85,6 @@
             justify-content:space-between;
             gap:16px;
             ">
-
             <span
             style="
                 font-size:0.875rem;
@@ -134,7 +142,17 @@
       <!-- ── Your Group ───────────────────────────────────────── -->
       <app-container [config]="cardConfig">
         <div class="card-inner">
-          <div class="card-title">{{ 'card_your_group' | translate }}</div>
+          <div class="card-title-row">
+            <div class="card-title">{{ 'card_your_group' | translate }}</div>
+            <div class="group-size-note">
+              @if ((assignment()!.groupSize ?? 1) === 1) {
+                1 student per group
+              } @else {
+                Up to {{ assignment()!.groupSize }}
+                students per group
+              }
+            </div>
+          </div>
 
           @if (actionError()) {
             <div style="font-size:0.8125rem;color:oklch(62% 0.22 20);background:oklch(18% 0.07 20);border:1px solid oklch(36% 0.12 20);border-radius:8px;padding:10px 12px;">
@@ -165,25 +183,21 @@
 
           <!-- In a group -->
           @if (groupStatus() === 'in-group') {
-            @if ((assignment()?.groupSize ?? 1) <= 1) {
-              <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;background:oklch(18% 0.07 145);border:1px solid oklch(36% 0.12 145)">
-                <span style="font-size:1rem">✓</span>
-                <span style="font-size:0.875rem;color:oklch(72% 0.15 145)">{{ 'group_solo_enrolled' | translate }}</span>
-              </div>
-            } @else {
-              <div class="section-title">{{ myGroup()!.name }}</div>
-              <div class="members-list">
-                @for (m of myGroup()!.members ?? []; track m.id) {
-                  <div class="member-row">
-                    <app-avatar [name]="m.user.username" [size]="28"/>
-                    <span class="member-name">{{ m.user.username }}</span>
-                    @if (m.userId === myGroup()!.leaderId) {
-                      <app-badge variant="violet" [customLabel]="'badge_leader'"/>
-                    }
-                  </div>
-                }
-              </div>
-            }
+            <div class="members-list">
+              @for (
+                m of myGroup()!.members ?? [];
+                track m.id
+              ) {
+                <div class="member-row">
+                  <app-avatar
+                    [name]="m.user.username"
+                    [size]="28"/>
+                  <span class="member-name">
+                    {{ m.user.username }}
+                  </span>
+                </div>
+              }
+            </div>
           }
         </div>
       </app-container>
@@ -198,7 +212,10 @@
           }
 
           @if (myGroup() && !mySubmission()) {
-            <p class="hint-text">{{ 'submission_not_started' | translate }}</p>
+            <p class="hint-text">
+              No submission yet. Upload your answers and your proposed
+              solution to this assignment.
+            </p>
             <app-btn variant="primary" (clicked)="startSubmission()">{{ 'btn_start_submission' | translate }}</app-btn>
           }
 

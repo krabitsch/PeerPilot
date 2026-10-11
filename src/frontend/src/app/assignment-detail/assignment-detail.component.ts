@@ -185,7 +185,7 @@ import { MarkdownMathComponent } from '../shared/markdown-math.component';
     }
     .two-col {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr;
       gap: 16px;
       align-items: stretch;
     }
@@ -642,6 +642,39 @@ import { MarkdownMathComponent } from '../shared/markdown-math.component';
       font-size: 0.8125rem;
       resize: vertical;
       outline: none;
+    }
+    .desc-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 8px;
+    }
+
+    .desc-header .desc-label {
+      margin-bottom: 0;
+    }
+
+    .assignment-file-link {
+      font-size: 0.8125rem;
+      color: ${DS.colors.violet};
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .assignment-file-link:hover {
+      text-decoration: underline;
+    }
+    .card-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .group-size-note {
+      font-size: 0.75rem;
+      color: ${DS.colors.fg3};
     }
   `],
 })
