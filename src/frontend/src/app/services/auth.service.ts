@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { Observable, tap } from 'rxjs';
 import { UserProfile } from '../tokens';
+import { sameTokenAccount } from './token-account';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -20,6 +21,20 @@ export class AuthService {
     // HTTP request synchronously here triggers a circular-DI error (NG0200), which
     // lands in the error handler below and wipes the token we just loaded.
     queueMicrotask(() => this.restoreSession());
+
+    // Local storage and the refresh cookie are shared by tabs. Reload when
+    // another tab changes the login so this tab's user and token stay aligned.
+    window.addEventListener('storage', event => {
+      if ((event.key === this.tokenKey || event.key === null) &&
+          localStorage.getItem(this.tokenKey) !== this.accessToken()) {
+        const token = localStorage.getItem(this.tokenKey);
+        if (token && sameTokenAccount(this.accessToken(), token)) {
+          this.accessToken.set(token);
+        } else {
+          window.location.reload();
+        }
+      }
+    });
   }
 
   private restoreSession(): void {

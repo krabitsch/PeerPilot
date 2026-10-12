@@ -16,7 +16,7 @@ const startEvaluation = async (page, passkey) => {
 test('a wrong passkey does not open the evaluation', async ({ browser }) => {
   const dave = await pageAs(browser, 'dave')
   await startEvaluation(dave, '000000')
-  await expect(dave.getByText('Invalid passkey')).toBeVisible()
+  await expect(dave.getByText('Invalid evaluation passkey')).toBeVisible()
   await expect(dave.getByRole('heading', { name: 'Peer evaluation' })).toHaveCount(0)
 })
 

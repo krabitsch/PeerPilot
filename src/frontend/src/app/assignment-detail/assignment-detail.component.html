@@ -336,11 +336,10 @@
             }
           </div>
 
-          @if (myResponses().length === 0) {
-            <p class="hint-text">{{ 'no_feedback_yet' | translate }}</p>
-          } @else {
-            @for (r of myResponses(); track r.id) {
+          @for (row of feedbackRows(); track $index) {
               <div class="feedback-item">
+                <div class="evaluation-round">{{ row.label }}</div>
+                @if (row.response; as r) {
                 <div class="feedback-head">
                   <span class="feedback-evaluator">{{ r.user?.username ?? ('label_evaluator_fallback' | translate) }}</span>
                   <span class="feedback-marks">{{ r.givenMarks }} / {{ assignment()!.max_score }}</span>
@@ -361,8 +360,10 @@
                     <app-btn variant="secondary" size="sm" (clicked)="submitReply(r)">{{ 'btn_reply' | translate }}</app-btn>
                   </div>
                 }
+                } @else {
+                  <p class="hint-text">{{ 'no_feedback_yet' | translate }}</p>
+                }
               </div>
-            }
           }
 
           @if (replyError()) {

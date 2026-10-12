@@ -351,7 +351,13 @@ export class EvalService {
   generateSimplePairings(
     assignmentId: number
   ) {
-    return this.http.post<EvalAssignment[]>(
+    return this.http.post<{
+      message: string;
+      assignmentId: number;
+      rounds: number;
+      count: number;
+      evalAssignments: EvalAssignment[];
+    }>(
       `${this.base}/assignment/${assignmentId}/generate-simple-pairings`,
       {}
     );

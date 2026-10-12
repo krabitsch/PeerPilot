@@ -3,6 +3,7 @@ import { HttpInterceptor, HttpRequest, HttpHandler, HttpEvent, HttpErrorResponse
 import { Observable, throwError, BehaviorSubject, EMPTY } from 'rxjs';
 import { catchError, filter, switchMap, take } from 'rxjs/operators';
 import { AuthService } from './auth.service';
+import { sameTokenAccount } from './token-account';
 
 @Injectable()
 export class AuthInterceptor implements HttpInterceptor {
@@ -32,6 +33,7 @@ export class AuthInterceptor implements HttpInterceptor {
     if (!this.isRefreshing) {
       this.isRefreshing = true;
       this.refreshSubject.next(null);
+      const originalToken = this.auth.getToken();
       // catchError sits directly on the refresh call so it only fires when the refresh token
       // itself is invalid/expired — not when a successfully-retried request 401s again for an
       // unrelated, non-auth reason (e.g. a business-logic 401 from the endpoint itself).
@@ -44,6 +46,13 @@ export class AuthInterceptor implements HttpInterceptor {
         }),
         switchMap((res: any) => {
           this.isRefreshing = false;
+          // A login in another tab may have replaced the shared refresh cookie.
+          // Never retry this account's request with another account's token.
+          if (!sameTokenAccount(originalToken, res.accessToken)) {
+            this.auth.clearToken();
+            window.location.href = '/login';
+            return EMPTY;
+          }
           this.auth.setToken(res.accessToken);
           this.refreshSubject.next(res.accessToken);
           return next.handle(req.clone({ setHeaders: { Authorization: `Bearer ${res.accessToken}` } }));

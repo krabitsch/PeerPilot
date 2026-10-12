@@ -759,12 +759,27 @@ export class AssignmentDetailComponent implements OnInit {
     });
   });
 
+  feedbackRows = computed(() => {
+    const responses = this.myResponses();
+    const rows = this.evaluationRows().map(row => ({
+      label: `Evaluation ${row.round}`,
+      response: responses.find(r => r.id === row.pairing?.evalResponseId) ?? null,
+    }));
+    const linkedIds = new Set(this.myEvaluators().map(ea => ea.evalResponseId));
+    // Preserve staff reviews and older feedback without inventing a round.
+    for (const response of responses.filter(r => !linkedIds.has(r.id))) {
+      rows.push({
+        label: response.isStaffReview ? 'Staff feedback' : 'Additional feedback',
+        response,
+      });
+    }
+    return rows;
+  });
+
   evalPassKey(pairing: EvalAssignment | null): string {
     if (!pairing) return '—';
 
-    const value =
-      (pairing as any).passKey ??
-      (pairing as any).passkey;
+    const value = pairing.passKey;
 
     return value ? String(value) : '—';
   }
