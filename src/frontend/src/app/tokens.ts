@@ -282,7 +282,19 @@ export interface Submission {
   closedAt?: string;
   responses?: EvalResponse[];
   finalScore?: number;
-  passed?: boolean;
+  passed?: boolean | null;
+  evaluationRounds?: EvaluationRoundOutcome[];
+}
+
+export type EvaluationOutcome = 'Pending' | 'Passed' | 'Failed' | 'Cancelled';
+
+export interface EvaluationRoundOutcome {
+  round: number;
+  outcome: EvaluationOutcome;
+  evalAssignmentId: number | null;
+  attemptIds: number[];
+  hasUnresolvedFailure: boolean;
+  waitingForRematch: boolean;
 }
 
 // Evaluation related interfaces

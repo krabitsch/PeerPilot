@@ -1,6 +1,6 @@
 import { HttpClient } from "@angular/common/http";
 import { inject, Injectable } from "@angular/core";
-import { EvalResponse } from "../../../tokens";
+import { EvalResponse, EvaluationOutcome } from "../../../tokens";
 
 
 // ============================================================
@@ -34,6 +34,10 @@ export interface EvalAssignment {
   // Nullable because old EvalAssignment rows created before
   // the passkey migration can temporarily contain null.
   passKey: string | null;
+  retryRequested: boolean;
+  retryRequestedAt: string | null;
+  outcome?: EvaluationOutcome;
+  evalResponse?: { id: number; givenMarks: number; subId: number; userId: number; isStaffReview: boolean } | null;
 
   // Returned directly by the Eval API so student-facing pages
   // do not need another User API request just to display the
@@ -44,6 +48,28 @@ export interface EvalAssignment {
   };
 }
 
+
+export interface EvaluatorTask {
+  id: number;
+  assignmentId: number;
+  evalueeGroupId: number;
+  round: number;
+  status: EvalAssignmentStatus;
+  assignment: { id: number; name: string; created_at: string; classid: number };
+  evalueeGroup: { id: number; name: string; members: { user: { id: number; username: string } }[] };
+  evalResponse: {
+    id: number; givenMarks: number; comment: string; reply: string | null;
+    scores: { sectionId: number; score: number; section: { name: string; marks: number } }[];
+  } | null;
+}
+
+export interface EvaluatorTaskOverview {
+  courses: {
+    id: number; name: string; description: string; term: string | null; created_at: string;
+    assignments: { id: number; name: string; created_at: string }[];
+  }[];
+  tasks: EvaluatorTask[];
+}
 
 // Request body for manually creating one EvalAssignment.
 export interface CreateEvalAssignmentPayload {
@@ -364,14 +390,21 @@ export class EvalService {
   }
 
 
+  requestRetry(id: number) {
+    return this.http.post<EvalAssignment>(`${this.base}/eval-assignments/${id}/retry`, {});
+  }
+
   // ----------------------------------------------------------
   // Evaluator workflow
   // ----------------------------------------------------------
 
+  getMyEvaluatorTasks() {
+    return this.http.get<EvaluatorTaskOverview>(`${this.base}/my-tasks`);
+  }
+
   startEvaluation(
     data: {
-      evaluatorUserId: number;
-      leaderEmail: string;
+      evalAssignmentId: number;
       passkey: string;
     }
   ) {

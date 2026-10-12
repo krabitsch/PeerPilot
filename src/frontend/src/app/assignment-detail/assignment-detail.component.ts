@@ -390,11 +390,22 @@ import { MarkdownMathComponent } from '../shared/markdown-math.component';
       background: ${DS.colors.amberSubtle};
       border-color: ${DS.colors.amberBorder};
     }
-    .evaluation-status.done {
+    .evaluation-status.passed {
       color: ${DS.colors.green};
       background: ${DS.colors.greenSubtle};
       border-color: ${DS.colors.greenBorder};
     }
+    .evaluation-status.failed {
+      color: ${DS.colors.red};
+      background: ${DS.colors.redSubtle};
+      border-color: ${DS.colors.redBorder};
+    }
+    .evaluation-retry {
+      margin-top: 8px;
+      color: ${DS.colors.amber};
+      font-size: 0.875rem;
+    }
+
     .evaluation-status.cancelled,
     .evaluation-status.not-assigned {
       color: ${DS.colors.fg3};
@@ -729,52 +740,79 @@ export class AssignmentDetailComponent implements OnInit {
     return !!group && group.leaderId === this.currentUserId();
   });
 
+  retryError = signal<string | null>(null);
+  requestingRetry = signal<number | null>(null);
+
   statusBadge = computed(() => {
     const sub = this.mySubmission();
     if (!sub) return 'pending' as const;
-    if (sub.status === 'Close' && this.myResponses().length >= (this.assignment()?.req_eval ?? 1)) {
-      const hasUnreplied = this.myResponses().some(r => !r.reply);
-      if (hasUnreplied) return 'reply_needed' as const;
-      return sub.passed ? 'validated' as const : 'failed' as const;
-    }
-    if (sub.status === 'Close') return 'under_review' as const;
-    return 'submitted' as const;
+    if (sub.status !== 'Close') return 'submitted' as const;
+    if (sub.passed === true) return 'validated' as const;
+    if (sub.passed === false) return 'failed' as const;
+    return 'under_review' as const;
   });
 
+  statusLabel = computed(() => {
+    const sub = this.mySubmission();
+    if (!sub) return 'Not started';
+    if (sub.status === 'Close' && sub.passed === true) return 'Passed';
+    if (sub.status === 'Close' && sub.passed === false) return 'Failed';
+    return 'In progress';
+  });
+
+  // The backend chooses the current attempt and computes round/assignment
+  // outcomes; this page only joins those IDs to display data.
   evaluationRows = computed(() => {
-    const required = this.assignment()?.req_eval ?? 0;
+    const summaries = this.mySubmission()?.evaluationRounds ?? [];
     const pairings = this.myEvaluators();
-
-    return Array.from({ length: required }, (_, index) => {
-      const round = index + 1;
-      const activePairing =
-        pairings.find(ea => ea.round === round && ea.status !== 'Cancelled') ??
-        pairings.find(ea => ea.round === round) ??
-        null;
-
+    return Array.from({ length: this.assignment()?.req_eval ?? 0 }, (_, i) => {
+      const round = i + 1;
+      const summary = summaries.find(r => r.round === round);
       return {
         round,
-        pairing: activePairing,
+        outcome: summary?.outcome ?? 'Pending',
+        waitingForRematch: summary?.waitingForRematch ?? false,
+        pairing: pairings.find(p => p.id === summary?.evalAssignmentId) ?? null,
       };
     });
   });
 
   feedbackRows = computed(() => {
     const responses = this.myResponses();
-    const rows = this.evaluationRows().map(row => ({
-      label: `Evaluation ${row.round}`,
-      response: responses.find(r => r.id === row.pairing?.evalResponseId) ?? null,
-    }));
-    const linkedIds = new Set(this.myEvaluators().map(ea => ea.evalResponseId));
-    // Preserve staff reviews and older feedback without inventing a round.
+    const pairings = this.myEvaluators();
+    const rows = this.evaluationRows().flatMap(row => {
+      const attempts = pairings.filter(p => p.round === row.round && p.evalResponseId != null)
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime() || a.id - b.id);
+      if (!attempts.length) return [{ label: `Evaluation ${row.round}`, response: null as EvalResponse | null, outcome: 'Pending' }];
+      return attempts.map((p, i) => ({
+        label: `Evaluation ${row.round}${attempts.length > 1 ? ` · Attempt ${i + 1}` : ''}`,
+        response: responses.find(r => r.id === p.evalResponseId) ?? null,
+        outcome: p.outcome ?? 'Pending',
+      }));
+    });
+    const linkedIds = new Set(pairings.map(p => p.evalResponseId));
     for (const response of responses.filter(r => !linkedIds.has(r.id))) {
-      rows.push({
-        label: response.isStaffReview ? 'Staff feedback' : 'Additional feedback',
-        response,
-      });
+      rows.push({ label: response.isStaffReview ? 'Staff feedback' : 'Additional feedback', response, outcome: '' });
     }
     return rows;
   });
+
+  requestRetry(pairing: EvalAssignment) {
+    if (this.requestingRetry() !== null) return;
+    this.retryError.set(null);
+    this.requestingRetry.set(pairing.id);
+    this.evalService.requestRetry(pairing.id).subscribe({
+      next: () => {
+        this.requestingRetry.set(null);
+        const id = this.assignment()?.id;
+        if (id) this.loadSubmissions(id);
+      },
+      error: err => {
+        this.requestingRetry.set(null);
+        this.retryError.set(err?.error?.error ?? 'Could not request an evaluation retry.');
+      },
+    });
+  }
 
   evalPassKey(pairing: EvalAssignment | null): string {
     if (!pairing) return '—';
@@ -842,6 +880,7 @@ export class AssignmentDetailComponent implements OnInit {
     this.myResponses.set([]);
     this.replyDrafts.set(new Map());
     this.replyError.set(null);
+    this.retryError.set(null);
     this.actionError.set(null);
     this.isEnrolled.set(false);
 

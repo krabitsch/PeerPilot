@@ -320,7 +320,7 @@ model EvalResponse {
   evalAssignment EvalAssignment?
 
   //@@unique([id, userId])
-  @@unique([subId, userId])
+  @@index([subId, userId])
   @@map("evalResponse")
 }
 
@@ -341,6 +341,9 @@ model EvalAssignment {
   // One passkey for one specific evaluation pairing.
   // Nullable so the migration also works if older pairing rows exist.
   passKey String? @unique
+
+  retryRequested   Boolean   @default(false)
+  retryRequestedAt DateTime?
 
   createdAt DateTime @default(now())
 

@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed } from '@angular/core';
+import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { NgStyle } from '@angular/common';
 import { Router } from '@angular/router';
 import { DS } from '../tokens';
@@ -7,15 +7,35 @@ import { AvatarComponent } from '../shared/avatar.component';
 import { BtnComponent } from '../shared/btn.component';
 import { AuthService } from '../services/auth.service';
 import { LoadingService } from '../core/services/loading-service/loading.service';
-import { EvalService, EvalSection, StartEvaluationResponse } from '../core/services/eval-service/eval-service';
+import { EvalService, EvalSection, StartEvaluationResponse, EvaluatorTask, EvaluatorTaskOverview } from '../core/services/eval-service/eval-service';
+import { BadgeComponent } from '../shared/badge.component';
+import { ContainerComponent, ContainerConfig } from '../shared/container.component';
+import { evaluatorTasksFor, evalueeNames } from './evaluator-tasks';
 import { MarkdownMathComponent } from '../shared/markdown-math.component';
 
 @Component({
   selector: 'app-evaluation-flow',
   standalone: true,
-  imports: [NgStyle, AvatarComponent, BtnComponent, TranslateModule, MarkdownMathComponent],
+  imports: [NgStyle, AvatarComponent, BtnComponent, BadgeComponent, ContainerComponent, TranslateModule, MarkdownMathComponent],
   templateUrl: './evaluation-flow.component.html',
   styles: [`
+    .overline { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.12em;
+      text-transform: uppercase; color: ${DS.colors.cyan}; margin-bottom: 6px; }
+    .course-panel { padding: 24px; display: grid; grid-template-columns: 1fr 280px; gap: 24px; }
+    .course-name { font-family: ${DS.fonts.display}; font-size: 1.125rem; font-weight: 600; color: ${DS.colors.fg1}; }
+    .course-description { color: ${DS.colors.fg2}; font-size: 0.875rem; line-height: 1.6; margin: 8px 0; }
+    .filter-stack { display: flex; flex-direction: column; gap: 14px; }
+    .task-row { padding: 22px 24px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+    .task-heading { font-family: ${DS.fonts.display}; font-weight: 600; color: ${DS.colors.fg1}; margin: 6px 0; }
+    .task-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+    .task-meta, .empty-state { color: ${DS.colors.fg2}; font-size: 0.875rem; line-height: 1.6; }
+    .empty-state { padding: 28px; text-align: center; }
+    .score-row { display: flex; justify-content: space-between; gap: 16px; }
+    .feedback-text { white-space: pre-wrap; color: ${DS.colors.fg2}; line-height: 1.6; }
+    @media (max-width: 760px) {
+      .course-panel { grid-template-columns: 1fr; }
+      .task-row { align-items: flex-start; flex-direction: column; }
+    }
     .section-card {
       background: ${DS.colors.surface};
       border: 1px solid ${DS.colors.border};
@@ -108,18 +128,89 @@ import { MarkdownMathComponent } from '../shared/markdown-math.component';
     .feedback-card { text-align: center; max-width: 420px; }
   `],
 })
-export class EvaluationFlowComponent {
+export class EvaluationFlowComponent implements OnInit {
   router  = inject(Router);
   private auth         = inject(AuthService);
   private evalService  = inject(EvalService);
   private loading      = inject(LoadingService);
   private translate    = inject(TranslateService);
 
-  // ── Phase 1: passkey "login" ────────────────────────────────
-  phase       = signal<'login' | 'flow'>('login');
-  leaderEmail = signal('');
+  phase = signal<'overview' | 'start' | 'flow' | 'view'>('overview');
+  courses = signal<EvaluatorTaskOverview['courses']>([]);
+  tasks = signal<EvaluatorTask[]>([]);
+  courseId = signal<number | null>(null);
+  assignmentId = signal<number | null>(null);
+  selectedTask = signal<EvaluatorTask | null>(null);
+  tasksLoading = signal(false);
+  tasksError = signal<string | null>(null);
+  starting = signal(false);
+  submittingEvaluation = signal(false);
   passkeyInput = signal('');
-  loginError  = signal<string | null>(null);
+  loginError = signal<string | null>(null);
+  readonly taskNames = evalueeNames;
+  readonly flatConfig: ContainerConfig = { variant: 'flat', height: 'auto', scrollable: false };
+
+  selectedCourse = computed(() => this.courses().find(c => c.id === this.courseId()) ?? null);
+  assignments = computed(() => [...(this.selectedCourse()?.assignments ?? [])].sort((a, b) =>
+    new Date(a.created_at).getTime() - new Date(b.created_at).getTime() || a.id - b.id));
+  visibleTasks = computed(() => evaluatorTasksFor(this.tasks(), this.courseId(), this.assignmentId()));
+  taskCounts = computed(() => {
+    const tasks = this.visibleTasks();
+    return {
+      assigned: tasks.filter(t => t.status !== 'Cancelled').length,
+      pending: tasks.filter(t => t.status === 'Pending').length,
+      completed: tasks.filter(t => t.status === 'Submitted').length,
+      cancelled: tasks.filter(t => t.status === 'Cancelled').length,
+    };
+  });
+
+  ngOnInit() { this.loadOverview(); }
+
+  loadOverview() {
+    this.tasksLoading.set(true);
+    this.tasksError.set(null);
+    this.evalService.getMyEvaluatorTasks().subscribe({
+      next: ({ courses, tasks }) => {
+        this.courses.set(courses);
+        this.tasks.set(tasks);
+        if (!courses.some(c => c.id === this.courseId())) this.courseId.set(courses[0]?.id ?? null);
+        if (!this.assignments().some(a => a.id === this.assignmentId())) this.assignmentId.set(null);
+        this.tasksLoading.set(false);
+      },
+      error: err => {
+        this.tasksError.set(err?.error?.error ?? 'Could not load your evaluator tasks.');
+        this.tasksLoading.set(false);
+      },
+    });
+  }
+
+  selectCourse(value: string) {
+    this.courseId.set(Number(value));
+    this.assignmentId.set(null);
+    this.backToTasks();
+  }
+
+  selectAssignment(value: string) {
+    this.assignmentId.set(value ? Number(value) : null);
+    this.backToTasks();
+  }
+
+  openTask(task: EvaluatorTask) {
+    if (task.status === 'Cancelled') return;
+    this.selectedTask.set(task);
+    this.passkeyInput.set('');
+    this.loginError.set(null);
+    this.phase.set(task.status === 'Submitted' ? 'view' : 'start');
+  }
+
+  backToTasks() {
+    this.phase.set('overview');
+    this.selectedTask.set(null);
+    this.session.set(null);
+    this.submitted.set(false);
+    this.passkeyInput.set('');
+    this.loginError.set(null);
+  }
 
   // ── Phase 2: eval sheet ──────────────────────────────────────
   session   = signal<StartEvaluationResponse | null>(null);
@@ -141,20 +232,19 @@ export class EvaluationFlowComponent {
     return pct >= 80 ? DS.colors.green : pct >= 50 ? DS.colors.amber : DS.colors.red;
   });
 
-  // ── Login step ───────────────────────────────────────────────
-  login() {
-    const evaluatorUserId = this.auth.user()?.id;
-    const leaderEmail = this.leaderEmail().trim();
+  // Start only the selected, evaluator-owned pairing.
+  startEvaluation() {
+    const task = this.selectedTask();
+    if (!task || task.status !== 'Pending' || this.starting()) return;
     const passkey = this.passkeyInput().trim();
-
-    if (!evaluatorUserId) { this.loginError.set(this.translate.instant('eval_cannot_identify_user')); return; }
-    if (!leaderEmail)     { this.loginError.set(this.translate.instant("eval_leader_email_required")); return; }
-    if (!passkey)         { this.loginError.set(this.translate.instant('eval_passkey_required')); return; }
-
+    if (!/^\d{6}$/.test(passkey)) {
+      this.loginError.set('Enter the six-digit evaluation passkey.');
+      return;
+    }
     this.loginError.set(null);
-    this.loading.show();
-    this.evalService.startEvaluation({ evaluatorUserId, leaderEmail, passkey }).subscribe({
-      next: (res) => {
+    this.starting.set(true);
+    this.evalService.startEvaluation({ evalAssignmentId: task.id, passkey }).subscribe({
+      next: res => {
         this.session.set(res);
         const initial = new Map<number, number | null>();
         for (const s of res.evalSheet.sections) initial.set(s.id, s.sectionType === 'Slider' ? 0 : null);
@@ -163,11 +253,11 @@ export class EvaluationFlowComponent {
         this.submitError.set(null);
         this.submitted.set(false);
         this.phase.set('flow');
-        this.loading.hide();
+        this.starting.set(false);
       },
-      error: (err) => {
+      error: err => {
         this.loginError.set(err?.error?.error ?? this.translate.instant('eval_cannot_start'));
-        this.loading.hide();
+        this.starting.set(false);
       },
     });
   }
@@ -195,11 +285,12 @@ export class EvaluationFlowComponent {
   submit() {
     const session = this.session();
     const evaluatorUserId = this.auth.user()?.id;
-    if (!session || !evaluatorUserId || !this.canSubmit()) return;
+    if (!session || !evaluatorUserId || !this.canSubmit() || this.submittingEvaluation() || this.submitted()) return;
 
     const scores = this.sections().map(s => ({ sectionId: s.id, score: this.scoreFor(s.id) ?? 0 }));
 
     this.submitError.set(null);
+    this.submittingEvaluation.set(true);
     this.loading.show();
     this.evalService.submitEvaluation({
       evalAssignmentId: session.evalAssignmentId,
@@ -210,8 +301,11 @@ export class EvaluationFlowComponent {
       next: () => {
         this.loading.hide();
         this.submitted.set(true);
+        this.submittingEvaluation.set(false);
+        this.loadOverview();
       },
       error: (err) => {
+        this.submittingEvaluation.set(false);
         this.submitError.set(err?.error?.error ?? this.translate.instant('eval_failed'));
         this.loading.hide();
       },
@@ -219,7 +313,7 @@ export class EvaluationFlowComponent {
   }
 
   // Shared styles
-  readonly pageStyle = { flex: '1', overflowY: 'auto', padding: '32px', maxWidth: '720px', display: 'flex', flexDirection: 'column' as const, gap: '20px' };
+  readonly pageStyle = { flex: '1', overflowY: 'auto', padding: '32px', maxWidth: '1120px', width: '100%', boxSizing: 'border-box' as const, display: 'flex', flexDirection: 'column' as const, gap: '20px' };
   readonly crumbStyle = { fontSize: '0.8125rem', color: DS.colors.fg3, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' };
   readonly h1Style = { fontFamily: DS.fonts.display, fontSize: '1.75rem', fontWeight: '700', letterSpacing: '-0.03em', color: DS.colors.fg1, marginBottom: '4px' };
   readonly subStyle = { fontSize: '0.9375rem', color: DS.colors.fg2 };

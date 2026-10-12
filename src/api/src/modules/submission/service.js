@@ -3,6 +3,7 @@ const {NotFoundError, ValidationError, ConflictError, UnauthorizedError} = requi
 const utils = require('@transcendence/utils')
 const { createStorage } = require('@transcendence/filemanager')
 const logger = require('@transcendence/logger')
+const { submissionOutcome } = require('../eval/outcome')
 const storage = createStorage('submissions')
 
 const storageReady = (async () => {
@@ -56,7 +57,7 @@ const getGroupSubmissions = async (groupId) => {
     if(!group)
         throw new NotFoundError("Group Not Found")
     
-    return group.submissions
+    return Promise.all(group.submissions.map(s => submissionOutcome(prisma, s)))
 }
 
 const createSubmission = async({groupId, userId, type})=>{
@@ -88,10 +89,11 @@ const closeSubmission = async (groupId, {userId})=>{
     if(existingSub.status != 'Open')
         throw new ValidationError('Submission is already closed')
     
-    return await prisma.submission.update({
+    const closed = await prisma.submission.update({
         where: { id: existingSub.id },
         data: { status: 'Close', closedAt: new Date() }
     })
+    return submissionOutcome(prisma, closed)
 }
 
 const deleteExistingFile = async(url)=>{
@@ -182,10 +184,11 @@ const getSubmissionsForAssignment = async (assId, { memberId } = {})=>{
     const where = {group:{assId: parseInt(assId)}}
     if (memberId)
         where.group.members = { some: { userId: parseInt(memberId) } }
-    return utils.getSubmissionsBy(
+    const submissions = await utils.getSubmissionsBy(
         where,
         {file: true, group: {include: {members: {include: {user: { select: { id: true, username: true } } }}}}}
     )
+    return Promise.all(submissions.map(s => submissionOutcome(prisma, s)))
 }
 
 module.exports = {

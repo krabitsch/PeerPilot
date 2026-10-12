@@ -154,7 +154,7 @@ const STATUS_LABEL_KEYS:
     'status_awaiting_review',
 
   failed:
-    'status_not_passed_yet',
+    'status_failed',
 
   passed:
     'status_passed',
@@ -268,9 +268,15 @@ export class AssignmentListComponent
     if (!course)
       return [];
 
+    // Sort the final enriched cards, regardless of API/input ordering.
+    // filter() creates a new array so sorting never mutates the items signal.
     return this.items().filter(
       item =>
         item.classId === course.id
+    ).sort((a, b) =>
+      new Date(a.assignment.created_at).getTime() -
+      new Date(b.assignment.created_at).getTime() ||
+      a.assignment.id - b.assignment.id
     );
   });
 
@@ -640,7 +646,7 @@ export class AssignmentListComponent
       return 'failed';
 
 
-    return 'awaiting_review';
+    return 'in_progress';
   }
 
 

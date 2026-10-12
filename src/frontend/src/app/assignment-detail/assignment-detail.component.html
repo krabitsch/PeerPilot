@@ -29,7 +29,7 @@
       <h1 class="hero-title">{{ assignment()!.name }}</h1>
       <div class="hero-badges">
         @if (!isStaff()) {
-          <app-badge [variant]="statusBadge()"/>
+          <app-badge [variant]="statusBadge()" [customLabel]="statusLabel()"/>
         }
         <span class="mono-tag">
           {{ assignment()!.req_eval }}
@@ -299,26 +299,27 @@
                   </span>
                 </div>
 
-                @if (!row.pairing) {
-                  <div class="evaluation-status not-assigned">
-                    — Not assigned
-                  </div>
-                } @else if (row.pairing.status === 'Submitted') {
-                  <div class="evaluation-status done">
-                    ✓ Completed
-                  </div>
-                } @else if (row.pairing.status === 'Cancelled') {
-                  <div class="evaluation-status cancelled">
-                    — Cancelled
-                  </div>
+                @if (row.outcome === 'Passed') {
+                  <div class="evaluation-status passed">✓ Passed</div>
+                } @else if (row.outcome === 'Failed') {
+                  <div class="evaluation-status failed">✕ Failed</div>
                 } @else {
-                  <div class="evaluation-status pending">
-                    ◷ Pending
-                  </div>
+                  <div class="evaluation-status pending">◷ Pending</div>
                 }
               </div>
+              @if (row.waitingForRematch) {
+                <div class="evaluation-retry">Waiting to be rematched with a new evaluator.</div>
+              } @else if (row.outcome === 'Failed' && row.pairing && !row.pairing.retryRequested) {
+                <div class="evaluation-retry">
+                  <app-btn variant="secondary" size="sm" [disabled]="requestingRetry() !== null"
+                    (clicked)="requestRetry(row.pairing)">Retry evaluation</app-btn>
+                </div>
+              }
             }
           </div>
+          @if (retryError()) {
+            <div class="upload-error">{{ retryError() }}</div>
+          }
         </div>
       </app-container>
     }
@@ -338,7 +339,14 @@
 
           @for (row of feedbackRows(); track $index) {
               <div class="feedback-item">
-                <div class="evaluation-round">{{ row.label }}</div>
+                <div class="feedback-head">
+                  <div class="evaluation-round">{{ row.label }}</div>
+                  @if (row.outcome === 'Passed') {
+                    <span class="evaluation-status passed">✓ Passed</span>
+                  } @else if (row.outcome === 'Failed') {
+                    <span class="evaluation-status failed">✕ Failed</span>
+                  }
+                </div>
                 @if (row.response; as r) {
                 <div class="feedback-head">
                   <span class="feedback-evaluator">{{ r.user?.username ?? ('label_evaluator_fallback' | translate) }}</span>

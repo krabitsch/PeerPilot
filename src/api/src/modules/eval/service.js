@@ -1,6 +1,7 @@
 const { prisma } = require('@transcendence/database')
 const crypto = require('crypto')
-const {NotFoundError, ValidationError, ConflictError, UnauthorizedError} = require('@transcendence/errors')
+const { evaluationOutcome, responseSelect, recomputeSubmissionPassed } = require('./outcome')
+const {NotFoundError, ValidationError, ConflictError, UnauthorizedError, ForbiddenError} = require('@transcendence/errors')
 const utils = require('@transcendence/utils')
 const { createStorage } = require('@transcendence/filemanager')
 const storage = createStorage('submissions')
@@ -133,6 +134,9 @@ const getEvalAssignments = async (assignmentId)=>{
     evalResponseId: true,
     createdAt: true,
     passKey: true,
+    retryRequested: true,
+    retryRequestedAt: true,
+    evalResponse: { select: responseSelect },
 
     evaluatorUser: {
       select: {
@@ -142,10 +146,8 @@ const getEvalAssignments = async (assignmentId)=>{
     }
   }
 
-  return await utils.getEvalAssignments(
-    assignmentIdInt,
-    select
-  )
+  const pairings = await utils.getEvalAssignments(assignmentIdInt, select)
+  return pairings.map(pairing => ({ ...pairing, outcome: evaluationOutcome(pairing, assignment) }))
 }
 
 // delete all EvalAssignments for one particular assignment.id
@@ -178,6 +180,9 @@ const getEvalAssignmentById = async (evalAssignmentId) => {
     evalResponseId: true,
     createdAt: true,
     passKey: true,
+    retryRequested: true,
+    retryRequestedAt: true,
+    evalResponse: { select: responseSelect },
 
     evaluatorUser: {
       select: {
@@ -198,7 +203,8 @@ const getEvalAssignmentById = async (evalAssignmentId) => {
       'Eval assignment not found'
     )
 
-  return result
+  const assignment = await utils.getAssignmentById(result.assignmentId)
+  return { ...result, outcome: evaluationOutcome(result, assignment) }
 }
 
 
@@ -450,6 +456,9 @@ const createEvalAssignment = async ({
       createdAt: true,
 
       passKey: true,
+      retryRequested: true,
+      retryRequestedAt: true,
+      evalResponse: { select: responseSelect },
 
 
       evaluatorUser: {
@@ -792,6 +801,9 @@ const updateEvalAssignment = async (evalAssignmentId, {
         createdAt: true,
 
         passKey: true,
+        retryRequested: true,
+        retryRequestedAt: true,
+        evalResponse: { select: responseSelect },
 
 
         evaluatorUser: {
@@ -933,235 +945,89 @@ const getAssignmentWithSheet = async (assignmentId)=>{
     return await utils.getAssignmentById(assignmentId, null, {evalSheet: {include: {sections: true}}})
 }
 
-const startEvaluation = async ({
-  evaluatorUserId,
-  leaderEmail,
-  passkey
-}) => {
-
-  const evaluatorUserIdInt =
-    parseInt(evaluatorUserId)
-
-  const cleanPassKey =
-    String(
-      passkey ?? ''
-    ).trim()
-
-
-  if (
-    !evaluatorUserIdInt ||
-    !leaderEmail ||
-    !cleanPassKey
-  ) {
-    throw new ValidationError(
-      'evaluatorUserId, leaderEmail and passkey are required'
-    )
-  }
-
-
-  // The passkey identifies one specific
-  // evaluator/evaluee pairing.
-  const evalAssignment =
-    await prisma.evalAssignment.findUnique({
-
-      where: {
-        passKey:
-          cleanPassKey
-      }
-
-    })
-
-
-  if (!evalAssignment) {
-    throw new NotFoundError(
-      'Invalid evaluation passkey'
-    )
-  }
-
-
-  if (
-    evalAssignment.evaluatorUserId !==
-    evaluatorUserIdInt
-  ) {
-    throw new UnauthorizedError(
-      'This evaluation has not been assigned to you'
-    )
-  }
-
-
-  if (
-    evalAssignment.status !==
-    'Pending'
-  ) {
-    throw new ConflictError(
-      'This evaluation is no longer pending'
-    )
-  }
-
-
-  // Find the submission belonging to the
-  // evaluee group for this pairing.
-  const submission =
-    await prisma.submission.findFirst({
-
-      where: {
-        groupId:
-          evalAssignment.evalueeGroupId
-      },
-
-      include: {
-        group: true,
-        file: true
-      }
-
-    })
-
-
-  if (!submission) {
-    throw new NotFoundError(
-      'Submission not found'
-    )
-  }
-
-
-  if (
-    submission.status !==
-    'Close'
-  ) {
-    throw new ValidationError(
-      'Submission is not closed yet'
-    )
-  }
-
-
-  // Keep the group-leader email as an
-  // additional verification step.
-  const leader =
-    await utils.searchUser(
-      leaderEmail
-    )
-
-
-  if (!leader) {
-    throw new NotFoundError(
-      'No user found with that email'
-    )
-  }
-
-
-  if (
-    submission.group.leaderId !==
-    leader.id
-  ) {
-    throw new ValidationError(
-      "That email is not the leader of this submission's group"
-    )
-  }
-
-
-  if (
-    evalAssignment.submissionId &&
-    evalAssignment.submissionId !==
-      submission.id
-  ) {
-    throw new ValidationError(
-      'Mismatched submission for this evaluation pairing'
-    )
-  }
-
-
-  if (!evalAssignment.submissionId) {
-
-    await prisma.evalAssignment.update({
-
-      where: {
-        id:
-          evalAssignment.id
-      },
-
-      data: {
-        submissionId:
-          submission.id
-      }
-
-    })
-
-  }
-
-
-  const assignment =
-    await getAssignmentWithSheet(
-      evalAssignment.assignmentId
-    )
-
-
-  if (!assignment?.evalSheet) {
-    throw new NotFoundError(
-      'This assignment has no eval sheet yet'
-    )
-  }
-
-
-  const file =
-    submission.file
-      ? {
-          ...submission.file,
-
-          url:
-            storage.getPublicUrl(
-              submission.file.url
-            )
+// One request supplies the course filters and evaluator-owned task display data.
+// Passkeys and email addresses are intentionally excluded from the task list.
+const getMyEvaluatorTasks = async (userId) => {
+  const evaluatorUserId = Number(userId)
+  const enrollmentScope = { enrollments: { some: { userId: evaluatorUserId, status: 'Active' } } }
+  const [courses, tasks] = await Promise.all([
+    prisma.class.findMany({
+      where: enrollmentScope,
+      orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+      select: {
+        id: true, name: true, description: true, term: true, created_at: true,
+        assignments: {
+          orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+          select: { id: true, name: true, created_at: true }
         }
-      : null
+      }
+    }),
+    prisma.evalAssignment.findMany({
+      where: { evaluatorUserId, assignment: { class: enrollmentScope } },
+      orderBy: [{ assignment: { classid: 'asc' } }, { assignment: { created_at: 'asc' } },
+        { assignmentId: 'asc' }, { round: 'asc' }, { id: 'asc' }],
+      select: {
+        id: true, assignmentId: true, evalueeGroupId: true, round: true, status: true,
+        assignment: { select: { id: true, name: true, created_at: true, classid: true } },
+        evalueeGroup: {
+          select: { id: true, name: true, members: {
+            orderBy: { userId: 'asc' }, select: { user: { select: { id: true, username: true } } }
+          } }
+        },
+        evalResponse: { select: {
+          id: true, givenMarks: true, comment: true, reply: true,
+          scores: { orderBy: { sectionId: 'asc' }, select: {
+            sectionId: true, score: true, section: { select: { name: true, marks: true } }
+          } }
+        } }
+      }
+    })
+  ])
+  return { courses, tasks }
+}
 
+const startEvaluation = async ({ evalAssignmentId, evaluatorUserId, passkey }) => {
+  const id = Number(evalAssignmentId)
+  const evaluatorId = Number(evaluatorUserId)
+  const cleanPassKey = String(passkey ?? '').trim()
+  if (!Number.isInteger(id) || id <= 0 || !Number.isInteger(evaluatorId) || evaluatorId <= 0)
+    throw new ValidationError('evalAssignmentId and authenticated evaluator are required')
+  if (!/^\d{6}$/.test(cleanPassKey)) throw new ValidationError('Invalid evaluation passkey')
 
+  const pairing = await prisma.evalAssignment.findUnique({ where: { id } })
+  if (!pairing) throw new NotFoundError('Evaluation assignment not found')
+  if (pairing.evaluatorUserId !== evaluatorId)
+    throw new ForbiddenError('This evaluation has not been assigned to you')
+  if (pairing.status !== 'Pending') throw new ConflictError('This evaluation is no longer pending')
+  if (!pairing.passKey || pairing.passKey !== cleanPassKey)
+    throw new ValidationError('Invalid evaluation passkey')
+
+  const submission = await prisma.submission.findFirst({
+    where: { groupId: pairing.evalueeGroupId }, include: { group: true, file: true }
+  })
+  if (!submission) throw new NotFoundError('Submission not found')
+  if (submission.status !== 'Close') throw new ValidationError('Submission is not closed yet')
+  if (submission.group.assId !== pairing.assignmentId ||
+      (pairing.submissionId && pairing.submissionId !== submission.id))
+    throw new ValidationError('Mismatched submission for this evaluation pairing')
+
+  const assignment = await getAssignmentWithSheet(pairing.assignmentId)
+  if (!assignment?.evalSheet) throw new NotFoundError('This assignment has no eval sheet yet')
+  if (!pairing.submissionId) {
+    const linked = await prisma.evalAssignment.updateMany({
+      where: { id, evaluatorUserId: evaluatorId, status: 'Pending', passKey: cleanPassKey, submissionId: null },
+      data: { submissionId: submission.id }
+    })
+    if (linked.count !== 1) throw new ConflictError('Evaluation changed; please open the task again')
+  }
   return {
-
-    evalAssignmentId:
-      evalAssignment.id,
-
-
-    assignment: {
-
-      id:
-        assignment.id,
-
-      name:
-        assignment.name,
-
-      description:
-        assignment.description,
-
-      max_score:
-        assignment.max_score
-
-    },
-
-
-    group: {
-
-      id:
-        submission.group.id,
-
-      name:
-        submission.group.name
-
-    },
-
-
-    submission: {
-
-      id:
-        submission.id,
-
-      file
-
-    },
-
-
-    evalSheet:
-      assignment.evalSheet
-
+    evalAssignmentId: pairing.id,
+    assignment: { id: assignment.id, name: assignment.name, description: assignment.description, max_score: assignment.max_score },
+    group: { id: submission.group.id, name: submission.group.name },
+    submission: { id: submission.id, file: submission.file ? {
+      ...submission.file, url: storage.getPublicUrl(submission.file.url)
+    } : null },
+    evalSheet: assignment.evalSheet
   }
 }
 
@@ -1209,31 +1075,22 @@ const submitEvaluation = async ({evalAssignmentId, evaluatorUserId, comment, sco
     const givenMarks = scores.reduce((sum, s) => sum + parseInt(s.score), 0)
 
     const response = await prisma.$transaction(async (tx) => {
-        const evalResponse = await tx.evalResponse.upsert({
-            where: { subId_userId: { subId: evalAssignment.submissionId, userId: evaluatorUserIdInt } },
-            create: {
+        // Serialize outcome recomputation for concurrent evaluations of one submission.
+        await tx.$queryRaw`SELECT id FROM "submission" WHERE id = ${evalAssignment.submissionId} FOR UPDATE`
+        const claimed = await tx.evalAssignment.updateMany({
+            where: { id: evalAssignment.id, status: 'Pending', evalResponseId: null },
+            data: { status: 'Submitted' }
+        })
+        if (claimed.count !== 1) throw new ConflictError('This evaluation has already been submitted')
+        const evalResponse = await tx.evalResponse.create({
+            data: {
                 subId: evalAssignment.submissionId,
                 userId: evaluatorUserIdInt,
                 givenMarks,
                 comment,
                 scores: { create: scores.map(s => ({ sectionId: parseInt(s.sectionId), score: parseInt(s.score) })) }
             },
-            update: {
-                givenMarks,
-                comment,
-                scores: {
-                    deleteMany: {},
-                    create: scores.map(s => ({ sectionId: parseInt(s.sectionId), score: parseInt(s.score) }))
-                }
-            },
             include: { scores: true }
-        })
-
-        // an earlier round's evalAssignment may still hold this response - release it
-        // so the unique evalResponseId constraint doesn't block linking it here
-        await tx.evalAssignment.updateMany({
-            where: { evalResponseId: evalResponse.id, id: { not: evalAssignment.id } },
-            data: { evalResponseId: null }
         })
 
         await tx.evalAssignment.update({
@@ -1241,6 +1098,7 @@ const submitEvaluation = async ({evalAssignmentId, evaluatorUserId, comment, sco
             data: { status: 'Submitted', evalResponseId: evalResponse.id }
         })
 
+        await recomputeSubmissionPassed(tx, evalAssignment.submissionId)
         return evalResponse
     })
 
@@ -1265,31 +1123,43 @@ const getEvalResponsesForSubmission = async (subId) => {
     })
 }
 
-// recomputes a submission's finalScore/passed from the avg of givenMarks across replied-to EvalResponses
-const recomputeFinalScore = async (subId) => {
-    const replied = await prisma.evalResponse.findMany({
+// Preserve the existing finalScore average of replied-to feedback. It does not
+// determine pass/fail; selecting retry attempts for grades is a future policy.
+const recomputeFinalScore = async (subId) => prisma.$transaction(async tx => {
+    await tx.$queryRaw`SELECT id FROM "submission" WHERE id = ${subId} FOR UPDATE`
+    const replied = await tx.evalResponse.findMany({
         where: { subId, reply: { not: null } },
         select: { givenMarks: true }
     })
+    const finalScore = replied.length ? replied.reduce((sum, r) => sum + r.givenMarks, 0) / replied.length : null
+    await tx.submission.update({ where: { id: subId }, data: { finalScore } })
+    await recomputeSubmissionPassed(tx, subId)
+})
 
-    if(replied.length === 0){
-        await prisma.submission.update({ where: { id: subId }, data: { finalScore: null, passed: null } })
-        return
-    }
-
-    const avg = replied.reduce((sum, r) => sum + r.givenMarks, 0) / replied.length
-
-    const submission = await prisma.submission.findUnique({
-        where: { id: subId },
-        include: { group: { include: { assignment: true } } }
+const requestEvaluationRetry = async (evalAssignmentId, userId) => {
+    const id = Number(evalAssignmentId)
+    if (!Number.isInteger(id) || id <= 0) throw new ValidationError('Invalid evaluation assignment id')
+    return prisma.$transaction(async tx => {
+        const pairing = await tx.evalAssignment.findUnique({
+            where: { id }, include: { assignment: true, evalResponse: true }
+        })
+        if (!pairing) throw new NotFoundError('Evaluation assignment not found')
+        const member = await tx.groupMember.findUnique({
+            where: { userId_groupId: { userId: Number(userId), groupId: pairing.evalueeGroupId } }
+        })
+        if (!member) throw new ForbiddenError('Only a member of the evaluee group can request a retry')
+        if (evaluationOutcome(pairing, pairing.assignment) !== 'Failed')
+            throw new ValidationError('Only a submitted, failed evaluation can request a retry')
+        await tx.evalAssignment.updateMany({
+            where: { id, retryRequested: false, status: 'Submitted' },
+            data: { retryRequested: true, retryRequestedAt: new Date() }
+        })
+        // A repeated request preserves the original timestamp and feedback.
+        return tx.evalAssignment.findUnique({ where: { id } })
     })
-    const assignment = submission.group.assignment
-    const passed = assignment.max_score > 0 && (avg / assignment.max_score) * 100 >= assignment.pass_threshold
-
-    await prisma.submission.update({ where: { id: subId }, data: { finalScore: avg, passed } })
 }
 
-// the group leader replies to one piece of eval feedback — once replied, its marks count toward the final grade
+// The group leader replies to feedback; this has no effect on evaluation pass/fail.
 const replyToEvalResponse = async (responseId, { userId, reply }) => {
     const responseIdInt = parseInt(responseId)
     const userIdInt = parseInt(userId)
@@ -1321,5 +1191,5 @@ module.exports = {getEvalSheetById, getEvalSheetByAssId, getAssignment, createEv
     updateEvalSheetSection, removeSection,
     getEvalAssignments, deleteEvalAssignments, getEvalAssignmentById, createEvalAssignment,
     updateEvalAssignment, deleteEvalAssignment, generateSimpleEvalAssignmentPairings,
-    startEvaluation, submitEvaluation, getEvalResponsesForSubmission, replyToEvalResponse
+    getMyEvaluatorTasks, startEvaluation, submitEvaluation, getEvalResponsesForSubmission, replyToEvalResponse, requestEvaluationRetry
 }
