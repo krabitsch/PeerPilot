@@ -21,15 +21,15 @@ const fetchRecording = async (role, responseId) => {
 
 const startEvaluation = async (page, passkey) => {
   await page.goto('/evaluation')
-  await page.getByPlaceholder('leader@example.com').fill(D.users.carol.email)
+  await page.getByRole('button', { name: 'Start evaluation →', exact: true }).click()
   await page.getByPlaceholder('482913').fill(passkey)
-  await page.getByRole('button', { name: 'Continue' }).click()
+  await page.getByRole('button', { name: 'Start evaluation', exact: true }).click()
 }
 
 test('a wrong passkey does not open the evaluation', async ({ browser }) => {
   const dave = await pageAs(browser, 'dave')
   await startEvaluation(dave, '000000')
-  await expect(dave.getByText('Invalid passkey')).toBeVisible()
+  await expect(dave.getByText('Invalid evaluation passkey')).toBeVisible()
   await expect(dave.getByRole('heading', { name: 'Peer evaluation' })).toHaveCount(0)
 })
 
@@ -40,7 +40,7 @@ test('Dave evaluates Carol, and Carol replies to the feedback', async ({ browser
   const dave = await pageAs(browser, 'dave')
   await startEvaluation(dave, D.PASSKEY)
   await expect(dave.getByRole('heading', { name: 'Peer evaluation' })).toBeVisible()
-  await expect(dave.getByText('carol-group')).toBeVisible()
+  await expect(dave.getByText('Evaluate: carol')).toBeVisible()
 
   const submit = dave.getByRole('button', { name: 'Submit evaluation' })
   await expect(submit, 'disabled until written feedback is given').toBeDisabled()

@@ -95,12 +95,12 @@ test.describe('identity comes from the token, not the request', () => {
     expect((await res.json()).ok).toBe(false)
   })
 
-  test('a student creating a group always leads it themselves', async ({ api }) => {
+  test('students cannot create groups', async ({ api }) => {
     const { assignments, users } = seeded()
-    const group = await expectOk(await (await api('bob')).post('group/', {
+    const response = await (await api('bob')).post('group/', {
       data: { assId: assignments.solo, userId: users.carol, name: 'bob-claims-carol', size: 1 },
-    }))
-    expect(group.leaderId).toBe(users.bob)
+    })
+    expect(response.status()).toBe(403)
   })
 
   // Regression: Phase 3 bound the leader to the caller for staff too, which

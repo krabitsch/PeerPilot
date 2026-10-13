@@ -10,6 +10,12 @@ const { recordingUploader } = require('@transcendence/filemanager')
 // already refuses a pairing that isn't yours, and replying to feedback already
 // requires being the group leader.
 
+route.get('/my-tasks', async (req, res, next) => {
+    try {
+        res.json(await service.getMyEvaluatorTasks(req.user.userId))
+    } catch (err) { next(err) }
+})
+
 route.get('/sheet/:id', async(req, res, next)=>{
     try{
         res.json(await service.getEvalSheetById(req.params.id))
@@ -113,9 +119,16 @@ route.post('/assignment/:id/generate-simple-pairings', requireStaff, async(req, 
     }catch(err){next(err)}
 })
 
+// Retry requests record intent only; staff rematching is a separate workflow.
+route.post('/eval-assignments/:id/retry', async (req, res, next) => {
+    try {
+        res.json(await service.requestEvaluationRetry(req.params.id, req.user.userId))
+    } catch (err) { next(err) }
+})
+
 route.post('/evaluate/start', async (req, res, next) => {
     try{
-        res.json(await service.startEvaluation({ ...req.body, evaluatorUserId: req.user.userId }))
+        res.json(await service.startEvaluation({ evalAssignmentId: req.body.evalAssignmentId, passkey: req.body.passkey, evaluatorUserId: req.user.userId }))
     }catch(err){next(err)}
 })
 

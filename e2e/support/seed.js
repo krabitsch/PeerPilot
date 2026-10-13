@@ -70,10 +70,10 @@ const seed = async () => {
             members: { create: { userId: u.carol.id } } },
   })
   await prisma.submission.create({
-    data: { groupId: group.id, status: 'Close', type: 'FILE', passkey: D.PASSKEY, closedAt: new Date() },
+    data: { groupId: group.id, status: 'Close', type: 'FILE', closedAt: new Date() },
   })
   const pairing = await prisma.evalAssignment.create({
-    data: { assignmentId: peer.id, evalueeGroupId: group.id, evaluatorUserId: u.dave.id, round: 1, status: 'Pending' },
+    data: { assignmentId: peer.id, evalueeGroupId: group.id, evaluatorUserId: u.dave.id, round: 1, status: 'Pending', passKey: D.PASSKEY },
   })
 
   await prisma.authAllowedEmail.create({

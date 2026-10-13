@@ -7,7 +7,8 @@ import { NgStyle } from '@angular/common';
   imports: [NgStyle],
   template: `
     <div style="display:flex;align-items:center;gap:10px">
-      <span [ngStyle]="wordmarkStyle()">PeerPilot</span>
+      <img style="display: block; height: 60px; width: auto; object-fit: contain;" 
+        src="/peerofessor-logo.png" alt="Peerofessor" class="peerofessor-logo" />
     </div>
   `,
 })
