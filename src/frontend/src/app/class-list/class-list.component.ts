@@ -124,7 +124,7 @@ import { EnrollService, EnrollmentEligibility} from '../core/services/enroll-ser
               <app-btn
                 variant="secondary"
                 size="sm"
-                (clicked)="openEnrollModal(course)">
+                (clicked)="enroll(course)">
                 Enroll →
               </app-btn>
             </div>
@@ -505,6 +505,14 @@ export class ClassListComponent implements OnInit {
 
   openAssignment(a: AssignmentResponse) {
     this.router.navigate(['/assignment-detail'], { queryParams: { assId: a.id } });
+  }
+
+  // Enrolment is staff-only by decision (see GOING-LIVE.md): a student's click
+  // never enrols them. The button stays visible but only reports failure; the
+  // self-enrol-by-code modal below is kept for a possible future staff use but
+  // is no longer reachable from the student UI.
+  enroll(_course: Course): void {
+    this.enrollError.set(this.translate.instant('error_enroll_failed'));
   }
 
   confirmEnroll(): void {

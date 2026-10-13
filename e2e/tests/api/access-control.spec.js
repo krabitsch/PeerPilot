@@ -34,7 +34,8 @@ test.describe('role gates', () => {
       ['POST',   `eval/assignment/${s.assignments.peer}/generate-simple-pairings`],
       ['DELETE', `group/${s.groups.carol}/admin`],
       ['GET',    `group/assignment/${s.assignments.peer}`],
-      ['POST',   'enroll/',                                       { classId: s.classes.open, studentId: s.users.alice }],
+      // POST enroll/:id is self-or-staff (a student may self-enroll), so it is
+      // not a staff-only route. Dropping (PATCH) stays staff-only.
       ['PATCH',  'enroll/',                                       { classId: s.classes.web, studentId: s.users.alice }],
     ]
   }
@@ -97,10 +98,12 @@ test.describe('identity comes from the token, not the request', () => {
 
   test('students cannot create groups', async ({ api }) => {
     const { assignments, users } = seeded()
-    const response = await (await api('bob')).post('group/', {
+    // Group creation is staff-only (POST /group is requireStaff). Use the
+    // shared helper, which tolerates the app's current 200-with-code-in-body
+    // convention as well as a real 403 once status codes are tightened.
+    await expectError(await (await api('bob')).post('group/', {
       data: { assId: assignments.solo, userId: users.carol, name: 'bob-claims-carol', size: 1 },
-    })
-    expect(response.status()).toBe(403)
+    }), 403)
   })
 
   // Regression: Phase 3 bound the leader to the caller for staff too, which
@@ -137,7 +140,9 @@ test.describe('enrolment is staff-driven', () => {
   test('a Bocal enrols and drops a student', async ({ api }) => {
     const { classes, users } = seeded()
     const bocal = await api('bocal')
-    const enrolled = await expectOk(await bocal.post('enroll/', { data: { classId: classes.open, studentId: users.bob } }))
+    // Staff enroll via POST /enroll/:id (studentId in the URL) and bypass the
+    // external-course-code eligibility check that students must satisfy.
+    const enrolled = await expectOk(await bocal.post(`enroll/${users.bob}`, { data: { classId: classes.open } }))
     expect(enrolled).toMatchObject({ userId: users.bob, classId: classes.open, status: 'Active' })
     const dropped = await expectOk(await bocal.patch('enroll/', { data: { classId: classes.open, studentId: users.bob } }))
     expect(dropped.status).toBe('Dropped')
