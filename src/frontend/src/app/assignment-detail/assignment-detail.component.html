@@ -28,16 +28,20 @@
     <div class="hero-left">
       <h1 class="hero-title">{{ assignment()!.name }}</h1>
       <div class="hero-badges">
-        @if (!viewAsStaff()) {
-          <app-badge [variant]="statusBadge()"/>
+        @if (!isStaff()) {
+          <app-badge [variant]="statusBadge()" [customLabel]="statusLabel()"/>
         }
-        <span class="mono-tag">{{ 'assignment_pts_max' | translate:{ max: assignment()!.max_score } }}</span>
+        <span class="mono-tag">
+          {{ assignment()!.req_eval }}
+          eval{{ assignment()!.req_eval === 1 ? '' : 's' }} required
+        </span>
+        <span class="mono-tag">
+          {{ assignment()!.max_score }} pts max
+        </span>
         @if (assignment()!.pass_threshold) {
-          <span class="mono-tag">{{ 'assignment_threshold' | translate:{ threshold: assignment()!.pass_threshold } }}</span>
-        }
-        <span class="mono-tag">{{ 'assignment_evals_required' | translate:{ count: assignment()!.req_eval } }}</span>
-        @if (assignment()!.groupSize && assignment()!.groupSize! > 1) {
-          <span class="mono-tag">{{ 'assignment_group_max' | translate:{ size: assignment()!.groupSize } }}</span>
+          <span class="mono-tag">
+            {{ assignment()!.pass_threshold }}% threshold
+          </span>
         }
       </div>
     </div>
@@ -46,7 +50,18 @@
   <!-- ── Description ───────────────────────────────────────────── -->
   <app-container [config]="flatConfig">
     <div class="desc-body">
-      <div class="desc-label">{{ 'label_description' | translate }}</div>
+      <div class="desc-header">
+        <div class="desc-label">{{ 'label_description' | translate }}</div>
+        @if (assignment()!.file) {
+          <a
+            class="assignment-file-link"
+            [href]="assignment()!.file!.url"
+            target="_blank"
+            rel="noopener noreferrer">
+            Download assignment instructions ↗
+          </a>
+        }
+      </div>
       @if (assignment()!.description) {
         <app-markdown-math
           [text]="assignment()!.description">
@@ -58,6 +73,47 @@
       }
     </div>
   </app-container>
+  @if (assignment()!.file; as assignmentFile) {
+    <app-container [config]="flatConfig">
+        <div class="desc-body">
+        <div class="desc-label">
+            Assignment file
+        </div>
+        <div
+            style="
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:16px;
+            ">
+            <span
+            style="
+                font-size:0.875rem;
+                color:oklch(84% 0.01 272);
+            ">
+            📄 {{ assignmentFile.name }}
+            </span>
+
+            <a
+            [href]="assignmentFile.url"
+            target="_blank"
+            rel="noopener noreferrer"
+            style="
+                color:oklch(68% 0.24 296);
+                font-size:0.875rem;
+                font-weight:600;
+                text-decoration:none;
+            ">
+            Open assignment ↗
+            </a>
+
+        </div>
+
+        </div>
+
+    </app-container>
+
+    }
 
   @if (assignment()!.file; as assignmentFile) {
 
@@ -134,7 +190,17 @@
       <!-- ── Your Group ───────────────────────────────────────── -->
       <app-container [config]="cardConfig">
         <div class="card-inner">
-          <div class="card-title">{{ 'card_your_group' | translate }}</div>
+          <div class="card-title-row">
+            <div class="card-title">{{ 'card_your_group' | translate }}</div>
+            <div class="group-size-note">
+              @if ((assignment()!.groupSize ?? 1) === 1) {
+                1 student per group
+              } @else {
+                Up to {{ assignment()!.groupSize }}
+                students per group
+              }
+            </div>
+          </div>
 
           @if (actionError()) {
             <div style="font-size:0.8125rem;color:oklch(62% 0.22 20);background:oklch(18% 0.07 20);border:1px solid oklch(36% 0.12 20);border-radius:8px;padding:10px 12px;">
@@ -165,25 +231,21 @@
 
           <!-- In a group -->
           @if (groupStatus() === 'in-group') {
-            @if ((assignment()?.groupSize ?? 1) <= 1) {
-              <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;background:oklch(18% 0.07 145);border:1px solid oklch(36% 0.12 145)">
-                <span style="font-size:1rem">✓</span>
-                <span style="font-size:0.875rem;color:oklch(72% 0.15 145)">{{ 'group_solo_enrolled' | translate }}</span>
-              </div>
-            } @else {
-              <div class="section-title">{{ myGroup()!.name }}</div>
-              <div class="members-list">
-                @for (m of myGroup()!.members ?? []; track m.id) {
-                  <div class="member-row">
-                    <app-avatar [name]="m.user.username" [size]="28"/>
-                    <span class="member-name">{{ m.user.username }}</span>
-                    @if (m.userId === myGroup()!.leaderId) {
-                      <app-badge variant="violet" [customLabel]="'badge_leader'"/>
-                    }
-                  </div>
-                }
-              </div>
-            }
+            <div class="members-list">
+              @for (
+                m of myGroup()!.members ?? [];
+                track m.id
+              ) {
+                <div class="member-row">
+                  <app-avatar
+                    [name]="m.user.username"
+                    [size]="28"/>
+                  <span class="member-name">
+                    {{ m.user.username }}
+                  </span>
+                </div>
+              }
+            </div>
           }
         </div>
       </app-container>
@@ -198,23 +260,21 @@
           }
 
           @if (myGroup() && !mySubmission()) {
-            <p class="hint-text">{{ 'submission_not_started' | translate }}</p>
+            <p class="hint-text">
+              No submission yet. Upload your answers and your proposed
+              solution to this assignment.
+            </p>
             <app-btn variant="primary" (clicked)="startSubmission()">{{ 'btn_start_submission' | translate }}</app-btn>
-          }
-
-          @if (mySubmission()?.status === 'Close') {
-            <div class="passkey-box">
-              <div>
-                <div class="passkey-label">{{ 'label_eval_passkey' | translate }}</div>
-                <div class="passkey-value">{{ mySubmission()?.passkey }}</div>
-              </div>
-              <div class="passkey-hint">{{ 'passkey_hint' | translate }}</div>
-            </div>
           }
 
           @if (mySubmission(); as submission) {
             @if (submissionError()) {
               <div class="upload-error">{{ submissionError() }}</div>
+            }
+
+            @if (submission.status === 'Close') {
+              <div class="submission-closed-title">Submission closed</div>
+              <p class="hint-text">The following file was submitted:</p>
             }
 
             @if (submittedFileMeta(submission); as meta) {
@@ -255,11 +315,66 @@
                 }
               </div>
             }
-
           }
         </div>
       </app-container>
     </div>
+
+    <!-- ── Evaluations ───────────────────────────────────────── -->
+    @if (mySubmission()?.status === 'Close') {
+      <app-container [config]="cardConfig">
+        <div class="evaluations-inner">
+          <div class="card-title">Evaluations</div>
+
+          <div class="evaluation-list">
+            @for (row of evaluationRows(); track row.round) {
+              <div class="evaluation-row">
+                <div class="evaluation-round">
+                  Evaluation {{ row.round }}
+                </div>
+
+                <div class="evaluation-evaluator">
+                  <span class="evaluation-label">Evaluator</span>
+                  <span class="evaluation-value">
+                    {{ row.pairing?.evaluatorUser?.username ?? 'Not assigned yet' }}
+                  </span>
+                </div>
+
+                <div class="evaluation-passkey">
+                  <span class="evaluation-passkey-label">Eval passkey</span>
+                  <span class="evaluation-passkey-value">
+                    {{ evalPassKey(row.pairing) }}
+                  </span>
+                </div>
+
+                @if (row.outcome === 'FeedbackRequired') {
+                  <div class="evaluation-status pending">Feedback required</div>
+                } @else if (row.outcome === 'Passed') {
+                  <div class="evaluation-status passed">✓ Passed</div>
+                } @else if (row.outcome === 'Failed') {
+                  <div class="evaluation-status failed">✕ Failed</div>
+                } @else {
+                  <div class="evaluation-status pending">◷ Pending</div>
+                }
+              </div>
+              @if (row.outcome === 'FeedbackRequired') {
+                <div class="evaluation-retry">Please respond to the evaluator's feedback before this evaluation can be finalized.</div>
+              } @else if (row.waitingForRematch) {
+                <div class="evaluation-retry">Waiting to be rematched with a new evaluator.</div>
+              } @else if (row.outcome === 'Failed' && row.pairing && !row.pairing.retryRequested) {
+                <div class="evaluation-retry">
+                  <app-btn variant="secondary" size="sm" [disabled]="requestingRetry() !== null"
+                    (clicked)="requestRetry(row.pairing)">Retry evaluation</app-btn>
+                </div>
+              }
+            }
+          </div>
+          @if (retryError()) {
+            <div class="upload-error">{{ retryError() }}</div>
+          }
+        </div>
+      </app-container>
+    }
 
     <!-- ── Grade & feedback ──────────────────────────────────── -->
     @if (mySubmission()?.status === 'Close') {
@@ -274,11 +389,19 @@
             }
           </div>
 
-          @if (myResponses().length === 0) {
-            <p class="hint-text">{{ 'no_feedback_yet' | translate }}</p>
-          } @else {
-            @for (r of myResponses(); track r.id) {
+          @for (row of feedbackRows(); track $index) {
               <div class="feedback-item">
+                <div class="feedback-head">
+                  <div class="evaluation-round">{{ row.label }}</div>
+                  @if (row.outcome === 'FeedbackRequired') {
+                    <span class="evaluation-status pending">Feedback required</span>
+                  } @else if (row.outcome === 'Passed') {
+                    <span class="evaluation-status passed">✓ Passed</span>
+                  } @else if (row.outcome === 'Failed') {
+                    <span class="evaluation-status failed">✕ Failed</span>
+                  }
+                </div>
+                @if (row.response; as r) {
                 <div class="feedback-head">
                   <span class="feedback-evaluator">{{ r.user?.username ?? ('label_evaluator_fallback' | translate) }}</span>
                   <span class="feedback-marks">{{ r.givenMarks }} / {{ assignment()!.max_score }}</span>
@@ -291,7 +414,7 @@
 
                 @if (r.reply) {
                   <div class="feedback-reply">
-                    <div class="feedback-reply-label">{{ 'label_your_reply' | translate }}</div>
+                    <div class="feedback-reply-label">Your response</div>
                     <p class="feedback-reply-text">{{ r.reply }}</p>
                   </div>
                 } @else if (isLeader()) {
@@ -303,8 +426,10 @@
                     <app-btn variant="secondary" size="sm" (clicked)="submitReply(r)">{{ 'btn_reply' | translate }}</app-btn>
                   </div>
                 }
+                } @else {
+                  <p class="hint-text">{{ 'no_feedback_yet' | translate }}</p>
+                }
               </div>
-            }
           }
 
           @if (replyError()) {
@@ -314,44 +439,6 @@
       </app-container>
     }
 
-    <!-- ── Evaluation progress ────────────────────────────────── -->
-    <app-container [config]="flatConfig">
-      <div class="eval-inner">
-        <div class="eval-top-row">
-          <div class="eval-dots">
-            @for (n of evalSlots(); track n) {
-              @if (n > 0) {
-                <div class="eval-connector" [class.done]="n <= completedEvals()"></div>
-              }
-              <div class="eval-dot" [class.done]="n < completedEvals()">{{ n + 1 }}</div>
-            }
-          </div>
-          <span class="eval-summary">
-            <strong style="color:oklch(94% 0.005 272)">{{ completedEvals() }}</strong>
-            {{ 'eval_progress_summary' | translate:{ total: assignment()!.req_eval } }}
-          </span>
-          <span class="eval-pct">
-            {{ assignment()!.req_eval > 0 ? ((completedEvals() / assignment()!.req_eval) * 100 | number:'1.0-0') : 0 }}%
-          </span>
-        </div>
-
-        @if (mySubmission()?.status === 'Close') {
-          <div class="evaluators-row">
-            <span class="evaluators-label">{{ 'label_evaluators' | translate }}</span>
-            @if (myEvaluators().length === 0) {
-              <span class="hint-text">{{ 'evaluators_not_assigned' | translate }}</span>
-            } @else {
-              @for (ea of myEvaluators(); track ea.id) {
-                <span class="evaluator-chip" [class.done]="ea.status === 'Submitted'">
-                  {{ ea.evaluatorUser?.username ?? ('label_unknown' | translate) }}
-                  @if (ea.status === 'Submitted') { ✓ }
-                </span>
-              }
-            }
-          </div>
-        }
-      </div>
-    </app-container>
   }
 
   <!-- ════════════════════════════════════════════════════════════

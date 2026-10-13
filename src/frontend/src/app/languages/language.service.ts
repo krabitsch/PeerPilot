@@ -1,7 +1,8 @@
 import { Injectable } from "@angular/core";
 import { MissingTranslationHandler, MissingTranslationHandlerParams, TranslateService,} from "@ngx-translate/core";
 
-export const SUPPORTED_LANGS = ["en", "de", "hu", "ar"] as const;
+//export const SUPPORTED_LANGS = ["en", "de", "hu", "ar"] as const;
+export const SUPPORTED_LANGS = ["en"] as const;
 export type SupportedLang = typeof SUPPORTED_LANGS[number];
 
 export function isSupportedLang(lang: string | null): lang is SupportedLang {
@@ -13,7 +14,8 @@ export function isSupportedLang(lang: string | null): lang is SupportedLang {
 export function setLanguage(translate: TranslateService, lang: SupportedLang) {
   translate.use(lang);
   localStorage.setItem("language", lang);
-  document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
+  //document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
+  document.documentElement.dir = 'ltr';
   document.documentElement.lang = lang;
 }
 

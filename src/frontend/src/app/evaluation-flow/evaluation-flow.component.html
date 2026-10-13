@@ -1,36 +1,124 @@
-<!-- Login: leader email + passkey ─────────────────────────── -->
-@if (phase() === 'login') {
+@if (phase() !== 'flow') {
   <div [ngStyle]="pageStyle">
-    <div [ngStyle]="crumbStyle">
-      <span style="cursor:pointer;color:oklch(64% 0.28 296)" (click)="router.navigate(['/dashboard'])">{{ 'breadcrumb_dashboard' | translate }}</span>
-      <span>/</span><span style="color:oklch(94% 0.005 272)">{{ 'breadcrumb_evaluate_submission' | translate }}</span>
+    <div>
+      <div class="overline">Evaluations</div>
+      <h1 [ngStyle]="h1Style">My evaluator tasks</h1>
     </div>
 
-    <h1 [ngStyle]="h1Style">{{ 'eval_login_title' | translate }}</h1>
-    <p [ngStyle]="subStyle">{{ 'eval_login_subtitle' | translate }}</p>
+    @if (selectedCourse(); as course) {
+      <app-container [config]="flatConfig">
+        <div class="course-panel">
+          <div>
+            <div class="overline">Current course</div>
+            <div class="course-name">{{ course.name }}</div>
+            <p class="course-description">{{ course.description }}</p>
+            @if (course.term) { <span class="task-meta">{{ course.term }}</span> }
+          </div>
+          <div class="filter-stack">
+            <div>
+              <label [ngStyle]="fieldLabelStyle" for="evaluation-course">Select course</label>
+              <select id="evaluation-course" [disabled]="starting()" [ngStyle]="inputStyle" [value]="courseId()" (change)="selectCourse($any($event.target).value)">
+                @for (c of courses(); track c.id) { <option [value]="c.id">{{ c.name }}</option> }
+              </select>
+            </div>
+            <div>
+              <label [ngStyle]="fieldLabelStyle" for="evaluation-assignment">Select assignment</label>
+              <select id="evaluation-assignment" [disabled]="starting()" [ngStyle]="inputStyle" [value]="assignmentId() ?? ''" (change)="selectAssignment($any($event.target).value)">
+                <option value="">All assignments</option>
+                @for (a of assignments(); track a.id) { <option [value]="a.id">{{ a.name }}</option> }
+              </select>
+            </div>
+          </div>
+        </div>
+      </app-container>
+    }
 
-    <div [ngStyle]="panelStyle">
-      <div>
-        <label [ngStyle]="fieldLabelStyle">{{ 'label_leader_email' | translate }}</label>
-        <input [ngStyle]="inputStyle" type="email" placeholder="leader@example.com"
-               [value]="leaderEmail()" (input)="leaderEmail.set($any($event.target).value)" />
-      </div>
-      <div>
-        <label [ngStyle]="fieldLabelStyle">{{ 'label_passkey' | translate }}</label>
-        <input [ngStyle]="{...inputStyle, fontFamily:'JetBrains Mono, monospace', fontSize:'1.125rem', letterSpacing:'0.1em'}"
-               type="text" inputmode="numeric" maxlength="6" placeholder="482913"
-               [value]="passkeyInput()" (input)="passkeyInput.set($any($event.target).value)" />
-      </div>
+    @if (tasksLoading()) { <div class="task-meta" role="status">Loading evaluator tasks…</div> }
+    @if (tasksError()) {
+      <div [ngStyle]="errorStyle" role="alert">{{ tasksError() }}</div>
+      <app-btn variant="secondary" (clicked)="loadOverview()">Try again</app-btn>
+    }
 
-      @if (loginError()) {
-        <div [ngStyle]="errorStyle">{{ loginError() }}</div>
-      }
-
-      <div style="display:flex;gap:10px">
-        <app-btn variant="primary" (clicked)="login()">{{ 'btn_continue' | translate }}</app-btn>
-        <app-btn variant="ghost" (clicked)="router.navigate(['/dashboard'])">{{ 'btn_cancel' | translate }}</app-btn>
+    @if (phase() === 'start' && selectedTask(); as task) {
+      <div [ngStyle]="panelStyle">
+        <div class="overline">Start evaluation</div>
+        <div class="task-meta">You are evaluating: <strong>{{ taskNames(task) }}</strong></div>
+        <div class="task-meta">Assignment: <strong>{{ task.assignment.name }}</strong> · Evaluation {{ task.round }}</div>
+        <p class="course-description">
+          @if (task.evalueeGroup.members.length > 1) {
+            Ask a member of the group you are evaluating for the six-digit evaluation passkey shown on their assignment page.
+          } @else {
+            Ask the student you are evaluating for the six-digit evaluation passkey shown on their assignment page.
+          }
+          Entering the passkey confirms that you are evaluating the correct submission.
+        </p>
+        <div>
+          <label [ngStyle]="fieldLabelStyle" for="evaluation-passkey">Evaluation passkey</label>
+          <input id="evaluation-passkey" [ngStyle]="inputStyle" type="text" inputmode="numeric" maxlength="6" placeholder="482913"
+            [disabled]="starting()" [value]="passkeyInput()" (input)="passkeyInput.set($any($event.target).value)" (keydown.enter)="startEvaluation()" />
+        </div>
+        @if (loginError()) { <div [ngStyle]="errorStyle" role="alert">{{ loginError() }}</div> }
+        <div class="task-actions">
+          <app-btn variant="primary" [disabled]="starting()" (clicked)="startEvaluation()">Start evaluation</app-btn>
+          <app-btn variant="ghost" [disabled]="starting()" (clicked)="backToTasks()">Cancel</app-btn>
+        </div>
       </div>
+    }
+
+    @if (phase() === 'view' && selectedTask(); as task) {
+      <div [ngStyle]="panelStyle">
+        <div class="overline">Your submitted evaluation</div>
+        <div class="task-heading">{{ task.assignment.name }} · Evaluation {{ task.round }}</div>
+        <div class="task-meta">Evaluated: {{ taskNames(task) }}</div>
+        @if (task.evalResponse; as response) {
+          @for (score of response.scores; track score.sectionId) {
+            <div class="score-row task-meta"><span>{{ score.section.name }}</span><strong>{{ score.score }} / {{ score.section.marks }}</strong></div>
+          }
+          <div class="task-heading">Total score: {{ response.givenMarks }}</div>
+          <div class="task-heading">Your feedback</div>
+          <p class="feedback-text">{{ response.comment }}</p>
+          <div class="task-heading">Response from evaluee</div>
+          @if (response.reply) {
+            <p class="feedback-text">{{ response.reply }}</p>
+          } @else {
+            <p class="feedback-text">No response has been submitted yet.</p>
+          }
+        } @else { <p class="task-meta">Submitted evaluation details are unavailable.</p> }
+        <app-btn variant="ghost" (clicked)="backToTasks()">Back to my evaluator tasks</app-btn>
+      </div>
+    }
+
+    <div>
+      <div class="overline">My evaluator tasks</div>
+      <p class="task-meta">{{ taskCounts().assigned }} assigned · {{ taskCounts().pending }} pending · {{ taskCounts().completed }} completed
+        @if (taskCounts().cancelled) { · {{ taskCounts().cancelled }} cancelled }
+      </p>
     </div>
+    @if (!tasksLoading() && !tasksError() && visibleTasks().length === 0) {
+      <app-container [config]="flatConfig"><div class="empty-state">You currently have no assigned evaluation tasks.</div></app-container>
+    } @else if (!tasksLoading() && !tasksError() && taskCounts().assigned > 0 && taskCounts().pending === 0) {
+      <p class="task-meta">All assigned evaluations are complete.</p>
+    }
+    @for (task of visibleTasks(); track task.id) {
+      <app-container [config]="flatConfig">
+        <div class="task-row">
+          <div>
+            <div class="overline">Evaluation Task {{ task.round }}</div>
+            <div class="task-heading">{{ task.assignment.name }}</div>
+            <div class="task-meta">Evaluate: {{ taskNames(task) }}</div>
+          </div>
+          <div class="task-actions">
+            @if (task.status === 'Pending') {
+              <app-badge variant="under_review" customLabel="Pending" />
+              <app-btn variant="secondary" [disabled]="starting()" (clicked)="openTask(task)">Start evaluation →</app-btn>
+            } @else if (task.status === 'Submitted') {
+              <app-badge variant="validated" customLabel="Completed" />
+              <app-btn variant="ghost" [disabled]="starting()" (clicked)="openTask(task)">View evaluation →</app-btn>
+            } @else { <app-badge variant="pending" customLabel="Cancelled" /> }
+          </div>
+        </div>
+      </app-container>
+    }
   </div>
 }
 
@@ -45,13 +133,15 @@
         <h2 style="font-family:'Space Grotesk',sans-serif;font-size:1.5rem;font-weight:700;color:oklch(94% 0.005 272);margin-bottom:8px">{{ 'eval_done_title' | translate }}</h2>
         <p style="color:oklch(68% 0.01 272);line-height:1.6">
           {{ 'eval_done_score_prefix' | translate }} <strong [ngStyle]="{color: scoreColor(), fontFamily:'JetBrains Mono, monospace'}">{{ totalScore() }}/{{ maxScore() }}</strong>
-          {{ 'eval_done_score_suffix' | translate:{group: session()?.group?.name} }}
+          {{ 'eval_done_score_suffix' | translate }}
         </p>
+        <app-btn variant="secondary" (clicked)="backToTasks()">Back to my evaluator tasks</app-btn>
       </div>
     </div>
   } @else {
 
     <div [ngStyle]="pageStyle">
+      <app-btn variant="ghost" [disabled]="submittingEvaluation()" (clicked)="backToTasks()">← My evaluator tasks</app-btn>
       <!-- Breadcrumb -->
       <div [ngStyle]="crumbStyle">
         <span style="cursor:pointer;color:oklch(64% 0.28 296)" (click)="router.navigate(['/dashboard'])">{{ 'breadcrumb_dashboard' | translate }}</span>
@@ -65,10 +155,10 @@
 
       <!-- Submission file, at the top -->
       <div [ngStyle]="subCardStyle">
-        <app-avatar [name]="session()!.group.name" [size]="40"/>
+        <app-avatar [name]="selectedTask() ? taskNames(selectedTask()!) : session()!.group.name" [size]="40"/>
         <div style="flex:1">
           <div style="font-family:'Space Grotesk',sans-serif;font-weight:600;color:oklch(94% 0.005 272);margin-bottom:2px">{{ session()!.assignment.name }}</div>
-          <div style="font-size:0.8125rem;color:oklch(48% 0.01 272)">{{ 'label_by' | translate:{name: session()!.group.name} }}</div>
+          <div style="font-size:0.8125rem;color:oklch(48% 0.01 272)">Evaluate: {{ selectedTask() ? taskNames(selectedTask()!) : session()!.group.name }}</div>
         </div>
         @if (session()!.submission.file) {
           <a [href]="session()!.submission.file!.url" target="_blank" rel="noopener">
@@ -138,7 +228,7 @@
       }
 
       <!-- One submit button -->
-      <app-btn variant="primary" size="lg" [disabled]="!canSubmit()" (clicked)="submit()">{{ 'btn_submit_evaluation' | translate }}</app-btn>
+      <app-btn variant="primary" size="lg" [disabled]="!canSubmit() || submittingEvaluation()" (clicked)="submit()">{{ 'btn_submit_evaluation' | translate }}</app-btn>
     </div>
   }
 }

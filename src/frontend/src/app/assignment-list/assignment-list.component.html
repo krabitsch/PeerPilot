@@ -1,63 +1,346 @@
 <div [ngStyle]="pageStyle">
 
-  <!-- ── Header ─────────────────────────────────────────────── -->
+
+  <!-- ========================================================
+       PAGE HEADER
+       ======================================================== -->
+
   <div>
+
     <div [ngStyle]="overlineStyle">
-      @if (filteredClassName()) {
-        <span [ngStyle]="crumbStyle" (click)="clearClassFilter()">{{ 'crumb_all_assignments' | translate }}</span>
-      }
-      {{ 'label_assignments' | translate }}
+      Assignments
     </div>
+
     <h1 [ngStyle]="h1Style">
-      @if (filteredClassName()) {
-        {{ filteredClassName() }}
-      } @else {
-        {{ 'status_in_progress' | translate }}
-      }
+      Assignments
     </h1>
+
   </div>
 
-  <!-- ── Cards ──────────────────────────────────────────────── -->
-  @if (loaded() && displayedItems().length === 0) {
+
+  <!-- ========================================================
+       CURRENT COURSE
+       ======================================================== -->
+
+  @if (selectedCourse(); as course) {
+
     <app-container [config]="flatConfig">
-      <div [ngStyle]="emptyStyle">{{ emptyMessage() }}</div>
-    </app-container>
-  } @else {
-    <div [ngStyle]="gridStyle">
-      @for (item of displayedItems(); track item.assignment.id) {
-        <app-container [config]="flatConfig">
-          <div [ngStyle]="cardStyle">
-            <div>
-              @if (!filteredClassName()) {
-                <div [ngStyle]="classNameStyle">{{ item.className }}</div>
-              }
-              <div [ngStyle]="cardTitleStyle">{{ item.assignment.name }}</div>
-            </div>
 
-            <p [ngStyle]="descStyle">
-              {{ item.assignment.description | slice:0:140 }}{{ (item.assignment.description.length) > 140 ? '…' : '' }}
-            </p>
+      <div [ngStyle]="currentCourseStyle">
 
-            <div [ngStyle]="metaStyle">
-              <span>{{ 'assignment_pts' | translate:{value: item.assignment.max_score} }}</span>
-              <span>{{ (item.assignment.req_eval === 1 ? 'assignment_evals_required' : 'assignment_evals_required_plural') | translate:{count: item.assignment.req_eval} }}</span>
-              @if (item.assignment.groupSize) { <span>{{ 'assignment_group_of' | translate:{size: item.assignment.groupSize} }}</span> }
-              @if (item.assignment.pass_threshold) { <span>{{ 'assignment_pass_threshold_label' | translate:{threshold: item.assignment.pass_threshold} }}</span> }
-              @if (item.assignment.file) {
-                <a [href]="item.assignment.file.url" target="_blank" rel="noopener" (click)="$event.stopPropagation()" style="color:inherit">
-                  📎 {{ item.assignment.file.name }}
-                </a>
-              }
-            </div>
 
-            <div [ngStyle]="footerStyle">
-              <app-badge [variant]="statusMeta(item.status).variant" [customLabel]="statusMeta(item.status).label" />
-              <app-btn variant="secondary" size="sm" (clicked)="open(item)">{{ 'btn_open' | translate }}</app-btn>
-            </div>
+        <div [ngStyle]="currentCourseLabelStyle">
+          Current course
+        </div>
+
+
+        <div>
+
+          <div [ngStyle]="currentCourseNameStyle">
+            {{ course.name }}
           </div>
-        </app-container>
-      }
-    </div>
+
+
+          @if (course.description) {
+
+            <div
+              [ngStyle]="currentCourseDescriptionStyle"
+              style="margin-top:6px">
+
+              {{ course.description }}
+
+            </div>
+
+          }
+
+
+          <div
+            [ngStyle]="currentCourseMetaStyle"
+            style="margin-top:7px">
+
+            @if (course.externalCourseCode) {
+
+              <span>
+                WU course
+                {{ course.externalCourseCode }}
+              </span>
+
+            }
+
+
+            @if (
+              course.externalCourseCode &&
+              course.term
+            ) {
+              <span> · </span>
+            }
+
+
+            @if (course.term) {
+
+              <span>
+                {{ course.term }}
+              </span>
+
+            }
+
+          </div>
+
+        </div>
+
+
+        <div>
+
+          <label [ngStyle]="selectLabelStyle">
+            Select course
+          </label>
+
+
+          <select
+
+            [ngStyle]="courseSelectStyle"
+
+            [value]="course.id"
+
+            (change)="
+              selectCourse(
+                $any($event.target).value
+              )
+            ">
+
+            @for (
+              c of courses();
+              track c.id
+            ) {
+
+              <option [value]="c.id">
+                {{ c.name }}
+              </option>
+
+            }
+
+          </select>
+
+        </div>
+
+
+      </div>
+
+    </app-container>
+
   }
+
+
+  <!-- No enrolled course -->
+
+  @if (
+    loaded() &&
+    courses().length === 0
+  ) {
+
+    <app-container [config]="flatConfig">
+
+      <div [ngStyle]="emptyStyle">
+        You are not enrolled in any course.
+      </div>
+
+    </app-container>
+
+  }
+
+
+  <!-- ========================================================
+       ASSIGNMENTS FOR CURRENT COURSE
+       ======================================================== -->
+
+  @if (selectedCourse(); as course) {
+
+    <div [ngStyle]="assignmentSectionTitleStyle">
+
+      Assignments for
+      {{ course.name }}
+
+    </div>
+
+
+    @if (
+      loaded() &&
+      displayedItems().length === 0
+    ) {
+
+      <app-container [config]="flatConfig">
+
+        <div [ngStyle]="emptyStyle">
+
+          No assignments are available
+          for this course yet.
+
+        </div>
+
+      </app-container>
+
+    } @else {
+
+
+      <div [ngStyle]="gridStyle">
+
+
+        @for (
+          item of displayedItems();
+          track item.assignment.id
+        ) {
+
+
+          <app-container [config]="flatConfig">
+
+
+            <div [ngStyle]="cardStyle">
+
+
+              <!-- Course + assignment -->
+
+              <div>
+
+                <div [ngStyle]="classNameStyle">
+                  {{ item.className }}
+                </div>
+
+
+                <div [ngStyle]="cardTitleStyle">
+                  {{ item.assignment.name }}
+                </div>
+
+              </div>
+
+
+              <!-- Description -->
+
+              <p [ngStyle]="descStyle">
+
+                {{
+                  item.assignment.description
+                    | slice:0:140
+                }}
+
+                @if (
+                  item.assignment.description.length
+                    > 140
+                ) {
+                  …
+                }
+
+              </p>
+
+
+              <!-- Metadata -->
+
+              <div [ngStyle]="metaStyle">
+
+
+                <span>
+
+                  {{ item.assignment.req_eval }}
+
+                  eval{{
+                    item.assignment.req_eval === 1
+                      ? ''
+                      : 's'
+                  }}
+
+                  required
+
+                </span>
+
+
+                <span>·</span>
+
+
+                <span>
+                  Group:
+                  {{ item.groupMembers }}
+                </span>
+
+
+                <span>·</span>
+
+
+                <span>
+                  {{ item.assignment.max_score }}
+                  pts
+                </span>
+
+
+                @if (
+                  item.assignment.pass_threshold
+                ) {
+
+                  <span>·</span>
+
+                  <span>
+                    {{
+                      item.assignment
+                        .pass_threshold
+                    }}% to pass
+                  </span>
+
+                }
+
+
+              </div>
+
+
+              <!-- Status + Open -->
+
+              <div [ngStyle]="footerStyle">
+
+
+                <app-badge
+
+                  [variant]="
+                    statusMeta(
+                      item.status
+                    ).variant
+                  "
+
+                  [customLabel]="
+                    statusMeta(
+                      item.status
+                    ).label
+                  "
+
+                />
+
+
+                <app-btn
+
+                  variant="secondary"
+
+                  size="sm"
+
+                  (clicked)="open(item)">
+
+                  Open →
+
+                </app-btn>
+
+
+              </div>
+
+
+            </div>
+
+
+          </app-container>
+
+
+        }
+
+
+      </div>
+
+    }
+
+  }
+
 
 </div>

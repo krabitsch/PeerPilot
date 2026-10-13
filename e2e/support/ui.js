@@ -13,7 +13,7 @@ const recordVideoOpts = () =>
 
 const signIn = async (page, email, password) => {
   await page.goto('/login')
-  await page.getByPlaceholder('you@PeerPilot.school').fill(email)
+  await page.getByPlaceholder('you@peerofessor.school').fill(email)
   await page.locator('input[type=password]').fill(password)
   await page.getByRole('button', { name: 'Sign in', exact: true }).click()
 }

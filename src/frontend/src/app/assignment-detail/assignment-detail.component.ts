@@ -185,7 +185,7 @@ import { MarkdownMathComponent } from '../shared/markdown-math.component';
     }
     .two-col {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr;
       gap: 16px;
       align-items: stretch;
     }
@@ -256,11 +256,10 @@ import { MarkdownMathComponent } from '../shared/markdown-math.component';
     }
     .invite-btns { display: flex; gap: 6px; }
     .submission-card { gap: 10px; }
-    .sub-status-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
+    .submission-closed-title {
+      font-size: 0.9375rem;
+      font-weight: 600;
+      color: ${DS.colors.fg1};
     }
     .upload-panel {
       display: flex;
@@ -304,92 +303,127 @@ import { MarkdownMathComponent } from '../shared/markdown-math.component';
       border-radius: ${DS.radius.md};
       padding: 9px 12px;
     }
-    /* Eval progress */
-    .eval-inner {
-      padding: 16px 20px;
+    /* Evaluations */
+    .evaluations-inner {
+      padding: 18px 20px;
       display: flex;
       flex-direction: column;
+      gap: 12px;
+    }
+    .evaluation-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .evaluation-row {
+      display: grid;
+      grid-template-columns: minmax(120px, 0.8fr) minmax(170px, 1.35fr) minmax(150px, 1fr) minmax(110px, auto);
+      align-items: center;
       gap: 14px;
+      padding: 12px 14px;
+      border-radius: ${DS.radius.lg};
+      background: ${DS.colors.surface};
+      border: 1px solid ${DS.colors.border};
     }
-    .eval-top-row {
-      display: flex;
-      align-items: center;
-      gap: 20px;
-      flex-wrap: wrap;
-    }
-    .eval-dots {
-      display: flex;
-      align-items: center;
-      gap: 0;
-    }
-    .eval-dot {
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: ${DS.fonts.mono};
-      font-size: 0.75rem;
+    .evaluation-round {
+      font-family: ${DS.fonts.display};
+      font-size: 0.9375rem;
       font-weight: 600;
-      background: ${DS.colors.surfaceRaised};
-      border: 1.5px solid ${DS.colors.border};
-      color: ${DS.colors.fg3};
-      transition: all 200ms;
+      color: ${DS.colors.fg1};
     }
-    .eval-dot.done {
-      background: ${DS.colors.greenSubtle};
-      border-color: ${DS.colors.greenBorder};
-      color: ${DS.colors.green};
-    }
-    .eval-connector {
-      width: 20px;
-      height: 2px;
-      background: ${DS.colors.border};
-    }
-    .eval-connector.done { background: ${DS.colors.greenBorder}; }
-    .eval-summary {
-      font-size: 0.875rem;
-      color: ${DS.colors.fg2};
-    }
-    .eval-pct {
-      font-family: ${DS.fonts.mono};
-      font-size: 0.875rem;
-      color: ${DS.colors.fg3};
-      margin-left: auto;
-    }
-    .evaluators-row {
+    .evaluation-evaluator {
       display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-      padding-top: 12px;
-      border-top: 1px solid ${DS.colors.borderSubtle};
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
     }
-    .evaluators-label {
+    .evaluation-label {
       font-size: 0.6875rem;
       font-weight: 600;
       letter-spacing: 0.08em;
       text-transform: uppercase;
       color: ${DS.colors.fg3};
     }
-    .evaluator-chip {
+    .evaluation-value {
+      font-size: 0.875rem;
+      color: ${DS.colors.fg1};
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .evaluation-passkey {
       display: flex;
-      align-items: center;
-      gap: 5px;
+      flex-direction: column;
+      gap: 2px;
+      padding: 8px 11px;
+      border-radius: ${DS.radius.md};
+      background: ${DS.colors.violetSubtle};
+      border: 1px solid ${DS.colors.violetBorder};
+    }
+    .evaluation-passkey-label {
+      font-size: 0.625rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: ${DS.colors.fg2};
+    }
+    .evaluation-passkey-value {
+      font-family: ${DS.fonts.mono};
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: ${DS.colors.violet};
+    }
+    .evaluation-status {
+      justify-self: end;
       font-family: ${DS.fonts.mono};
       font-size: 0.75rem;
-      color: ${DS.colors.fg2};
-      background: ${DS.colors.surfaceRaised};
-      border: 1px solid ${DS.colors.border};
+      font-weight: 600;
+      white-space: nowrap;
+      padding: 4px 8px;
       border-radius: ${DS.radius.full};
-      padding: 4px 10px;
+      border: 1px solid ${DS.colors.border};
+      background: ${DS.colors.surfaceRaised};
+      color: ${DS.colors.fg3};
     }
-    .evaluator-chip.done {
+    .evaluation-status.pending {
+      color: ${DS.colors.amber};
+      background: ${DS.colors.amberSubtle};
+      border-color: ${DS.colors.amberBorder};
+    }
+    .evaluation-status.passed {
       color: ${DS.colors.green};
       background: ${DS.colors.greenSubtle};
       border-color: ${DS.colors.greenBorder};
     }
+    .evaluation-status.failed {
+      color: ${DS.colors.red};
+      background: ${DS.colors.redSubtle};
+      border-color: ${DS.colors.redBorder};
+    }
+    .evaluation-retry {
+      margin-top: 8px;
+      color: ${DS.colors.amber};
+      font-size: 0.875rem;
+    }
+
+    .evaluation-status.cancelled,
+    .evaluation-status.not-assigned {
+      color: ${DS.colors.fg3};
+      background: ${DS.colors.surfaceRaised};
+      border-color: ${DS.colors.border};
+    }
+
+    @media (max-width: 760px) {
+      .evaluation-row {
+        grid-template-columns: 1fr;
+        gap: 8px;
+      }
+      .evaluation-status {
+        justify-self: start;
+      }
+    }
+
     .staff-stats {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -529,37 +563,6 @@ import { MarkdownMathComponent } from '../shared/markdown-math.component';
       border-color: ${DS.colors.redBorder};
       color: ${DS.colors.red};
     }
-    .passkey-box {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 12px 16px;
-      background: ${DS.colors.violetSubtle};
-      border: 1px solid ${DS.colors.violetBorder};
-      border-radius: ${DS.radius.md};
-    }
-    .passkey-label {
-      font-size: 0.6875rem;
-      font-weight: 600;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: ${DS.colors.fg2};
-      margin-bottom: 2px;
-    }
-    .passkey-value {
-      font-family: ${DS.fonts.mono};
-      font-size: 1.5rem;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      color: ${DS.colors.violet};
-    }
-    .passkey-hint {
-      font-size: 0.75rem;
-      color: ${DS.colors.fg3};
-      max-width: 200px;
-      text-align: right;
-    }
     /* Grade & feedback */
     .grade-inner {
       padding: 18px 20px;
@@ -643,6 +646,39 @@ import { MarkdownMathComponent } from '../shared/markdown-math.component';
       resize: vertical;
       outline: none;
     }
+    .desc-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 8px;
+    }
+
+    .desc-header .desc-label {
+      margin-bottom: 0;
+    }
+
+    .assignment-file-link {
+      font-size: 0.8125rem;
+      color: ${DS.colors.violet};
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .assignment-file-link:hover {
+      text-decoration: underline;
+    }
+    .card-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .group-size-note {
+      font-size: 0.75rem;
+      color: ${DS.colors.fg3};
+    }
   `],
 })
 export class AssignmentDetailComponent implements OnInit {
@@ -705,20 +741,89 @@ export class AssignmentDetailComponent implements OnInit {
     return !!group && group.leaderId === this.currentUserId();
   });
 
+  retryError = signal<string | null>(null);
+  requestingRetry = signal<number | null>(null);
+
   statusBadge = computed(() => {
     const sub = this.mySubmission();
     if (!sub) return 'pending' as const;
-    if (sub.status === 'Close' && this.myResponses().length >= (this.assignment()?.req_eval ?? 1)) {
-      const hasUnreplied = this.myResponses().some(r => !r.reply);
-      if (hasUnreplied) return 'reply_needed' as const;
-      return sub.passed ? 'validated' as const : 'failed' as const;
-    }
-    if (sub.status === 'Close') return 'under_review' as const;
-    return 'submitted' as const;
+    if (sub.status !== 'Close') return 'submitted' as const;
+    if (sub.workflowStatus === 'FeedbackRequired') return 'reply_needed' as const;
+    if (sub.passed === true) return 'validated' as const;
+    if (sub.passed === false) return 'failed' as const;
+    return 'under_review' as const;
   });
 
-  evalSlots      = computed(() => Array.from({ length: this.assignment()?.req_eval ?? 3 }, (_, i) => i));
-  completedEvals = computed(() => this.myResponses().length);
+  statusLabel = computed(() => {
+    const sub = this.mySubmission();
+    if (!sub) return 'Not started';
+    if (sub.status === 'Close' && sub.workflowStatus === 'FeedbackRequired') return 'Feedback required';
+    if (sub.status === 'Close' && sub.passed === true) return 'Passed';
+    if (sub.status === 'Close' && sub.passed === false) return 'Failed';
+    return 'In progress';
+  });
+
+  // The backend chooses the current attempt and computes round/assignment
+  // outcomes; this page only joins those IDs to display data.
+  evaluationRows = computed(() => {
+    const summaries = this.mySubmission()?.evaluationRounds ?? [];
+    const pairings = this.myEvaluators();
+    return Array.from({ length: this.assignment()?.req_eval ?? 0 }, (_, i) => {
+      const round = i + 1;
+      const summary = summaries.find(r => r.round === round);
+      return {
+        round,
+        outcome: summary?.displayOutcome ?? 'Pending',
+        waitingForRematch: summary?.waitingForRematch ?? false,
+        pairing: pairings.find(p => p.id === summary?.evalAssignmentId) ?? null,
+      };
+    });
+  });
+
+  feedbackRows = computed(() => {
+    const responses = this.myResponses();
+    const pairings = this.myEvaluators();
+    const rows = this.evaluationRows().flatMap(row => {
+      const attempts = pairings.filter(p => p.round === row.round && p.evalResponseId != null)
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime() || a.id - b.id);
+      if (!attempts.length) return [{ label: `Evaluation ${row.round}`, response: null as EvalResponse | null, outcome: 'Pending' }];
+      return attempts.map((p, i) => ({
+        label: `Evaluation ${row.round}${attempts.length > 1 ? ` · Attempt ${i + 1}` : ''}`,
+        response: responses.find(r => r.id === p.evalResponseId) ?? null,
+        outcome: p.studentOutcome ?? 'Pending',
+      }));
+    });
+    const linkedIds = new Set(pairings.map(p => p.evalResponseId));
+    for (const response of responses.filter(r => !linkedIds.has(r.id))) {
+      rows.push({ label: response.isStaffReview ? 'Staff feedback' : 'Additional feedback', response, outcome: '' });
+    }
+    return rows;
+  });
+
+  requestRetry(pairing: EvalAssignment) {
+    if (this.requestingRetry() !== null) return;
+    this.retryError.set(null);
+    this.requestingRetry.set(pairing.id);
+    this.evalService.requestRetry(pairing.id).subscribe({
+      next: () => {
+        this.requestingRetry.set(null);
+        const id = this.assignment()?.id;
+        if (id) this.loadSubmissions(id);
+      },
+      error: err => {
+        this.requestingRetry.set(null);
+        this.retryError.set(err?.error?.error ?? 'Could not request an evaluation retry.');
+      },
+    });
+  }
+
+  evalPassKey(pairing: EvalAssignment | null): string {
+    if (!pairing) return '—';
+
+    const value = pairing.passKey;
+
+    return value ? String(value) : '—';
+  }
 
   selectedFileMeta = computed(() => {
     const file = this.selectedFile();
@@ -778,6 +883,7 @@ export class AssignmentDetailComponent implements OnInit {
     this.myResponses.set([]);
     this.replyDrafts.set(new Map());
     this.replyError.set(null);
+    this.retryError.set(null);
     this.actionError.set(null);
     this.isEnrolled.set(false);
 

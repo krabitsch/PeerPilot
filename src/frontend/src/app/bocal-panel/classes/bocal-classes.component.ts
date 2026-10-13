@@ -578,7 +578,7 @@ export class BocalClassesComponent implements OnInit {
   openCreateGroup(a: AssignmentResponse): void {
     const ungrouped = this.ungroupedStudentsFor(a);
     this.createGroupAssignment.set(a);
-    this.createGroupName.set(`group${this.groupsFor(a).length + 1}`);
+    this.createGroupName.set(this.nextGroupName(a));
     this.createGroupStudentId.set(ungrouped[0]?.id ?? null);
     this.createGroupError.set(null);
     this.showCreateGroup.set(true);
@@ -608,7 +608,7 @@ export class BocalClassesComponent implements OnInit {
       assId: a.id,
       userId: studentId,
       name,
-      size: 1,
+      size: a.groupSize ?? 1,
     }).subscribe({
       next: group => {
         this.assignmentGroups.update(map => {
@@ -706,7 +706,12 @@ export class BocalClassesComponent implements OnInit {
     });
   }  
 
-private generatedGroupName(index: number): string { return `group${index + 1}`; }
+private nextGroupName(a: AssignmentResponse): string {
+    const names = new Set(this.groupsFor(a).map(g => g.name.trim().toLowerCase()));
+    let index = 1;
+    while (names.has(`group${index}`)) index++;
+    return `group${index}`;
+  }
 
   generateAllGroups(a: AssignmentResponse): void {
     this.groupActionError.set(null);
@@ -720,13 +725,16 @@ private generatedGroupName(index: number): string { return `group${index + 1}`; 
       chunks.push(students.slice(i, i + groupSize));
     }
 
-    const existingGroupCount = this.groupsFor(a).length;
+    const usedNames = new Set(this.groupsFor(a).map(g => g.name.trim().toLowerCase()));
+    let nextIndex = 1;
     this.loading.show();
 
     from(chunks).pipe(
-      concatMap((chunk, chunkIndex) => {
+      concatMap(chunk => {
         const leader = chunk[0];
-        const groupName = this.generatedGroupName(existingGroupCount + chunkIndex);
+        while (usedNames.has(`group${nextIndex}`)) nextIndex++;
+        const groupName = `group${nextIndex++}`;
+        usedNames.add(groupName);
 
         return this.groupService.createGroup({
           assId: a.id,

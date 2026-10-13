@@ -432,7 +432,7 @@
                     <app-btn
                       variant="secondary"
                       size="sm"
-                      [disabled]="groupsFor(a).length > 0 || ungroupedStudentsFor(a).length === 0"
+                      [disabled]="ungroupedStudentsFor(a).length === 0"
                       (clicked)="generateAllGroups(a)">
                       {{ 'bocal_generate_all_groups' | translate }}
                     </app-btn>

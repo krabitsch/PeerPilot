@@ -19,6 +19,7 @@ const validatePasswordStrength = (password) => {
 };
 
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 
 const generateAccessToken = (userId, email) => {
   const expiresIn = process.env.JWT_ACCESS_EXPIRY || '15m';
@@ -30,7 +31,10 @@ const generateAccessToken = (userId, email) => {
 // };
 
 const generateRefreshToken = (userId, email) => {
-    return jwt.sign({ userId, email }, process.env.REFRESH_TOKEN_SECRET, { expiresIn: process.env.JWT_REFRESH_EXPIRY });
+    // jti makes every refresh token unique even when two are issued for the same
+    // user within the same second — otherwise the JWTs are byte-identical and
+    // collide on the refreshToken.tokenHash unique constraint.
+    return jwt.sign({ userId, email, jti: crypto.randomUUID() }, process.env.REFRESH_TOKEN_SECRET, { expiresIn: process.env.JWT_REFRESH_EXPIRY });
 };
 
 const verifyAccessToken = (token) => {
