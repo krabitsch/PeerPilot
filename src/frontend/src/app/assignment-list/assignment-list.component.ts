@@ -79,6 +79,7 @@ type AssignmentStatus =
   | 'in_progress'
   | 'awaiting_review'
   | 'failed'
+  | 'feedback_required'
   | 'passed';
 
 
@@ -124,6 +125,7 @@ interface AssignmentItem {
 const STATUS_VARIANTS:
   Record<AssignmentStatus, BadgeVariant> = {
 
+  feedback_required: 'reply_needed',
   not_started:
     'pending',
 
@@ -144,6 +146,7 @@ const STATUS_VARIANTS:
 const STATUS_LABEL_KEYS:
   Record<AssignmentStatus, string> = {
 
+  feedback_required: 'status_feedback_required',
   not_started:
     'status_not_started',
 
@@ -637,6 +640,8 @@ export class AssignmentListComponent
     if (mine.status === 'Open')
       return 'in_progress';
 
+
+    if (mine.workflowStatus === 'FeedbackRequired') return 'feedback_required';
 
     if (mine.passed === true)
       return 'passed';

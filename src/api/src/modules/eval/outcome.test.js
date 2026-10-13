@@ -6,7 +6,7 @@ const attempt = (round, marks, id = round) => ({
   id, assignmentId: 1, round, createdAt: new Date(id * 1000),
   evaluatorUserId: 10 + id, submissionId: 1, evalResponseId: marks == null ? null : id,
   status: marks == null ? 'Pending' : 'Submitted', retryRequested: false,
-  evalResponse: marks == null ? null : { id, givenMarks: marks, subId: 1, userId: 10 + id, isStaffReview: false },
+  evalResponse: marks == null ? null : { id, givenMarks: marks, subId: 1, userId: 10 + id, isStaffReview: false, reply: 'Response' },
 })
 for (const [label, scores, passed] of [
   ['A: pass + pending + pending', [80, null, null], null],
@@ -58,7 +58,7 @@ test('cancelled, staff, mismatched, and unlinked responses do not satisfy rounds
 })
 
 test('read-time outcomes override premature cached pass without changing finalScore', async () => {
-  const db = { group: { findUnique: async () => ({ assignment, evalAssignmentsAsEvaluee: [attempt(1, 80), attempt(2, null), attempt(3, null)] }) } }
+  const db = { evalResponse: { findMany: async () => [{ givenMarks: 80 }] }, group: { findUnique: async () => ({ assignment, evalAssignmentsAsEvaluee: [attempt(1, 80), attempt(2, null), attempt(3, null)] }) } }
   const result = await submissionOutcome(db, { id: 1, groupId: 1, status: 'Close', passed: true, finalScore: 80 })
   assert.equal(result.passed, null)
   assert.equal(result.finalScore, 80)
@@ -72,4 +72,47 @@ test('several passing attempts in one round cannot substitute for missing requir
   const result = summarizeEvaluationRounds(assignment, [attempt(1, 80), attempt(1, 90, 4), attempt(1, 100, 5)])
   assert.equal(result.passed, null)
   assert.deepEqual(result.evaluationRounds.map(r => r.outcome), ['Passed', 'Pending', 'Pending'])
+})
+
+test('unanswered submitted feedback gates display without altering numerical outcomes', () => {
+  for (const marks of [80, 20]) {
+    const p = attempt(1, marks)
+    p.evalResponse.reply = null
+    const result = summarizeEvaluationRounds({ ...assignment, req_eval: 1 }, [p])
+    assert.equal(result.passed, marks >= 50)
+    assert.equal(result.workflowStatus, 'FeedbackRequired')
+    assert.equal(result.evaluationRounds[0].displayOutcome, 'FeedbackRequired')
+    p.evalResponse.reply = 'Acknowledged'
+    const answered = summarizeEvaluationRounds({ ...assignment, req_eval: 1 }, [p])
+    assert.equal(answered.passed, result.passed)
+    assert.equal(answered.workflowStatus, marks >= 50 ? 'Passed' : 'Failed')
+  }
+})
+
+test('unanswered feedback takes precedence over answered failures, including historical attempts', () => {
+  const awaiting = attempt(2, 80)
+  awaiting.evalResponse.reply = null
+  const result = summarizeEvaluationRounds(assignment, [attempt(1, 20), awaiting, attempt(3, null)])
+  assert.equal(result.passed, false)
+  assert.equal(result.workflowStatus, 'FeedbackRequired')
+})
+
+test('finalScore and numerical pass/fail do not depend on replies', async () => {
+  const p = attempt(1, 80)
+  p.evalResponse.reply = null
+  const a = { ...assignment, req_eval: 1 }
+  const db = {
+    group: { findUnique: async () => ({ assignment: a, evalAssignmentsAsEvaluee: [p] }) },
+    evalResponse: { findMany: async () => [p.evalResponse] },
+  }
+  const sub = { id: 1, groupId: 1, status: 'Close', finalScore: null }
+  const before = await submissionOutcome(db, sub)
+  p.evalResponse.reply = 'Understood'
+  const after = await submissionOutcome(db, sub)
+  assert.equal(before.finalScore, 80)
+  assert.equal(after.finalScore, 80)
+  assert.equal(before.passed, true)
+  assert.equal(after.passed, true)
+  assert.equal(before.workflowStatus, 'FeedbackRequired')
+  assert.equal(after.workflowStatus, 'Passed')
 })

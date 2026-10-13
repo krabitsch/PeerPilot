@@ -1,6 +1,6 @@
 const { prisma } = require('@transcendence/database')
 const crypto = require('crypto')
-const { evaluationOutcome, responseSelect, recomputeSubmissionPassed } = require('./outcome')
+const { evaluationDisplayOutcome, evaluationOutcome, responseSelect, recomputeSubmissionPassed } = require('./outcome')
 const {NotFoundError, ValidationError, ConflictError, UnauthorizedError, ForbiddenError} = require('@transcendence/errors')
 const utils = require('@transcendence/utils')
 const { createStorage } = require('@transcendence/filemanager')
@@ -147,7 +147,7 @@ const getEvalAssignments = async (assignmentId)=>{
   }
 
   const pairings = await utils.getEvalAssignments(assignmentIdInt, select)
-  return pairings.map(pairing => ({ ...pairing, outcome: evaluationOutcome(pairing, assignment) }))
+  return pairings.map(pairing => ({ ...pairing, outcome: evaluationOutcome(pairing, assignment), studentOutcome: evaluationDisplayOutcome(pairing, assignment) }))
 }
 
 // delete all EvalAssignments for one particular assignment.id
@@ -204,7 +204,7 @@ const getEvalAssignmentById = async (evalAssignmentId) => {
     )
 
   const assignment = await utils.getAssignmentById(result.assignmentId)
-  return { ...result, outcome: evaluationOutcome(result, assignment) }
+  return { ...result, outcome: evaluationOutcome(result, assignment), studentOutcome: evaluationDisplayOutcome(result, assignment) }
 }
 
 
@@ -1123,19 +1123,6 @@ const getEvalResponsesForSubmission = async (subId) => {
     })
 }
 
-// Preserve the existing finalScore average of replied-to feedback. It does not
-// determine pass/fail; selecting retry attempts for grades is a future policy.
-const recomputeFinalScore = async (subId) => prisma.$transaction(async tx => {
-    await tx.$queryRaw`SELECT id FROM "submission" WHERE id = ${subId} FOR UPDATE`
-    const replied = await tx.evalResponse.findMany({
-        where: { subId, reply: { not: null } },
-        select: { givenMarks: true }
-    })
-    const finalScore = replied.length ? replied.reduce((sum, r) => sum + r.givenMarks, 0) / replied.length : null
-    await tx.submission.update({ where: { id: subId }, data: { finalScore } })
-    await recomputeSubmissionPassed(tx, subId)
-})
-
 const requestEvaluationRetry = async (evalAssignmentId, userId) => {
     const id = Number(evalAssignmentId)
     if (!Number.isInteger(id) || id <= 0) throw new ValidationError('Invalid evaluation assignment id')
@@ -1148,8 +1135,8 @@ const requestEvaluationRetry = async (evalAssignmentId, userId) => {
             where: { userId_groupId: { userId: Number(userId), groupId: pairing.evalueeGroupId } }
         })
         if (!member) throw new ForbiddenError('Only a member of the evaluee group can request a retry')
-        if (evaluationOutcome(pairing, pairing.assignment) !== 'Failed')
-            throw new ValidationError('Only a submitted, failed evaluation can request a retry')
+        if (evaluationDisplayOutcome(pairing, pairing.assignment) !== 'Failed')
+            throw new ValidationError('Only a submitted, failed evaluation with answered feedback can request a retry')
         await tx.evalAssignment.updateMany({
             where: { id, retryRequested: false, status: 'Submitted' },
             data: { retryRequested: true, retryRequestedAt: new Date() }
@@ -1163,7 +1150,7 @@ const requestEvaluationRetry = async (evalAssignmentId, userId) => {
 const replyToEvalResponse = async (responseId, { userId, reply }) => {
     const responseIdInt = parseInt(responseId)
     const userIdInt = parseInt(userId)
-    if(!responseIdInt || !userIdInt || !validateString(reply))
+    if(!responseIdInt || !userIdInt || !validateString(reply?.trim()))
         throw new ValidationError('userId and reply are required')
 
     const response = await prisma.evalResponse.findUnique({
@@ -1177,14 +1164,11 @@ const replyToEvalResponse = async (responseId, { userId, reply }) => {
     if(response.reply)
         throw new ConflictError('This feedback has already been replied to')
 
-    const updated = await prisma.evalResponse.update({
-        where: { id: responseIdInt },
-        data: { reply }
+    const claimed = await prisma.evalResponse.updateMany({
+        where: { id: responseIdInt, reply: null }, data: { reply: reply.trim() }
     })
-
-    await recomputeFinalScore(response.subId)
-
-    return updated
+    if (claimed.count !== 1) throw new ConflictError('This feedback has already been replied to')
+    return prisma.evalResponse.findUnique({ where: { id: responseIdInt } })
 }
 
 module.exports = {getEvalSheetById, getEvalSheetByAssId, getAssignment, createEvalSheet, createEvalSection,

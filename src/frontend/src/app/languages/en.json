@@ -211,6 +211,8 @@
     "label_dashboard": "Dashboard",
     "label_my_classes": "My classes",
     "label_assignments": "Assignments",
+    "label_evaluator_tasks": "Evaluator tasks",
+    "status_feedback_required": "Feedback required",
     "label_evaluations": "Evaluations",
     "label_progress1": "Progress",
     "label_manage": "Manage",

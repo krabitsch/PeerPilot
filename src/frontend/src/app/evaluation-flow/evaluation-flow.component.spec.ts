@@ -84,6 +84,14 @@ describe('evaluator task overview', () => {
     expect(fixture.nativeElement.querySelector('textarea')).toBeNull();
     expect(fixture.nativeElement.querySelector('#evaluation-passkey')).toBeNull();
   });
+  it('shows the missing evaluee response while the evaluator task remains completed', () => {
+    const completed = overview.tasks[0];
+    component.openTask({ ...completed, evalResponse: { ...completed.evalResponse!, reply: null } });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Response from evaluee');
+    expect(fixture.nativeElement.textContent).toContain('No response has been submitted yet.');
+    expect(component.selectedTask()?.status).toBe('Submitted');
+  });
   it('shows the no-tasks empty state', () => {
     component.tasks.set([]);
     fixture.detectChanges();

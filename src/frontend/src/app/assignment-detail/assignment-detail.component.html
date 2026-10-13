@@ -299,7 +299,9 @@
                   </span>
                 </div>
 
-                @if (row.outcome === 'Passed') {
+                @if (row.outcome === 'FeedbackRequired') {
+                  <div class="evaluation-status pending">Feedback required</div>
+                } @else if (row.outcome === 'Passed') {
                   <div class="evaluation-status passed">✓ Passed</div>
                 } @else if (row.outcome === 'Failed') {
                   <div class="evaluation-status failed">✕ Failed</div>
@@ -307,7 +309,9 @@
                   <div class="evaluation-status pending">◷ Pending</div>
                 }
               </div>
-              @if (row.waitingForRematch) {
+              @if (row.outcome === 'FeedbackRequired') {
+                <div class="evaluation-retry">Please respond to the evaluator's feedback before this evaluation can be finalized.</div>
+              } @else if (row.waitingForRematch) {
                 <div class="evaluation-retry">Waiting to be rematched with a new evaluator.</div>
               } @else if (row.outcome === 'Failed' && row.pairing && !row.pairing.retryRequested) {
                 <div class="evaluation-retry">
@@ -341,7 +345,9 @@
               <div class="feedback-item">
                 <div class="feedback-head">
                   <div class="evaluation-round">{{ row.label }}</div>
-                  @if (row.outcome === 'Passed') {
+                  @if (row.outcome === 'FeedbackRequired') {
+                    <span class="evaluation-status pending">Feedback required</span>
+                  } @else if (row.outcome === 'Passed') {
                     <span class="evaluation-status passed">✓ Passed</span>
                   } @else if (row.outcome === 'Failed') {
                     <span class="evaluation-status failed">✕ Failed</span>
@@ -356,7 +362,7 @@
 
                 @if (r.reply) {
                   <div class="feedback-reply">
-                    <div class="feedback-reply-label">{{ 'label_your_reply' | translate }}</div>
+                    <div class="feedback-reply-label">Your response</div>
                     <p class="feedback-reply-text">{{ r.reply }}</p>
                   </div>
                 } @else if (isLeader()) {

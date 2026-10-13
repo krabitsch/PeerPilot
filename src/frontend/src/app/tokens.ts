@@ -283,14 +283,16 @@ export interface Submission {
   responses?: EvalResponse[];
   finalScore?: number;
   passed?: boolean | null;
+  workflowStatus?: 'FeedbackRequired' | 'Failed' | 'Passed' | 'InProgress';
   evaluationRounds?: EvaluationRoundOutcome[];
 }
 
-export type EvaluationOutcome = 'Pending' | 'Passed' | 'Failed' | 'Cancelled';
+export type EvaluationOutcome = 'Pending' | 'Passed' | 'Failed' | 'Cancelled' | 'FeedbackRequired';
 
 export interface EvaluationRoundOutcome {
   round: number;
   outcome: EvaluationOutcome;
+  displayOutcome: EvaluationOutcome;
   evalAssignmentId: number | null;
   attemptIds: number[];
   hasUnresolvedFailure: boolean;

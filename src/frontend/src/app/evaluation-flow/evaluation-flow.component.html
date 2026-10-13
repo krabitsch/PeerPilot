@@ -77,9 +77,11 @@
           <div class="task-heading">Total score: {{ response.givenMarks }}</div>
           <div class="task-heading">Your feedback</div>
           <p class="feedback-text">{{ response.comment }}</p>
+          <div class="task-heading">Response from evaluee</div>
           @if (response.reply) {
-            <div class="task-heading">Reply from the evaluated student/group</div>
             <p class="feedback-text">{{ response.reply }}</p>
+          } @else {
+            <p class="feedback-text">No response has been submitted yet.</p>
           }
         } @else { <p class="task-meta">Submitted evaluation details are unavailable.</p> }
         <app-btn variant="ghost" (clicked)="backToTasks()">Back to my evaluator tasks</app-btn>

@@ -747,6 +747,7 @@ export class AssignmentDetailComponent implements OnInit {
     const sub = this.mySubmission();
     if (!sub) return 'pending' as const;
     if (sub.status !== 'Close') return 'submitted' as const;
+    if (sub.workflowStatus === 'FeedbackRequired') return 'reply_needed' as const;
     if (sub.passed === true) return 'validated' as const;
     if (sub.passed === false) return 'failed' as const;
     return 'under_review' as const;
@@ -755,6 +756,7 @@ export class AssignmentDetailComponent implements OnInit {
   statusLabel = computed(() => {
     const sub = this.mySubmission();
     if (!sub) return 'Not started';
+    if (sub.status === 'Close' && sub.workflowStatus === 'FeedbackRequired') return 'Feedback required';
     if (sub.status === 'Close' && sub.passed === true) return 'Passed';
     if (sub.status === 'Close' && sub.passed === false) return 'Failed';
     return 'In progress';
@@ -770,7 +772,7 @@ export class AssignmentDetailComponent implements OnInit {
       const summary = summaries.find(r => r.round === round);
       return {
         round,
-        outcome: summary?.outcome ?? 'Pending',
+        outcome: summary?.displayOutcome ?? 'Pending',
         waitingForRematch: summary?.waitingForRematch ?? false,
         pairing: pairings.find(p => p.id === summary?.evalAssignmentId) ?? null,
       };
@@ -787,7 +789,7 @@ export class AssignmentDetailComponent implements OnInit {
       return attempts.map((p, i) => ({
         label: `Evaluation ${row.round}${attempts.length > 1 ? ` · Attempt ${i + 1}` : ''}`,
         response: responses.find(r => r.id === p.evalResponseId) ?? null,
-        outcome: p.outcome ?? 'Pending',
+        outcome: p.studentOutcome ?? 'Pending',
       }));
     });
     const linkedIds = new Set(pairings.map(p => p.evalResponseId));

@@ -13,9 +13,9 @@ const harness = (marks = 20) => {
     submissionId: 3, evalResponseId: marks == null ? null : 10, createdAt: new Date(),
     status: marks == null ? 'Pending' : 'Submitted', assignment, passKey: '482913',
     retryRequested: false, retryRequestedAt: null,
-    evalResponse: marks == null ? null : { id: 10, subId: 3, userId: 4, givenMarks: marks, comment: 'Old feedback' } }
+    evalResponse: marks == null ? null : { id: 10, subId: 3, userId: 4, givenMarks: marks, comment: 'Old feedback', reply: 'Response submitted' } }
   const responses = record.evalResponse ? [record.evalResponse] : []
-  const saved = { id: 3, groupId: 2, status: 'Close', passed: null, finalScore: null, group: { id: 2, name: 'evaluee-group', assId: 1 }, file: null }
+  const saved = { id: 3, groupId: 2, status: 'Close', passed: null, finalScore: marks, group: { id: 2, name: 'evaluee-group', assId: 1 }, file: null }
   const db = {
     evalAssignment: {
       findUnique: async () => record,
@@ -38,7 +38,11 @@ const harness = (marks = 20) => {
       create: async ({ data }) => { const response = { id: 11, ...data }; responses.push(response); return response },
       findUnique: async () => ({ ...responses[0], submission: { group: { leaderId: 5 } } }),
       update: async ({ data }) => Object.assign(responses[0], data),
-      findMany: async () => responses.filter(r => r.reply != null),
+      updateMany: async ({ data }) => {
+        if (responses[0].reply != null) return { count: 0 }
+        Object.assign(responses[0], data); return { count: 1 }
+      },
+      findMany: async () => responses,
     },
     $queryRaw: async () => [],
   }
@@ -98,8 +102,10 @@ test('submission stores one pairing response and updates failure immediately wit
   assert.equal(h.responses.length, 1)
 })
 
-test('feedback reply preserves round failure while retaining legacy finalScore', async () => {
+test('feedback reply does not change the numerical outcome or finalScore', async () => {
   const h = harness(20)
+  h.saved.passed = false
+  h.responses[0].reply = null
   await h.service.replyToEvalResponse(10, { userId: 5, reply: 'Thanks' })
   assert.equal(h.saved.passed, false)
   assert.equal(h.saved.finalScore, 20)
@@ -210,4 +216,15 @@ test('start route ignores forged evaluator identity and obsolete leader email', 
   assert.equal(received.evaluatorUserId, 4)
   assert.equal(received.evalAssignmentId, 1)
   assert.equal('leaderEmail' in received, false)
+})
+
+test('failed feedback must be answered before retry, with duplicate replies rejected', async () => {
+  const h = harness(20)
+  h.responses[0].reply = null
+  await assert.rejects(h.service.requestEvaluationRetry(1, 5), /answered feedback/)
+  await h.service.replyToEvalResponse(10, { userId: 5, reply: 'Understood' })
+  assert.equal(h.saved.finalScore, 20)
+  await assert.rejects(h.service.replyToEvalResponse(10, { userId: 5, reply: 'Again' }), /already been replied/)
+  await h.service.requestEvaluationRetry(1, 5)
+  assert.equal(h.record.retryRequested, true)
 })

@@ -37,7 +37,8 @@ export interface EvalAssignment {
   retryRequested: boolean;
   retryRequestedAt: string | null;
   outcome?: EvaluationOutcome;
-  evalResponse?: { id: number; givenMarks: number; subId: number; userId: number; isStaffReview: boolean } | null;
+  studentOutcome?: EvaluationOutcome;
+  evalResponse?: { id: number; givenMarks: number; subId: number; userId: number; isStaffReview: boolean; reply: string | null } | null;
 
   // Returned directly by the Eval API so student-facing pages
   // do not need another User API request just to display the
