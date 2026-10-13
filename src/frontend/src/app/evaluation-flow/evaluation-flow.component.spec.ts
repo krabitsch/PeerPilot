@@ -113,11 +113,18 @@ describe('evaluator task overview', () => {
     expect(component.phase()).toBe('flow');
     component.setSlider(component.sections()[0], 70);
     component.comment.set('Clear explanation and well supported answers.');
+    // A recording is mandatory before the evaluation can be submitted.
+    const recording = new File(['audio'], 'evaluation.webm', { type: 'audio/webm' });
+    component.recording.set(recording);
     component.submit();
     fixture.detectChanges();
+    // The evaluator's identity comes from the auth token, so it is not sent in
+    // the body; the recording is uploaded as part of the multipart request.
     expect(api.submitEvaluation).toHaveBeenCalledWith({
-      evalAssignmentId: 1, evaluatorUserId: 4,
-      comment: 'Clear explanation and well supported answers.', scores: [{ sectionId: 1, score: 70 }],
+      evalAssignmentId: 1,
+      comment: 'Clear explanation and well supported answers.',
+      scores: [{ sectionId: 1, score: 70 }],
+      recording,
     });
     expect(component.submitted()).toBe(true);
   });
