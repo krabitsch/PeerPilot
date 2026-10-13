@@ -86,6 +86,11 @@ const createStorage = (bucket) => {
       return url.replace(internalOrigin, publicBase)
     },
 
+    // Readable stream of an object, for piping straight into a response or an
+    // archive without buffering the whole file in memory.
+    getStream: (fileName) =>
+      client.getObject(bucket, fileName),
+
     delete: (fileName) =>
       client.removeObject(bucket, fileName),
 

@@ -142,10 +142,13 @@ const uploadFile = async (groupId, userId, reqFile)=>{
         include: {file: true}})
 }
 
-const getDownloadUrl = async(groupId, userId)=>{
-    if(!groupId || !userId) 
+// Staff (teachers) may download any group's submission for grading/export, so
+// they skip the group-membership check students are held to.
+const getDownloadUrl = async(groupId, { userId, isStaff } = {})=>{
+    if(!groupId || !userId)
         throw new ValidationError('Invalid Request')
-    await validateGroupMember(groupId, userId)
+    if(!isStaff)
+        await validateGroupMember(groupId, userId)
     const existingSub = await utils.getLastSubmission(groupId, {file: true})
     if(!existingSub) throw new NotFoundError('Submission not found')
     if(!existingSub.file) throw new NotFoundError('File not found')

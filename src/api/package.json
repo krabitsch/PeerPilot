@@ -6,7 +6,8 @@
   "type": "commonjs",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "node --watch src/index.js"
+    "dev": "node --watch src/index.js",
+    "test": "node --test"
   },
   "license": "ISC",
   "dependencies": {
@@ -16,6 +17,7 @@
     "@transcendence/filemanager": "*",
     "@transcendence/logger": "*",
     "@transcendence/utils": "*",
+    "archiver": "^7.0.1",
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",

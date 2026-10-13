@@ -131,6 +131,51 @@
 
       </div>
 
+
+      <!-- Downloads (teacher exports) -->
+
+      <div class="downloads-toolbar">
+
+        <button
+          type="button"
+          class="download-btn primary"
+          [disabled]="downloading() !== null"
+          (click)="downloadArchive()">
+          @if (downloading() === 'archive') {
+            Preparing ZIP…
+          } @else {
+            ⬇ Download all (ZIP)
+          }
+        </button>
+
+        <label class="download-toggle">
+          <input
+            type="checkbox"
+            [checked]="includeRecordings()"
+            (change)="toggleRecordings($any($event.target).checked)" />
+          Include recordings
+        </label>
+
+        <button
+          type="button"
+          class="download-btn"
+          [disabled]="downloading() !== null"
+          (click)="downloadCsv()">
+          @if (downloading() === 'csv') {
+            Preparing CSV…
+          } @else {
+            ⬇ Evaluations (CSV)
+          }
+        </button>
+
+      </div>
+
+      @if (downloadError()) {
+        <div class="error-message">
+          {{ downloadError() }}
+        </div>
+      }
+
     </section>
 
 
@@ -256,7 +301,17 @@
                 </td>
 
                 <td class="student-group">
-                  {{ student.groupName }}
+                  <span>{{ student.groupName }}</span>
+                  @if (student.groupId !== null) {
+                    <button
+                      type="button"
+                      class="row-download"
+                      title="Download this group's submission"
+                      aria-label="Download this group's submission"
+                      (click)="downloadSubmission(student.groupId)">
+                      ⬇
+                    </button>
+                  }
                 </td>
 
 
@@ -266,15 +321,17 @@
 
                   <td class="progress-cell">
 
-                    @if (cell.kind === 'complete') {
-                      <span class="complete" title="Completed">
+                    @if (cell.kind === 'evaluated') {
+                      <span class="complete" title="Evaluated">
                         ✓
                       </span>
-                    } @else if (cell.kind === 'pending') {
-                      <span
-                        class="status-clock"
-                        title="Pending"
-                        aria-label="Pending">
+                    } @else if (cell.kind === 'submitted') {
+                      <span class="submitted" title="Submitted — awaiting evaluation">
+                        ●
+                      </span>
+                    } @else if (cell.kind === 'notSubmitted') {
+                      <span class="not-submitted" title="Not submitted yet">
+                        ○
                       </span>
                     } @else {
                       <span class="not-assigned" title="Not assigned">
@@ -339,6 +396,26 @@
 
 
       <div class="table-legend">
+
+        <span class="legend-title">As evaluee:</span>
+
+        <span class="complete">✓</span>
+        Evaluated
+
+        <span class="submitted">●</span>
+        Submitted
+
+        <span class="not-submitted">○</span>
+        Not submitted yet
+
+        <span class="not-assigned">—</span>
+        Not assigned
+
+      </div>
+
+      <div class="table-legend">
+
+        <span class="legend-title">As evaluator:</span>
 
         <span class="complete">✓</span>
         Completed
