@@ -30,7 +30,6 @@ const S = {
   assignmentId: null,
   idByEmail: {},        // email -> user id
   emailById: {},        // user id -> email
-  passkeyByEmail: {},   // student email -> their group's submission passkey
 }
 
 test.describe.serial('full lifecycle, bottom-up through the UI', () => {
@@ -229,10 +228,13 @@ test.describe.serial('full lifecycle, bottom-up through the UI', () => {
       await expect(page.getByText('work.pdf')).toBeVisible()
       await page.getByRole('button', { name: 'Close submission' }).click()
 
-      await expect(page.getByText('Eval passkey')).toBeVisible()
-      const passkey = (await page.getByRole('main').textContent()).match(/Eval passkey\s*(\d{6})/)?.[1]
-      expect(passkey, `${email} got a passkey`).toBeTruthy()
-      S.passkeyByEmail[email] = passkey
+      // Closing records the submission. Per-pairing passkeys are issued later,
+      // once the teacher generates pairings, so none is shown at close time.
+      await expect.poll(async () =>
+        (await db().submission.findFirst({
+          where: { group: { assId: S.assignmentId, leaderId: S.idByEmail[email] } },
+        }))?.status,
+      ).toBe('Close')
       await context.close()
     }
   })
@@ -255,15 +257,19 @@ test.describe.serial('full lifecycle, bottom-up through the UI', () => {
   test('every evaluator completes both rounds with a recording', async ({ browser }) => {
     const pairings = await db().evalAssignment.findMany({ where: { assignmentId: S.assignmentId } })
     const groups = await db().group.findMany({ where: { assId: S.assignmentId } })
-    const leaderOf = Object.fromEntries(groups.map(g => [g.id, S.emailById[g.leaderId]]))
+    const users = await db().user.findMany({ where: { id: { in: Object.values(S.idByEmail) } } })
+    const nameById = Object.fromEntries(users.map(u => [u.id, u.username]))
+    // Each solo evaluee group's student username — used to pick the right task
+    // row, since passkeys are now per pairing (evalAssignment.passKey).
+    const evalueeNameOf = Object.fromEntries(groups.map(g => [g.id, nameById[g.leaderId]]))
 
     // Group the pairings by the evaluator so each person signs in once.
     const byEvaluator = {}
     for (const p of pairings) {
       const evaluator = S.emailById[p.evaluatorUserId]
       ;(byEvaluator[evaluator] ??= []).push({
-        evalueeEmail: leaderOf[p.evalueeGroupId],
-        passkey: S.passkeyByEmail[leaderOf[p.evalueeGroupId]],
+        evalueeName: evalueeNameOf[p.evalueeGroupId],
+        passkey: p.passKey,
         evalueeGroupId: p.evalueeGroupId,
         round: p.round,
       })
@@ -273,9 +279,14 @@ test.describe.serial('full lifecycle, bottom-up through the UI', () => {
       const { page, context } = await freshContext(browser, evaluator, PW)
       for (const job of jobs) {
         await page.goto('/evaluation')
-        await page.getByPlaceholder('leader@example.com').fill(job.evalueeEmail)
+        // Open this specific pending task (matched by round + evaluee), enter its
+        // per-pairing passkey, then start the evaluation.
+        const taskCard = page.locator('app-container')
+          .filter({ hasText: `Evaluation Task ${job.round}` })
+          .filter({ hasText: job.evalueeName })
+        await taskCard.getByRole('button', { name: 'Start evaluation →' }).click()
         await page.getByPlaceholder('482913').fill(job.passkey)
-        await page.getByRole('button', { name: 'Continue' }).click()
+        await page.getByRole('button', { name: 'Start evaluation', exact: true }).click()
         await expect(page.getByRole('heading', { name: 'Peer evaluation' })).toBeVisible()
 
         await page.getByRole('slider').fill('45')
