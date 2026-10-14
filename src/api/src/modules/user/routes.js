@@ -1,9 +1,22 @@
 const express = require('express')
 const userService = require('./service')
-const { requireRole, requireSelfOrStaff } = require('../../middleware/authenticate')
+const { requireStaff, requireRole, requireSelfOrStaff } = require('../../middleware/authenticate')
 
 const router = express.Router()
 const {uploader} = require('@transcendence/filemanager')
+
+router.get('/me/staff-dashboard', requireStaff, async (req, res, next) => {
+  try {
+    res.json(await require('./staff-dashboard').getStaffDashboard(req.user.orgId))
+  } catch (err) { next(err) }
+})
+
+// Self-only summary; identity comes from the authenticated token, not a URL ID.
+router.get('/me/learning-summary', async (req, res, next) => {
+  try {
+    res.json(await require('./learning-summary').getLearningSummary(req.user.userId))
+  } catch (err) { next(err) }
+})
 
 router.post('/:id/avatar', requireSelfOrStaff('id'), uploader.single('avatar'), async (req, res, next) => {
   try {

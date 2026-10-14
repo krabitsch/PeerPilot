@@ -129,3 +129,17 @@ Because `fileManager` is S3-compatible:
   are kept indefinitely as the teacher's proof.
 - (Only if we ever switch to managed storage) provider choice — R2 vs B2 vs S3,
   driven by where we host and budget.
+
+## Registry access failure during startup
+
+If Quay returns `401 Unauthorized` while pulling the pinned MinIO image, this
+is a registry-access failure, not a PostgreSQL or application build failure.
+Do not remove volumes or reseed the database to address it.
+
+The Compose image can be overridden through `MINIO_IMAGE` in `src/.env`.
+For temporary local recovery, an explicitly chosen, already-cached image can
+be used without changing the repository default. Verify that it includes `mc`,
+which the healthcheck and file backup script require. A community image changes
+the supplier; select it deliberately rather than silently substituting one.
+Restore the stack with `docker compose -f src/docker-compose.yml up -d --pull never`
+when all required images are already cached. Existing named volumes are reused.

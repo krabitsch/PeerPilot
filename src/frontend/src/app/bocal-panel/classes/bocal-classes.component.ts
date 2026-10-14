@@ -119,6 +119,7 @@ export class BocalClassesComponent implements OnInit {
     this.route.queryParams.subscribe(params => {
     const classId = parseInt(params['classId'], 10);
     const wantsAssignments = params['view'] === 'assignments';
+    this.expandedAssignment.set(Number(params['groupAssignmentId']) || null);
 
     // Explicit classId always wins.
     if (classId) {

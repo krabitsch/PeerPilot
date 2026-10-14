@@ -1,6 +1,6 @@
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { NgStyle } from '@angular/common';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { DS } from '../tokens';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { AvatarComponent } from '../shared/avatar.component';
@@ -130,6 +130,7 @@ import { MarkdownMathComponent } from '../shared/markdown-math.component';
 })
 export class EvaluationFlowComponent implements OnInit {
   router  = inject(Router);
+  private route = inject(ActivatedRoute);
   private auth         = inject(AuthService);
   private evalService  = inject(EvalService);
   private loading      = inject(LoadingService);
@@ -164,7 +165,11 @@ export class EvaluationFlowComponent implements OnInit {
     };
   });
 
-  ngOnInit() { this.loadOverview(); }
+  ngOnInit() {
+    const id = Number(this.route.snapshot.queryParamMap.get('classId'));
+    if (id) this.courseId.set(id);
+    this.loadOverview();
+  }
 
   loadOverview() {
     this.tasksLoading.set(true);

@@ -1,5 +1,5 @@
 import { TestBed, ComponentFixture } from '@angular/core/testing';
-import { Router } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, Router } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { of } from 'rxjs';
 import { EvaluationFlowComponent } from './evaluation-flow.component';
@@ -32,6 +32,7 @@ describe('evaluator task overview', () => {
       imports: [EvaluationFlowComponent, TranslateModule.forRoot()],
       providers: [
         { provide: AuthService, useValue: { user: () => ({ id: 4 }) } },
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap({}) } } },
         { provide: Router, useValue: { navigate: () => {} } },
         { provide: LoadingService, useValue: { show: () => {}, hide: () => {} } },
         { provide: EvalService, useValue: api },

@@ -116,7 +116,8 @@ export const routes: Routes = [
     canActivate: [authGuard, bocalGuard],
     loadComponent: () => import('./bocal-panel/bocal-panel.component').then(m => m.BocalPanelComponent),
     children: [
-      { path: '', redirectTo: 'classes', pathMatch: 'full' },
+      { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
+      { path: 'dashboard', loadComponent: () => import('./bocal-panel/dashboard/bocal-dashboard.component').then(m => m.BocalDashboardComponent) },
       {
         path: 'classes',
         loadComponent: () => import('./bocal-panel/classes/bocal-classes.component').then(m => m.BocalClassesComponent),

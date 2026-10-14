@@ -1,0 +1,25 @@
+:host { display: block; }
+.learning-page { padding: 32px; max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; box-sizing: border-box; }
+.section-label { display: block; font-size: .75rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: oklch(72% .15 200); margin-bottom: 8px; }
+h1, h2, h3 { font-family: 'Space Grotesk', sans-serif; color: oklch(94% .005 272); margin: 0; overflow-wrap: anywhere; }
+h1 { font-size: 1.75rem; letter-spacing: -.03em; }
+h2 { font-size: 1.15rem; margin-bottom: 8px; }
+h3 { font-size: 1rem; }
+.card-content { padding: 22px 24px; }
+.muted, .description { color: oklch(68% .01 272); font-size: .875rem; line-height: 1.6; }
+.description { margin: 8px 0 0; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.course-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 280px); gap: 24px; }
+select { width: 100%; background: oklch(10% .025 272); color: oklch(94% .005 272); border: 1px solid oklch(27% .03 272); border-radius: 8px; padding: 10px; font: inherit; font-size: .875rem; }
+.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 18px; margin: 16px 0; }
+.metric-number { color: oklch(94% .005 272); font-family: 'Space Grotesk', sans-serif; font-size: 1.65rem; font-weight: 600; }
+.action-row, .result-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid oklch(22% .025 272); }
+.action-row:last-child, .result-row:last-child { border-bottom: 0; }
+.action-text { color: oklch(94% .005 272); font-size: .875rem; }
+.assignment-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; margin-bottom: 14px; }
+.result-row { font-size: .875rem; color: oklch(68% .01 272); }
+.results { margin: 16px 0; }
+.notice { color: oklch(75% .18 80); font-size: .875rem; }
+.error { color: oklch(70% .2 25); }
+.empty { padding: 12px 0; color: oklch(68% .01 272); font-size: .875rem; }
+.shortcut { margin-top: 16px; }
+@media(max-width: 700px) { .learning-page { padding: 20px 16px; } .course-grid { grid-template-columns: 1fr; } .card-content { padding: 18px; } .action-row, .assignment-head { flex-direction: column; align-items: flex-start; } .result-row { flex-wrap: wrap; } }
