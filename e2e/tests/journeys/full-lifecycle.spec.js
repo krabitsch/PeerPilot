@@ -3,7 +3,7 @@
 //   promotes one to Bocal → the teacher builds a class, enrols students, creates
 //   an assignment (with a subject file + eval sheet) and a group per student →
 //   students submit → the teacher generates pairings → two rounds of peer
-//   evaluations, each with a recording upload.
+//   evaluations, followed by evaluee feedback and recording uploads.
 //
 // Unlike the other journeys, this one does NOT use the seeded dataset: it builds
 // everything itself (only the seeded `admin` session is reused, to start from a
@@ -254,7 +254,7 @@ test.describe.serial('full lifecycle, bottom-up through the UI', () => {
     await context.close()
   })
 
-  test('every evaluator completes both rounds with a recording', async ({ browser }) => {
+  test('evaluators score both rounds and evaluees upload recordings with feedback', async ({ browser }) => {
     const pairings = await db().evalAssignment.findMany({ where: { assignmentId: S.assignmentId } })
     const groups = await db().group.findMany({ where: { assId: S.assignmentId } })
     const users = await db().user.findMany({ where: { id: { in: Object.values(S.idByEmail) } } })
@@ -295,7 +295,6 @@ test.describe.serial('full lifecycle, bottom-up through the UI', () => {
           .fill(`Round ${job.round}: solid work overall, a few things to tighten up.`)
 
         const submit = page.getByRole('button', { name: 'Submit evaluation' })
-        await page.locator('input[accept="audio/*"]').setInputFiles(sampleAudioUpload())
         await expect(submit).toBeEnabled()
         await submit.click()
 
@@ -308,7 +307,24 @@ test.describe.serial('full lifecycle, bottom-up through the UI', () => {
       await context.close()
     }
 
-    // Every pairing is submitted, and every evaluation carries a recording.
+    // Evaluees complete each response with their feedback and recording.
+    for (const email of STUDENTS) {
+      const { page, context } = await freshContext(browser, email, PW)
+      await page.goto(`/assignment-detail?assId=${S.assignmentId}`)
+      const forms = page.locator('.feedback-reply-form')
+      await expect(forms).toHaveCount(2)
+      for (let round = 0; round < 2; round++) {
+        const form = forms.first()
+        await form.locator('textarea').fill('Thank you, I understand the feedback and will address it.')
+        await expect(form.getByRole('button', { name: 'Reply' })).toBeDisabled()
+        await form.locator('input[accept="audio/*"]').setInputFiles(sampleAudioUpload())
+        await form.getByRole('button', { name: 'Reply' }).click()
+        await expect(forms).toHaveCount(1 - round)
+      }
+      await context.close()
+    }
+
+    // Every pairing is submitted, and every completed feedback response carries a recording.
     const done = await db().evalAssignment.findMany({ where: { assignmentId: S.assignmentId } })
     expect(done).toHaveLength(STUDENTS.length * 2)
     for (const p of done) expect(p.status, 'pairing submitted').toBe('Submitted')

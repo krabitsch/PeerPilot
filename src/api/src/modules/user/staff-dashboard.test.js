@@ -10,7 +10,7 @@ const { buildStaffDashboard, getStaffDashboard } = moduleStub.exports
 const user = { id: 5, username: 'student42' }
 const assignment = { id:1,name:'Assignment 1',created_at:'2026-10-01',description:'',fileId:null,req_eval:1,max_score:100,pass_threshold:50,evalSheet:null,groups:[],evalAssignments:[] }
 const course = a => ({ id:1,name:'Course',description:'Description',term:'Fall 2026',enrollments:[{user}],assignments:[a] })
-const failed = { id:1,assignmentId:1,evalueeGroupId:2,evaluatorUserId:6,round:1,status:'Submitted',submissionId:3,evalResponseId:4,createdAt:'2026-10-02',retryRequested:true,retryRequestedAt:'2026-10-03',evalResponse:{id:4,userId:6,subId:3,givenMarks:20,reply:'Understood',isStaffReview:false} }
+const failed = { id:1,assignmentId:1,evalueeGroupId:2,evaluatorUserId:6,round:1,status:'Submitted',submissionId:3,evalResponseId:4,createdAt:'2026-10-02',retryRequested:true,retryRequestedAt:'2026-10-03',evalResponse:{id:4,userId:6,subId:3,givenMarks:20,recordingFileId:1,reply:'Understood',isStaffReview:false} }
 const grouped = { ...assignment, description:'Instructions',evalSheet:{sections:[{marks:100}]},groups:[{id:2,members:[{user}]}],evalAssignments:[failed] }
 test('missing instructions, empty evaluation sheets and unassigned students are actionable', () => {
   const result=buildStaffDashboard([course(assignment)])

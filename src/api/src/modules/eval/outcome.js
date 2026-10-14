@@ -11,7 +11,7 @@ const evaluationOutcome = (pairing, assignment) => {
 
 const evaluationDisplayOutcome = (pairing, assignment) => {
   const outcome = evaluationOutcome(pairing, assignment)
-  return (outcome === 'Passed' || outcome === 'Failed') && !pairing.evalResponse.reply?.trim()
+  return (outcome === 'Passed' || outcome === 'Failed') && (!pairing.evalResponse.reply?.trim() || !pairing.evalResponse.recordingFileId)
     ? 'FeedbackRequired' : outcome
 }
 
@@ -39,10 +39,10 @@ const summarizeEvaluationRounds = (assignment, pairings) => {
     rounds.length > 0 && rounds.every(r => r.outcome === 'Passed') ? true : null
   const workflowStatus = rounds.some(r => r.displayOutcome === 'FeedbackRequired') ? 'FeedbackRequired' :
     passed === false ? 'Failed' : passed === true ? 'Passed' : 'InProgress'
-  return { passed, workflowStatus, evaluationRounds: rounds }
+  return { passed: workflowStatus === 'FeedbackRequired' && passed === true ? null : passed, workflowStatus, evaluationRounds: rounds }
 }
 
-const responseSelect = { id: true, givenMarks: true, subId: true, userId: true, isStaffReview: true, reply: true }
+const responseSelect = { id: true, givenMarks: true, subId: true, userId: true, isStaffReview: true, reply: true, recordingFileId: true }
 
 // Read-time derivation prevents old cached Submission.passed values from leaking
 // into either student page after pairing/threshold changes.

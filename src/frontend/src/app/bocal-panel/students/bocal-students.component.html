@@ -93,13 +93,17 @@
     [items]="filteredMembers()"
     [trackBy]="memberTrackFn"
     [emptyMessage]="'bocal_no_members_match_filters' | translate"
-    [pageSize]="50">
+    [pageSize]="150">
     <ng-template let-m>
       <div style="padding:14px 18px;display:flex;justify-content:space-between;align-items:center">
         <div style="display:flex;align-items:center;gap:10px">
           <app-avatar [name]="m.username" [size]="28"/>
           <div>
-            <div style="font-weight:600;font-size:0.9375rem;color:oklch(94% 0.005 272)">{{ m.username }}</div>
+            @if (m.role === 'Student') {
+              <button type="button" (click)="openStudent(m)" [ngStyle]="studentLinkStyle">{{ m.username }}</button>
+            } @else {
+              <div style="font-weight:600;font-size:0.9375rem;color:oklch(94% 0.005 272)">{{ m.username }}</div>
+            }
             <div style="font-size:0.8125rem;color:oklch(48% 0.01 272)">{{ m.email }}</div>
           </div>
         </div>
@@ -113,5 +117,34 @@
       </div>
     </ng-template>
   </app-list>
+
+  @if (selectedStudent(); as student) {
+    <div [ngStyle]="detailsOverlayStyle" (click)="selectedStudent.set(null)">
+      <section role="dialog" aria-modal="true" aria-labelledby="student-details-title" cdkTrapFocus [cdkTrapFocusAutoCapture]="true" [ngStyle]="detailsCardStyle" (click)="$event.stopPropagation()" (keydown.escape)="selectedStudent.set(null)">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:16px">
+          <h2 id="student-details-title" style="margin:0;font-size:1.25rem">{{ student.username }}</h2>
+          <button type="button" cdkFocusInitial [ngStyle]="studentLinkStyle" (click)="selectedStudent.set(null)">Close</button>
+        </div>
+        <p>{{ student.email }} · Joined {{ student.created_at | date:'mediumDate' }}</p>
+        @if (studentDetailsLoading()) {
+          <p>Loading student details…</p>
+        } @else if (studentDetailsError()) {
+          <p>{{ studentDetailsError() }}</p>
+        } @else {
+          <p>Choose an assignment to view group membership, submission, grades and evaluations.</p>
+          @for (course of studentCourses(); track course.id) {
+            <h3 style="font-size:1rem;margin-bottom:8px">{{ course.name }}</h3>
+            @for (assignment of course.assignments; track assignment.id) {
+              <a [routerLink]="['/bocal/analytics/student']" [queryParams]="{classId: course.id, assId: assignment.id, studentId: student.id}" [ngStyle]="studentLinkStyle" style="display:block;margin:10px 0">{{ assignment.name }}</a>
+            } @empty {
+              <p>No assignments in this course yet.</p>
+            }
+          } @empty {
+            <p>This student is not enrolled in any courses.</p>
+          }
+        }
+      </section>
+    </div>
+  }
 
 </div>

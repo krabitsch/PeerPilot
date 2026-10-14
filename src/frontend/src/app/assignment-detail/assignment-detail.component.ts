@@ -726,6 +726,8 @@ export class AssignmentDetailComponent implements OnInit {
   myResponses  = signal<EvalResponse[]>([]);
   replyDrafts  = signal<Map<number, string>>(new Map());
   replyError   = signal<string | null>(null);
+  replyRecordings = signal<Map<number, File>>(new Map());
+  replying = signal(false);
 
   // Staff state
   allSubs = signal<Submission[]>([]);
@@ -882,6 +884,7 @@ export class AssignmentDetailComponent implements OnInit {
     this.myEvaluators.set([]);
     this.myResponses.set([]);
     this.replyDrafts.set(new Map());
+    this.replyRecordings.set(new Map());
     this.replyError.set(null);
     this.retryError.set(null);
     this.actionError.set(null);
@@ -993,17 +996,35 @@ export class AssignmentDetailComponent implements OnInit {
     });
   }
 
+  onReplyRecordingSelected(responseId: number, event: Event) {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    this.replyRecordings.update(map => {
+      const next = new Map(map);
+      if (file) next.set(responseId, file); else next.delete(responseId);
+      return next;
+    });
+  }
+
   submitReply(response: EvalResponse) {
+    if (this.replying()) return;
     const userId = this.currentUserId();
-    const reply = this.replyDraft(response.id).trim();
+    const reply = (this.replyDraft(response.id) || response.reply || "").trim();
+    const recording = this.replyRecordings().get(response.id);
     if (!userId) return;
     if (!reply) { this.replyError.set(this.translate.instant('error_reply_required')); return; }
 
+    if (!response.isStaffReview && !response.recordingFile && !recording) {
+      this.replyError.set('Upload the evaluation recording with your feedback response.');
+      return;
+    }
     this.replyError.set(null);
+    this.replying.set(true);
     this.loading.show();
-    this.evalService.replyToResponse(response.id, { userId, reply }).subscribe({
+    this.evalService.replyToResponse(response.id, { userId, reply, recording }).subscribe({
       next: (updated) => {
-        this.myResponses.update(list => list.map(r => r.id === updated.id ? { ...r, reply: updated.reply } : r));
+        this.replying.set(false);
+        this.myResponses.update(list => list.map(r => r.id === updated.id ? { ...r, ...updated } : r));
+        this.replyRecordings.update(map => { const next = new Map(map); next.delete(response.id); return next; });
         this.replyDrafts.update(map => { const m = new Map(map); m.delete(response.id); return m; });
         const assId = this.assignment()?.id;
         // loadSubmissions hides the loading indicator itself once it settles (refreshes finalScore/passed too).
@@ -1011,6 +1032,7 @@ export class AssignmentDetailComponent implements OnInit {
         else this.loading.hide();
       },
       error: (err) => {
+        this.replying.set(false);
         this.replyError.set(err?.error?.error ?? 'Failed to submit reply.');
         this.loading.hide();
       },

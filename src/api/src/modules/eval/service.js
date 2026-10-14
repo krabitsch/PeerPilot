@@ -1039,7 +1039,7 @@ const startEvaluation = async ({ evalAssignmentId, evaluatorUserId, passkey }) =
   }
 }
 
-const submitEvaluation = async ({evalAssignmentId, evaluatorUserId, comment, scores, recording})=>{
+const submitEvaluation = async ({evalAssignmentId, evaluatorUserId, comment, scores})=>{
     const evalAssignmentIdInt = parseInt(evalAssignmentId)
     const evaluatorUserIdInt = parseInt(evaluatorUserId)
     if(!evalAssignmentIdInt || !evaluatorUserIdInt || !validateString(comment) || !Array.isArray(scores) || scores.length === 0)
@@ -1080,19 +1080,7 @@ const submitEvaluation = async ({evalAssignmentId, evaluatorUserId, comment, sco
             throw new ValidationError(`"${section.name}" is a yes/no section — score must be 0 or ${section.marks}`)
     }
 
-    // The audio recording is mandatory — the professor's proof the evaluation
-    // happened. Checked after identity/state so a non-evaluator is refused
-    // (401) rather than prompted for a file.
-    if(!recording || !recording.buffer)
-        throw new ValidationError('A recording of the evaluation is required')
-
     const givenMarks = scores.reduce((sum, s) => sum + parseInt(s.score), 0)
-
-    // Store the recording object first; the File row + link are created in the
-    // transaction below. (A failed transaction leaves an orphan object, which
-    // can be swept later — acceptable for an audit artifact.)
-    const objectKey = `${evalAssignment.submissionId}-${evaluatorUserIdInt}-${Date.now()}-${recording.originalname}`
-    await recordingStorage.upload(objectKey, recording.buffer, recording.mimetype, recording.size)
 
     const response = await prisma.$transaction(async (tx) => {
         // Serialize outcome recomputation for concurrent evaluations of one submission.
@@ -1103,23 +1091,12 @@ const submitEvaluation = async ({evalAssignmentId, evaluatorUserId, comment, sco
         })
         if (claimed.count !== 1) throw new ConflictError('This evaluation has already been submitted')
 
-        const file = await tx.file.create({
-            data: {
-                name: recording.originalname,
-                mimiType: recording.mimetype,
-                size: recording.size,
-                url: objectKey,
-                uploadedBy: evaluatorUserIdInt,
-            }
-        })
-
         const evalResponse = await tx.evalResponse.create({
             data: {
                 subId: evalAssignment.submissionId,
                 userId: evaluatorUserIdInt,
                 givenMarks,
                 comment,
-                recordingFileId: file.id,
                 scores: { create: scores.map(s => ({ sectionId: parseInt(s.sectionId), score: parseInt(s.score) })) }
             },
             include: { scores: true }
@@ -1234,29 +1211,48 @@ const requestEvaluationRetry = async (evalAssignmentId, userId) => {
     })
 }
 
-// The group leader replies to feedback; this has no effect on evaluation pass/fail.
-const replyToEvalResponse = async (responseId, { userId, reply }) => {
+// The evaluee group leader completes feedback with a reply and recording.
+const replyToEvalResponse = async (responseId, { userId, reply, recording }) => {
     const responseIdInt = parseInt(responseId)
     const userIdInt = parseInt(userId)
-    if(!responseIdInt || !userIdInt || !validateString(reply?.trim()))
+    if (!responseIdInt || !userIdInt || !validateString(reply?.trim()))
         throw new ValidationError('userId and reply are required')
 
     const response = await prisma.evalResponse.findUnique({
         where: { id: responseIdInt },
         include: { submission: { include: { group: true } } }
     })
-    if(!response)
-        throw new NotFoundError('Eval response not found')
-    if(response.submission.group.leaderId !== userIdInt)
+    if (!response) throw new NotFoundError('Eval response not found')
+    if (response.submission.group.leaderId !== userIdInt)
         throw new UnauthorizedError('Only the group leader can reply to this feedback')
-    if(response.reply)
+    if (response.reply && (response.isStaffReview || response.recordingFileId))
         throw new ConflictError('This feedback has already been replied to')
+    if (!response.isStaffReview && !response.recordingFileId && !recording?.buffer)
+        throw new ValidationError('Upload the evaluation recording with your feedback response')
 
-    const claimed = await prisma.evalResponse.updateMany({
-        where: { id: responseIdInt, reply: null }, data: { reply: reply.trim() }
+    let objectKey
+    if (!response.isStaffReview && !response.recordingFileId) {
+        await recordingReady
+        objectKey = `${response.subId}-${response.id}-${userIdInt}-${crypto.randomUUID()}`
+        await recordingStorage.upload(objectKey, recording.buffer, recording.mimetype, recording.size)
+    }
+    return prisma.$transaction(async tx => {
+        await tx.$queryRaw`SELECT id FROM "submission" WHERE id = ${response.subId} FOR UPDATE`
+        const claimed = await tx.evalResponse.updateMany({
+            where: { id: responseIdInt, reply: response.reply, recordingFileId: response.recordingFileId },
+            data: { reply: reply.trim() }
+        })
+        if (claimed.count !== 1) throw new ConflictError('This feedback has already been replied to')
+        if (objectKey) {
+            const file = await tx.file.create({ data: {
+                name: recording.originalname, mimiType: recording.mimetype, size: recording.size,
+                url: objectKey, uploadedBy: userIdInt,
+            } })
+            await tx.evalResponse.update({ where: { id: responseIdInt }, data: { recordingFileId: file.id } })
+        }
+        await recomputeSubmissionPassed(tx, response.subId)
+        return tx.evalResponse.findUnique({ where: { id: responseIdInt }, include: { recordingFile: { select: { id: true, name: true } } } })
     })
-    if (claimed.count !== 1) throw new ConflictError('This feedback has already been replied to')
-    return prisma.evalResponse.findUnique({ where: { id: responseIdInt } })
 }
 
 module.exports = {getEvalSheetById, getEvalSheetByAssId, getAssignment, createEvalSheet, createEvalSection,

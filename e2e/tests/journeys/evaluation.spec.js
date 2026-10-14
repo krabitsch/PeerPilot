@@ -48,9 +48,7 @@ test('Dave evaluates Carol, and Carol replies to the feedback', async ({ browser
   await dave.getByRole('button', { name: /^Yes/ }).click()
   await dave.getByPlaceholder('Describe what was done well and what could be improved...').fill(feedback)
 
-  // The recording is required — submit stays disabled until one is attached.
-  await expect(submit, 'still disabled without a recording').toBeDisabled()
-  await dave.locator('input[accept="audio/*"]').setInputFiles(sampleAudioUpload())
+  await expect(dave.locator('input[accept="audio/*"]')).toHaveCount(0)
   await expect(submit).toBeEnabled()
   await submit.click()
 
@@ -59,7 +57,20 @@ test('Dave evaluates Carol, and Carol replies to the feedback', async ({ browser
   ).toBe('Submitted')
   const response = await db().evalResponse.findFirst({ where: { userId: seeded().users.dave } })
   expect(response).toMatchObject({ givenMarks: 85, comment: feedback })   // 45 + 40
-  expect(response.recordingFileId, 'a recording is stored with the evaluation').toBeTruthy()
+  expect(response.recordingFileId, 'evaluator submits without a recording').toBeNull()
+
+  // ── Carol reads it and replies ──
+  const carol = await pageAs(browser, 'carol')
+  await carol.goto(`/assignment-detail?assId=${seeded().assignments.peer}`)
+  await expect(carol.getByText(feedback)).toBeVisible()
+  await carol.getByPlaceholder('Reply to this feedback...').fill('Thanks, Dave — fixed the edge case you spotted.')
+  await expect(carol.getByRole('button', { name: 'Reply' })).toBeDisabled()
+  await carol.locator('input[accept="audio/*"]').setInputFiles(sampleAudioUpload())
+  await carol.getByRole('button', { name: 'Reply' }).click()
+  await expect(carol.getByText('Thanks, Dave — fixed the edge case you spotted.')).toBeVisible()
+
+  const recorded = await db().evalResponse.findUnique({ where: { id: response.id }, include: { recordingFile: true } })
+  expect(recorded.recordingFile.uploadedBy).toBe(seeded().users.carol)
 
   // The recording is reachable by the evaluator, the evaluated group, and staff,
   // but not by an unrelated student.
@@ -68,15 +79,7 @@ test('Dave evaluates Carol, and Carol replies to the feedback', async ({ browser
   expect((await fetchRecording('bocal', response.id)).url, 'staff can play it').toBeTruthy()
   expect((await fetchRecording('bob', response.id)).ok, 'an outsider cannot').toBe(false)
 
-  // ── Carol reads it and replies ──
-  const carol = await pageAs(browser, 'carol')
-  await carol.goto(`/assignment-detail?assId=${seeded().assignments.peer}`)
-  await expect(carol.getByText(feedback)).toBeVisible()
-  await carol.getByPlaceholder('Reply to this feedback...').fill('Thanks, Dave — fixed the edge case you spotted.')
-  await carol.getByRole('button', { name: 'Reply' }).click()
-  await expect(carol.getByText('Thanks, Dave — fixed the edge case you spotted.')).toBeVisible()
-
-  // Replying is what triggers the final grade.
+  // The evaluee's reply and recording complete the feedback step.
   await expect.poll(async () =>
     (await db().submission.findFirst({ where: { groupId: seeded().groups.carol } })).finalScore,
   ).toBe(85)

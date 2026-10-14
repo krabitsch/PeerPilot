@@ -358,7 +358,7 @@
                 }
               </div>
               @if (row.outcome === 'FeedbackRequired') {
-                <div class="evaluation-retry">Please respond to the evaluator's feedback before this evaluation can be finalized.</div>
+                <div class="evaluation-retry">Please respond to the evaluator's feedback and upload the evaluation recording before this evaluation can be finalized.</div>
               } @else if (row.waitingForRematch) {
                 <div class="evaluation-retry">Waiting to be rematched with a new evaluator.</div>
               } @else if (row.outcome === 'Failed' && row.pairing && !row.pairing.retryRequested) {
@@ -417,13 +417,19 @@
                     <div class="feedback-reply-label">Your response</div>
                     <p class="feedback-reply-text">{{ r.reply }}</p>
                   </div>
-                } @else if (isLeader()) {
+                }
+                @if (isLeader() && (!r.reply || (!r.isStaffReview && !r.recordingFile))) {
                   <div class="feedback-reply-form">
                     <textarea class="feedback-reply-input"
-                              [value]="replyDraft(r.id)"
+                              [value]="replyDraft(r.id) || r.reply || ''"
                               (input)="setReplyDraft(r.id, $any($event.target).value)"
                               [placeholder]="'placeholder_reply_feedback' | translate"></textarea>
-                    <app-btn variant="secondary" size="sm" (clicked)="submitReply(r)">{{ 'btn_reply' | translate }}</app-btn>
+                    @if (!r.isStaffReview && !r.recordingFile) {
+                      <label class="feedback-reply-label" [for]="'reply-recording-' + r.id">Evaluation recording (required)</label>
+                      <p class="hint-text">Upload an audio recording of your evaluation together with your response. Both are required before receiving a passing grade or requesting another attempt.</p>
+                      <input type="file" [id]="'reply-recording-' + r.id" accept="audio/*" (change)="onReplyRecordingSelected(r.id, $event)" />
+                    }
+                    <app-btn variant="secondary" size="sm" [disabled]="replying() || !(replyDraft(r.id) || r.reply || '').trim() || (!r.isStaffReview && !r.recordingFile && !replyRecordings().has(r.id))" (clicked)="submitReply(r)">{{ 'btn_reply' | translate }}</app-btn>
                   </div>
                 }
                 } @else {

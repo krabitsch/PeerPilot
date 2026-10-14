@@ -19,7 +19,7 @@ const enrollment = { externalCourseCode: '1421', class: { id: 1, name: 'Course',
 const pairing = (round, score, id = round) => ({ id, assignmentId: 1, evalueeGroupId: 2, evaluatorUserId: 10 + id,
   submissionId: 3, evalResponseId: score == null ? null : id, round, createdAt: new Date(id * 1000), retryRequested: false,
   status: score == null ? 'Pending' : 'Submitted', evalResponse: score == null ? null : {
-    id, subId: 3, userId: 10 + id, givenMarks: score, reply: 'Answered', isStaffReview: false }
+    id, subId: 3, userId: 10 + id, givenMarks: score, recordingFileId: 1, reply: 'Answered', isStaffReview: false }
 })
 for (const [name, scores, status] of [
   ['D: one pass, two pending', [80, null, null], 'InProgress'],

@@ -13,9 +13,10 @@ const harness = (marks = 20) => {
     submissionId: 3, evalResponseId: marks == null ? null : 10, createdAt: new Date(),
     status: marks == null ? 'Pending' : 'Submitted', assignment, passKey: '482913',
     retryRequested: false, retryRequestedAt: null,
-    evalResponse: marks == null ? null : { id: 10, subId: 3, userId: 4, givenMarks: marks, comment: 'Old feedback', reply: 'Response submitted' } }
+    evalResponse: marks == null ? null : { id: 10, subId: 3, userId: 4, givenMarks: marks, comment: 'Old feedback', recordingFileId: 1, reply: 'Response submitted' } }
   const responses = record.evalResponse ? [record.evalResponse] : []
   const saved = { id: 3, groupId: 2, status: 'Close', passed: null, finalScore: marks, group: { id: 2, name: 'evaluee-group', assId: 1 }, file: null }
+  const files = []
   const db = {
     evalAssignment: {
       findUnique: async () => record,
@@ -38,12 +39,13 @@ const harness = (marks = 20) => {
       create: async ({ data }) => { const response = { id: 11, ...data }; responses.push(response); return response },
       findUnique: async () => ({ ...responses[0], submission: { group: { leaderId: 5 } } }),
       update: async ({ data }) => Object.assign(responses[0], data),
-      updateMany: async ({ data }) => {
-        if (responses[0].reply != null) return { count: 0 }
+      updateMany: async ({ where, data }) => {
+        if (responses[0].reply !== where.reply || responses[0].recordingFileId !== where.recordingFileId) return { count: 0 }
         Object.assign(responses[0], data); return { count: 1 }
       },
       findMany: async () => responses,
     },
+    file: { create: async ({ data }) => { const file = { id: 42, ...data }; files.push(file); return file } },
     $queryRaw: async () => [],
   }
   db.$transaction = async action => action(db)
@@ -53,13 +55,14 @@ const harness = (marks = 20) => {
       if (name === '@transcendence/database') return { prisma: db }
       if (name === '@transcendence/errors') return errors
       if (name === '@transcendence/utils') return { getEvalAssignmentById: async () => record, getAssignmentById: async () => assignment }
-      if (name === '@transcendence/filemanager') return { createStorage: () => ({}) }
+      if (name === '@transcendence/filemanager') return { recordingUploader: { single: () => () => {} }, createStorage: () => ({ ensureBucket: async () => {}, upload: async () => {} }) }
+      if (name === '@transcendence/logger') return { error() {} }
       if (name === './outcome') return outcome
       if (name === 'crypto') return require('node:crypto')
       throw new Error('Unexpected import: ' + name)
     },
   })
-  return { service: module.exports, record, responses, saved }
+  return { service: module.exports, record, responses, saved, files }
 }
 
 test('E/F: member requests retry; repeated requests preserve timestamp and failed response', async () => {
@@ -121,6 +124,7 @@ test('retry route uses authenticated user, ignoring a forged body userId', async
   let actualUser
   vm.runInNewContext(fs.readFileSync(__dirname + '/routes.js', 'utf8'), {
     module: { exports: {} }, require: name => {
+      if (name === '@transcendence/filemanager') return { recordingUploader: { single: () => () => {} } }
       if (name === 'express') return { Router: () => router }
       if (name === './service') return { requestEvaluationRetry: async (id, userId) => { actualUser = userId; return { id } } }
       if (name === '../../middleware/authenticate') return { requireStaff: () => {} }
@@ -185,7 +189,8 @@ test('A/E: evaluator task query scopes identity and enrollments without passkeys
       if (name === '@transcendence/database') return { prisma: database }
       if (name === '@transcendence/errors') return errors
       if (name === '@transcendence/utils') return {}
-      if (name === '@transcendence/filemanager') return { createStorage: () => ({}) }
+      if (name === '@transcendence/filemanager') return { recordingUploader: { single: () => () => {} }, createStorage: () => ({ ensureBucket: async () => {}, upload: async () => {} }) }
+      if (name === '@transcendence/logger') return { error() {} }
       if (name === './outcome') return outcome
       return require(name)
     },
@@ -206,6 +211,7 @@ test('start route ignores forged evaluator identity and obsolete leader email', 
   let received
   vm.runInNewContext(fs.readFileSync(__dirname + '/routes.js', 'utf8'), {
     module: { exports: {} }, require: name => {
+      if (name === '@transcendence/filemanager') return { recordingUploader: { single: () => () => {} } }
       if (name === 'express') return { Router: () => router }
       if (name === './service') return { startEvaluation: async data => { received = data; return {} } }
       if (name === '../../middleware/authenticate') return { requireStaff: () => {} }
@@ -227,4 +233,30 @@ test('failed feedback must be answered before retry, with duplicate replies reje
   await assert.rejects(h.service.replyToEvalResponse(10, { userId: 5, reply: 'Again' }), /already been replied/)
   await h.service.requestEvaluationRetry(1, 5)
   assert.equal(h.record.retryRequested, true)
+})
+
+
+const recording = { buffer: Buffer.from('audio'), originalname: 'evaluation.webm', mimetype: 'audio/webm', size: 5 }
+test('evaluee must attach recording to feedback and uploader identity is the evaluee', async () => {
+  const h = harness(20)
+  h.responses[0].reply = null
+  h.responses[0].recordingFileId = null
+  await assert.rejects(h.service.replyToEvalResponse(10, { userId: 5, reply: 'Understood' }), /Upload the evaluation recording/)
+  await assert.rejects(h.service.replyToEvalResponse(10, { userId: 4, reply: 'Understood', recording }), /Only the group leader/)
+  // File creation uses the authenticated evaluee, never the original evaluator.
+  const updated = await h.service.replyToEvalResponse(10, { userId: 5, reply: 'Understood', recording })
+  assert.equal(updated.recordingFileId, 42)
+  assert.equal(h.files[0].uploadedBy, 5)
+  assert.equal(updated.reply, 'Understood')
+  await h.service.requestEvaluationRetry(1, 5)
+  assert.equal(h.record.retryRequested, true)
+})
+
+test('historical reply missing recording can be completed without discarding feedback', async () => {
+  const h = harness(20)
+  h.responses[0].recordingFileId = null
+  await assert.rejects(h.service.requestEvaluationRetry(1, 5), /answered feedback/)
+  await h.service.replyToEvalResponse(10, { userId: 5, reply: 'Response submitted', recording })
+  assert.equal(h.responses[0].recordingFileId, 42)
+  assert.equal(h.responses[0].comment, 'Old feedback')
 })

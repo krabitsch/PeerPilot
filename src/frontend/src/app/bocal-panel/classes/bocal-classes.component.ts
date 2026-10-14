@@ -288,7 +288,9 @@ export class BocalClassesComponent implements OnInit {
     }).subscribe({
       next: ({ students, assignments }) => {
         this.classStudents.set(students);
-        this.classAssignments.set(assignments);
+        this.classAssignments.set([...assignments].sort((a, b) =>
+          a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }) || a.id - b.id
+        ));
 
         if (assignments.length === 0) {
           this.loading.hide();

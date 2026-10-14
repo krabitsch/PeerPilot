@@ -247,14 +247,8 @@ export class EvalService {
   }
 
 
-    // A recording of the evaluation is required; the request is multipart.
-    submitEvaluation(data: { evalAssignmentId: number, comment: string, scores: { sectionId: number, score: number }[], recording: File }) {
-        const form = new FormData()
-        form.append('evalAssignmentId', String(data.evalAssignmentId))
-        form.append('comment', data.comment)
-        form.append('scores', JSON.stringify(data.scores))
-        form.append('recording', data.recording)
-        return this.http.post<SubmitEvaluationResponse>(`${this.base}/evaluate/submit`, form)
+    submitEvaluation(data: { evalAssignmentId: number, comment: string, scores: { sectionId: number, score: number }[] }) {
+        return this.http.post<SubmitEvaluationResponse>(`${this.base}/evaluate/submit`, data)
     }
 
     // Presigned URL to play/download an evaluation's recording (access-gated server-side).
@@ -449,11 +443,12 @@ export class EvalService {
     data: {
       userId: number;
       reply: string;
+      recording?: File;
     }
   ) {
-    return this.http.patch<EvalResponse>(
-      `${this.base}/responses/${responseId}/reply`,
-      data
-    );
+    const form = new FormData();
+    form.append('reply', data.reply);
+    if (data.recording) form.append('recording', data.recording);
+    return this.http.patch<EvalResponse>(`${this.base}/responses/${responseId}/reply`, form);
   }
 }

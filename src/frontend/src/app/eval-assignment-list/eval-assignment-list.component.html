@@ -5,12 +5,10 @@
       <h1 [ngStyle]="h1Style">{{ 'eval_pairings_title' | translate }}</h1>
 
       @if (assignmentName()) {
-        <p [ngStyle]="sublineStyle">
-          {{ 'label_assignment_colon' | translate }} <strong>{{ assignmentName() }}</strong>
+        <h2 [ngStyle]="assignmentHeadingStyle">{{ assignmentName() }}</h2>
           @if (courseName()) {
-            · {{ 'label_course_colon' | translate }} <strong>{{ courseName() }}</strong>
+            <p [ngStyle]="sublineStyle">{{ 'label_course_colon' | translate }} <strong>{{ courseName() }}</strong></p>
           }
-        </p>
       } @else if (assignmentId()) {
         <p [ngStyle]="sublineStyle">{{ 'label_assignment_id' | translate:{id: assignmentId()} }}</p>
       } @else {

@@ -688,7 +688,7 @@ rate limit.
 | `tests/api/platform.spec.js` | Health, the login rate limit, removed routes stay removed |
 | `tests/journeys/auth.spec.js` | Sign in per role, wrong password, invite-only registration that activates immediately (no email step), admin password reset, the login page offering no OAuth or forgot-password, sign out |
 | `tests/journeys/student.spec.js` | Dashboard, classes, the full submission flow through to the passkey, profile editing |
-| `tests/journeys/evaluation.spec.js` | A student evaluates another group by passkey (uploading the required recording); the group leader replies; the final grade is computed; recording access is gated |
+| `tests/journeys/evaluation.spec.js` | A student evaluates another group by passkey; the evaluated group leader replies and uploads the required recording; passing and retry are gated until both are present; recording access is gated |
 | `tests/journeys/bocal.spec.js` | Creating classes, assignments with eval sheets, and groups for students |
 | `tests/journeys/admin.spec.js` | Creating organisations, whitelisting and revoking registration invites |
 
@@ -996,10 +996,10 @@ status. (This is a known wart, kept for frontend compatibility.)
 | PUT    | `/eval-assignments/:id`                    | Update pairing                          |
 | DELETE | `/eval-assignments/:id`                    | Delete pairing                          |
 | POST   | `/evaluate/start`                          | Start evaluation (passkey + email)      |
-| POST   | `/evaluate/submit`                         | Submit scores, feedback, and the required audio recording (multipart) |
+| POST   | `/evaluate/submit`                         | Evaluator submits scores and feedback (JSON) |
 | GET    | `/submission/:subId/responses`             | Get all feedback for a submission       |
 | GET    | `/responses/:id/recording`                 | Presigned download of an eval's recording (staff / evaluator / evaluated group) |
-| PATCH  | `/responses/:id/reply`                     | Leader replies to evaluator feedback    |
+| PATCH  | `/responses/:id/reply`                     | Evaluated group leader submits reply and required audio recording (multipart)|
 
 ---
 

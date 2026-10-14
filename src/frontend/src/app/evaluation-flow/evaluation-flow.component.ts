@@ -222,7 +222,6 @@ export class EvaluationFlowComponent implements OnInit {
   submitted = signal(false);
   sectionScores = signal<Map<number, number | null>>(new Map());
   comment  = signal('');
-  recording = signal<File | null>(null);
   submitError = signal<string | null>(null);
 
   sections   = computed(() => this.session()?.evalSheet.sections ?? []);
@@ -230,12 +229,7 @@ export class EvaluationFlowComponent implements OnInit {
   allScored  = computed(() => this.sections().every(s => this.sectionScores().get(s.id) != null));
   totalScore = computed(() => [...this.sectionScores().values()].reduce((sum: number, v) => sum + (v ?? 0), 0));
   commentOk  = computed(() => this.comment().trim().length >= 20);
-  canSubmit  = computed(() => this.allScored() && this.commentOk() && this.recording() != null);
-
-  onRecordingSelected(event: Event) {
-    const input = event.target as HTMLInputElement;
-    this.recording.set(input.files?.[0] ?? null);
-  }
+  canSubmit  = computed(() => this.allScored() && this.commentOk());
 
   scoreColor = computed(() => {
     const max = this.maxScore();
@@ -307,7 +301,6 @@ export class EvaluationFlowComponent implements OnInit {
       evalAssignmentId: session.evalAssignmentId,
       comment: this.comment().trim(),
       scores,
-      recording: this.recording()!,
     }).subscribe({
       next: () => {
         this.loading.hide();

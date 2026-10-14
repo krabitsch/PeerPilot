@@ -14,6 +14,7 @@ import { GroupService } from '../core/services/group-service/group-service';
 
 import { NgStyle } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { DS } from '../tokens';
 
 
 // as a frontend display shape I want: 
@@ -321,6 +322,7 @@ export class EvalAssignmentListComponent implements OnInit {
   readonly overlineStyle = { fontSize: '0.75rem', textTransform: 'uppercase' as const, letterSpacing: '0.08em',
     opacity: '0.75', marginBottom: '6px', };
   readonly sublineStyle = { margin: '6px 0 0', opacity: '0.75', fontSize: '0.9rem', };
+  readonly assignmentHeadingStyle = { margin: '16px 0 0', fontFamily: DS.fonts.display, fontSize: '1.25rem', fontWeight: '600', color: DS.colors.fg1 };
   readonly actionsStyle = { display: 'flex', gap: '10px', flexWrap: 'wrap' as const, };
   readonly errorBannerStyle = { border: '1px solid #f0aaaa', background: '#fff0f0', color: '#9f1d1d',
     borderRadius: '8px', padding: '10px 14px', fontSize: '0.875rem', };

@@ -132,9 +132,8 @@ route.post('/evaluate/start', async (req, res, next) => {
     }catch(err){next(err)}
 })
 
-// Multipart: a required audio recording ('recording') plus the comment and
-// scores. scores arrives as a JSON string in the form body.
-route.post('/evaluate/submit', recordingUploader.single('recording'), async (req, res, next) => {
+// Evaluators submit scores and comments; evaluees upload the recording when replying.
+route.post('/evaluate/submit', async (req, res, next) => {
     try{
         let scores = req.body.scores
         if (typeof scores === 'string') {
@@ -145,7 +144,6 @@ route.post('/evaluate/submit', recordingUploader.single('recording'), async (req
             comment: req.body.comment,
             scores,
             evaluatorUserId: req.user.userId,
-            recording: req.file,
         }))
     }catch(err){next(err)}
 })
@@ -166,9 +164,9 @@ route.get('/responses/:id/recording', async (req, res, next) => {
 })
 
 // group leader replies to one piece of eval feedback (PATCH /api/eval/responses/:id/reply)
-route.patch('/responses/:id/reply', async (req, res, next) => {
+route.patch('/responses/:id/reply', recordingUploader.single('recording'), async (req, res, next) => {
     try{
-        res.json(await service.replyToEvalResponse(req.params.id, { ...req.body, userId: req.user.userId }))
+        res.json(await service.replyToEvalResponse(req.params.id, { ...req.body, userId: req.user.userId, recording: req.file }))
     }catch(err){next(err)}
 })
 
