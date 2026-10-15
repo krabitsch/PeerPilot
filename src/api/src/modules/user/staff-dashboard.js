@@ -12,10 +12,12 @@ const buildStaffDashboard = courses => {
         ...base, id: `${kind}:${assignment.id}`, kind, label, route, queryParams, ...extra,
       })
       if (!assignment.description?.trim() && !assignment.fileId)
-        add('instructions', `Add instructions for ${assignment.name}.`, '/bocal/assignment-create', { assId: assignment.id })
+        add('instructions', `Provide assignment instructions for ${assignment.name} (description or file).`, '/bocal/assignment-create', { assId: assignment.id })
       const sections = assignment.evalSheet?.sections ?? []
-      if (!sections.length)
+      if (!assignment.evalSheet)
         add('sheet', `Create the evaluation sheet for ${assignment.name}.`, '/bocal/assignment-create', { assId: assignment.id })
+      else if (!sections.length)
+        add('sheet', `Finish the evaluation sheet for ${assignment.name}: add evaluation sections.`, '/bocal/assignment-create', { assId: assignment.id })
       else if (sections.reduce((n, s) => n + s.marks, 0) !== assignment.max_score)
         add('sheet', `Finish the evaluation sheet for ${assignment.name}: section marks do not total ${assignment.max_score}.`, '/bocal/assignment-create', { assId: assignment.id })
       const grouped = new Set(assignment.groups.flatMap(g => g.members.map(m => m.user.id)))
@@ -46,7 +48,9 @@ const buildStaffDashboard = courses => {
           '/eval-assignments', { assignmentId: assignment.id })
     }
   }
-  actions.sort((a, b) => new Date(b.occurredAt) - new Date(a.occurredAt) || b.assignmentId - a.assignmentId || a.id.localeCompare(b.id))
+  const preparationOrder = { instructions: 0, sheet: 1, groups: 2, 'groups-capacity': 2, pairings: 3, rematch: 4 }
+  actions.sort((a, b) => a.courseId - b.courseId || a.assignmentId - b.assignmentId ||
+    preparationOrder[a.kind] - preparationOrder[b.kind] || a.id.localeCompare(b.id))
   return {
     courses: courses.map(c => ({ id: c.id, name: c.name, description: c.description, term: c.term })), actions,
   }

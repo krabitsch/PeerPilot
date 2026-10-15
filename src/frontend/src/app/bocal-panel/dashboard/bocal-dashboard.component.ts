@@ -33,7 +33,7 @@ export interface StaffDashboardData {
         <app-container [config]="card"><div class="card-content">
           <div class="section-label">Action required · {{ actions().length }}</div>
           @if (!actions().length) { <div class="empty">You're all caught up.</div> }
-          @for (action of actions().slice(0, expanded() ? actions().length : 8); track action.id) {
+          @for (action of actions(); track action.id) {
             <div class="action-row">
               <div><div class="action-text">{{ action.label }}</div><div class="muted">Course: {{ action.courseName }}</div>
                 @if (action.kind === 'rematch') { <div class="muted">Requested {{ action.occurredAt | date:'medium' }}</div> }
@@ -41,7 +41,6 @@ export interface StaffDashboardData {
               <app-btn variant="secondary" size="sm" (clicked)="open(action)">{{ action.kind === 'rematch' ? 'Review pairing →' : 'Open →' }}</app-btn>
             </div>
           }
-          @if (actions().length > 8) { <div class="shortcut"><app-btn variant="ghost" size="sm" (clicked)="expanded.set(!expanded())">{{ expanded() ? 'Show fewer' : 'Show all actions' }}</app-btn></div> }
         </div></app-container>
         <div class="muted">Actions update automatically when instructions, evaluation sheets, groups or pairings are completed. Rematch requests clear when a replacement pairing exists or the round passes.</div>
       }
@@ -54,7 +53,7 @@ export class BocalDashboardComponent implements OnInit {
   private router = inject(Router);
   data = signal<StaffDashboardData>({ courses: [], actions: [] });
   loading = signal(false); error = signal<string | null>(null);
-  courseId = signal<number | null>(null); expanded = signal(false);
+  courseId = signal<number | null>(null);
   selectedCourse = computed(() => this.data().courses.find(c => c.id === this.courseId()) ?? null);
   actions = computed(() => this.data().actions.filter(a => this.courseId() === null || a.courseId === this.courseId()));
   readonly card: ContainerConfig = { variant: 'flat', height: 'auto', scrollable: false };
@@ -66,6 +65,6 @@ export class BocalDashboardComponent implements OnInit {
       error: err => { this.error.set(err?.error?.error ?? 'Could not load staff actions.'); this.loading.set(false); },
     });
   }
-  selectCourse(value: string) { this.courseId.set(value ? Number(value) : null); this.expanded.set(false); }
+  selectCourse(value: string) { this.courseId.set(value ? Number(value) : null); }
   open(action: StaffDashboardData['actions'][number]) { this.router.navigate([action.route], { queryParams: action.queryParams }); }
 }

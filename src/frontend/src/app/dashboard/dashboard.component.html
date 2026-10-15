@@ -6,15 +6,17 @@
   } @else {
     <app-container [config]="card"><div class="card-content">
       <div class="section-label">Action required</div>
-      @if (actions().length === 0) { <div class="empty">You're all caught up.</div> }
+      @if (actions().length === 0) {
+        <div class="empty">{{ information().length ? 'No action required from you right now.' : "You're all caught up." }}</div>
+      }
       @for (action of actions().slice(0, 4); track action.label) {
         <div class="action-row"><span class="action-text">{{ action.label }}</span><app-btn variant="secondary" size="sm" (clicked)="openAction(action)">Open →</app-btn></div>
       }
       @if (actions().length > 4) { <div class="shortcut"><span class="muted">{{ actions().length - 4 }} more actions.</span> <app-btn variant="ghost" size="sm" (clicked)="assignments()">View assignments →</app-btn></div> }
-      @if (waitingCount()) {
+      @if (information().length) {
         <div class="shortcut">
-          <div class="section-label">Info</div>
-          <p class="muted">{{ waitingCount() }} {{ waitingCount() === 1 ? 'assignment' : 'assignments' }} waiting for staff to rematch an evaluator.</p>
+          <div class="section-label">Info — no action needed</div>
+          @for (item of information(); track item.id) { <p class="muted">{{ item.label }}</p> }
         </div>
       }
     </div></app-container>

@@ -1,4 +1,5 @@
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
+import { AssignmentInstructionsComponent } from './assignment-instructions.component';
 import { DecimalPipe } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { of } from 'rxjs';
@@ -25,7 +26,7 @@ import { MarkdownMathComponent } from '../shared/markdown-math.component';
 @Component({
   selector: 'app-assignment-detail',
   standalone: true,
-  imports: [DecimalPipe, ContainerComponent, BadgeComponent, BtnComponent, AvatarComponent, ScorePillComponent, TranslateModule, MarkdownMathComponent],
+  imports: [AssignmentInstructionsComponent, DecimalPipe, ContainerComponent, BadgeComponent, BtnComponent, AvatarComponent, ScorePillComponent, TranslateModule, MarkdownMathComponent],
   templateUrl: './assignment-detail.component.html',
   styles: [`
     .page {

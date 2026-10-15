@@ -48,4 +48,12 @@ describe('Bocal dashboard', () => {
     expect(fixture.nativeElement.textContent).toContain('Forbidden');
     expect(fixture.nativeElement.textContent).not.toContain("You're all caught up.");
   });
+  it('does not hide assignment preparation warnings behind an eight-item limit', () => {
+    const fixture=TestBed.createComponent(BocalDashboardComponent);fixture.detectChanges();
+    const actions=Array.from({length:10},(_,i)=>({...data.actions[1],id:`sheet:${i}`,kind:'sheet',label:`Create the evaluation sheet for Assignment ${i}.`}));
+    TestBed.inject(HttpTestingController).expectOne('/api/user/me/staff-dashboard').flush({...data,actions});fixture.detectChanges();
+    expect(fixture.nativeElement.querySelectorAll('.action-row').length).toBe(10);
+    expect(fixture.nativeElement.textContent).toContain('Create the evaluation sheet for Assignment 9.');
+  });
+
 });

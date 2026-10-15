@@ -7,7 +7,7 @@ export interface LearningAssignment {
   id: number; name: string; created_at: string; status: LearningStatus;
   groupAssigned: boolean; canReply: boolean; submissionState: 'NotSubmitted' | 'Open' | 'Submitted';
   completed: boolean; retryAvailable: boolean;
-  evaluationRounds: { round: number; displayOutcome: EvaluationOutcome; waitingForRematch: boolean; passedAfterRetry: boolean }[];
+  evaluationRounds: { round: number; displayOutcome: EvaluationOutcome; waitingForRematch: boolean; pairingPending?: boolean; passedAfterRetry: boolean }[];
   evaluatorAssigned: number; evaluatorCompleted: number; evaluatorPending: number;
 }
 export interface LearningCourse {
@@ -43,6 +43,27 @@ export function dashboardActions(course: LearningCourse | null) {
   if (pending) actions.unshift({ label: `${pending} evaluator ${pending === 1 ? 'task is' : 'tasks are'} waiting`, route: '/evaluation', queryParams: { classId: course!.id } });
   return actions;
 }
+export function dashboardInformation(course: LearningCourse | null) {
+  const information: { id: string; label: string }[] = [];
+  for (const assignment of course?.assignments ?? []) {
+    if (!assignment.groupAssigned) {
+      information.push({ id: `group:${assignment.id}`, label: `Group assignment for ${assignment.name} is pending.` });
+      continue;
+    }
+    for (const round of assignment.evaluationRounds) {
+      const context = `${assignment.name} — Round ${round.round}`;
+      if (round.waitingForRematch) {
+        information.push({ id: `rematch:${assignment.id}:${round.round}`, label: `Rematching with a new evaluator for ${context} is pending.` });
+      } else if (round.pairingPending) {
+        information.push({ id: `pairing:${assignment.id}:${round.round}`, label: `Evaluation pairing for ${context} is pending.` });
+      } else if (round.displayOutcome === 'FeedbackRequired' && !assignment.canReply) {
+        information.push({ id: `reply:${assignment.id}:${round.round}`, label: `Your group leader needs to respond to evaluator feedback for ${context}.` });
+      }
+    }
+  }
+  return information;
+}
+
 @Injectable({ providedIn: 'root' })
 export class LearningSummaryService {
   private http = inject(HttpClient);

@@ -18,7 +18,7 @@ const buildLearningSummary = (enrollments, pairings, evaluatorTasks, userId) => 
             (new Date(p.createdAt) < new Date(current.createdAt) ||
               (+new Date(p.createdAt) === +new Date(current.createdAt) && p.id < current.id)))
           return { round: round.round, displayOutcome: round.displayOutcome,
-            waitingForRematch: round.waitingForRematch, passedAfterRetry }
+            waitingForRematch: round.waitingForRematch, pairingPending: round.attemptIds.length === 0, passedAfterRetry }
         })
         const tasks = evaluatorTasks.filter(t => t.assignmentId === assignment.id && t.status !== 'Cancelled')
         const status = !submission ? 'NotStarted' : submission.status !== 'Close' ? 'InProgress' : summary.workflowStatus

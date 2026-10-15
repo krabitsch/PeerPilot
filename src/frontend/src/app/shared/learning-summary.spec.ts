@@ -6,7 +6,7 @@ import { TranslateModule } from '@ngx-translate/core';
 import { DashboardComponent } from '../dashboard/dashboard.component';
 import { ProgressComponent } from '../progress/progress.component';
 import { AuthService } from '../services/auth.service';
-import { LearningAssignment, LearningCourse, LearningSummaryService, dashboardActions, courseMetrics } from '../core/services/learning-summary.service';
+import { LearningAssignment, LearningCourse, LearningSummaryService, dashboardActions, courseMetrics, dashboardInformation } from '../core/services/learning-summary.service';
 const assignment = (id = 1): LearningAssignment => ({
   id, name: `Assignment ${id}`, created_at: '2026-10-01', status: 'NotStarted', groupAssigned: false, canReply: true,
   submissionState: 'NotSubmitted', completed: false, retryAvailable: false,
@@ -35,16 +35,16 @@ describe('student dashboard and progress', () => {
   }
   it('A/F: dashboard is caught up while rematch is informational', () => {
     const fixture = TestBed.createComponent(DashboardComponent); fixture.detectChanges();
-    flush([course([{ ...assignment(), status: 'Failed', submissionState: 'Submitted', evaluationRounds: [{ round: 1, displayOutcome: 'Failed', waitingForRematch: true, passedAfterRetry: false }] }])]);
+    flush([course([{ ...assignment(), status: 'Failed', groupAssigned: true, submissionState: 'Submitted', evaluationRounds: [{ round: 1, displayOutcome: 'Failed', waitingForRematch: true, passedAfterRetry: false }] }])]);
     fixture.detectChanges();
-    expect(fixture.nativeElement.textContent).toContain("You're all caught up.");
-    expect(fixture.nativeElement.textContent).toContain('1 assignment waiting for staff to rematch an evaluator.');
+    expect(fixture.nativeElement.textContent).toContain('No action required from you right now.');
+    expect(fixture.nativeElement.textContent).toContain('Rematching with a new evaluator for Assignment 1 — Round 1 is pending.');
     expect(fixture.nativeElement.textContent).toContain('Info');
     const store = fixture.componentInstance.summary;
     const current = store.selectedCourse()!;
     store.courses.set([{ ...current, assignments: [current.assignments[0], { ...current.assignments[0], id: 2 }] }]);
     fixture.detectChanges();
-    expect(fixture.nativeElement.textContent).toContain('2 assignments waiting for staff to rematch an evaluator.');
+    expect(fixture.nativeElement.querySelectorAll('.shortcut p').length).toBe(2);
     expect(fixture.nativeElement.querySelectorAll('.action-row').length).toBe(0);
   });
   it('B/C/J: compact actions use the correct routes, contribution totals are actual task counts', () => {
@@ -103,6 +103,24 @@ describe('student dashboard and progress', () => {
       { ...assignment(2), evaluationRounds: [pending, pending, pending] },
     ]));
     expect(metrics).toMatchObject({ evaluationsPassed: 1, evaluationsTotal: 6 });
+  });
+
+  it('D/E/F/G/H: information tracks only the selected student group and outstanding round work', () => {
+    expect(dashboardInformation(course([assignment()]))[0].label).toBe('Group assignment for Assignment 1 is pending.');
+    const a = { ...assignment(), groupAssigned: true, evaluationRounds: [1,2,3].map(round => ({round,displayOutcome:'Pending' as const,waitingForRematch:false,pairingPending:true,passedAfterRetry:false})) };
+    expect(dashboardInformation(course([a])).length).toBe(3);
+    a.evaluationRounds.forEach(r => r.pairingPending=false);
+    expect(dashboardInformation(course([a]))).toEqual([]);
+    a.evaluationRounds[1].waitingForRematch=true;
+    expect(dashboardInformation(course([a]))[0].label).toContain('Rematching with a new evaluator for Assignment 1 — Round 2');
+    a.evaluationRounds[1].waitingForRematch=false;
+    expect(dashboardInformation(course([a]))).toEqual([]);
+  });
+  it('shows the positive empty state only when no action or information is outstanding', () => {
+    const fixture=TestBed.createComponent(DashboardComponent);fixture.detectChanges();
+    flush([course([{...assignment(),groupAssigned:true,submissionState:'Submitted'}])]);fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain("You're all caught up.");
+    expect(fixture.nativeElement.textContent).not.toContain('Info — no action needed');
   });
 
 });

@@ -1,7 +1,7 @@
 import { Component, computed, inject, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../services/auth.service';
-import { LearningSummaryService, dashboardActions } from '../core/services/learning-summary.service';
+import { LearningSummaryService, dashboardActions, dashboardInformation } from '../core/services/learning-summary.service';
 import { ContainerComponent, ContainerConfig } from '../shared/container.component';
 import { BtnComponent } from '../shared/btn.component';
 import { LearningCourseComponent } from '../shared/learning-course.component';
@@ -17,7 +17,7 @@ export class DashboardComponent implements OnInit {
   private auth = inject(AuthService);
   username = computed(() => this.auth.user()?.username ?? 'there');
   actions = computed(() => dashboardActions(this.summary.selectedCourse()));
-  waitingCount = computed(() => this.summary.selectedCourse()?.assignments.filter(a => a.evaluationRounds.some(r => r.waitingForRematch)).length ?? 0);
+  information = computed(() => dashboardInformation(this.summary.selectedCourse()));
   readonly card: ContainerConfig = { variant: 'flat', height: 'auto', scrollable: false };
   ngOnInit() {
     const id = Number(this.route.snapshot.queryParamMap.get('classId'));

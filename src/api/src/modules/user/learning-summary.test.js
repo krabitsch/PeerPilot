@@ -62,3 +62,18 @@ test('query scope is authenticated user and active course enrollment; summary ex
   const result = JSON.stringify(buildLearningSummary([enrollment], [pairing(1,80)], [], 5))
   for (const key of ['passKey', 'passkey', 'comment', 'reply', 'email', 'givenMarks']) assert(!result.includes('"'+key+'"'))
 })
+
+test('pairing-pending info is round-aware and removes cancelled/failed retry ambiguity', () => {
+  const p=pairing(1,null)
+  let a=buildLearningSummary([enrollment],[p],[],5).courses[0].assignments[0]
+  assert.equal(a.evaluationRounds[0].pairingPending,false)
+  assert.equal(a.evaluationRounds[1].pairingPending,true)
+  a=buildLearningSummary([enrollment],[{...p,status:'Cancelled'}],[],5).courses[0].assignments[0]
+  assert.equal(a.evaluationRounds[0].pairingPending,true)
+  const failed={...pairing(1,20),retryRequested:true}
+  a=buildLearningSummary([enrollment],[failed],[],5).courses[0].assignments[0]
+  assert.equal(a.evaluationRounds[0].waitingForRematch,true)
+  a=buildLearningSummary([enrollment],[failed,{...pairing(1,null,4)}],[],5).courses[0].assignments[0]
+  assert.equal(a.evaluationRounds[0].waitingForRematch,false)
+  assert.equal(a.evaluationRounds[0].pairingPending,false)
+})

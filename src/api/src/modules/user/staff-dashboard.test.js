@@ -72,3 +72,18 @@ test('staff route rejects students and scopes queries to the authenticated organ
   await route.handlers[1]({user:{role:'Bocal',orgId:3},query:{orgId:99}},{json(){}},e=>{throw e})
   assert.equal(selectedOrg,3)
 })
+
+test('A/C: preparation actions appear without groups, students or pairings and follow preparation order', () => {
+  const fresh=buildStaffDashboard([course(assignment)]).actions
+  assert.deepEqual(Array.from(fresh,a=>a.kind),['instructions','sheet','groups'])
+  const noStudents={...course(assignment),enrollments:[]}
+  assert(buildStaffDashboard([noStudents]).actions.some(a=>a.kind==='sheet'))
+  const sheet={sections:[{marks:100}]}
+  assert(!buildStaffDashboard([course({...assignment,evalSheet:sheet})]).actions.some(a=>a.kind==='sheet'))
+})
+test('B: either text or an uploaded file satisfies instructions, without a text-length heuristic', () => {
+  for(const instructions of [{description:'Explain the observed data.'},{description:'',fileId:4}]) {
+    assert(!buildStaffDashboard([course({...assignment,...instructions})]).actions.some(a=>a.kind==='instructions'))
+  }
+  assert(buildStaffDashboard([course({...assignment,description:'   '})]).actions.some(a=>a.kind==='instructions'))
+})
