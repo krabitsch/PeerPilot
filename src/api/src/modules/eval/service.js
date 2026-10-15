@@ -1,5 +1,6 @@
 const { prisma } = require('@transcendence/database')
 const crypto = require('crypto')
+const { fileVersionInclude, submissionFiles } = require('../submission/files')
 const { evaluationDisplayOutcome, evaluationOutcome, responseSelect, recomputeSubmissionPassed } = require('./outcome')
 const {NotFoundError, ValidationError, ConflictError, UnauthorizedError, ForbiddenError} = require('@transcendence/errors')
 const utils = require('@transcendence/utils')
@@ -119,8 +120,27 @@ const removeSection = async (sheetId, {secId})=>{
 
 // methods pertaining to EvalAssignment model/table:
 
+// Contact emails are scoped to the evaluated group's members. Passkeys also
+// require its submission to be closed. Staff retain their management view.
+const protectPairingDetails = async (pairings, viewer) => {
+  if (!viewer || viewer.isStaff) return pairings
+  const groups = await prisma.group.findMany({
+    where: { id: { in: [...new Set(pairings.map(p => p.evalueeGroupId))] },
+      members: { some: { userId: Number(viewer.userId) } } },
+    select: { id: true, submissions: { select: {status:true} } },
+  })
+  const involved = new Set(groups.map(g => g.id))
+  const closed = new Set(groups.filter(g => g.submissions.some(s => s.status === 'Close')).map(g => g.id))
+  return pairings.map(pairing => ({ ...pairing,
+    evaluatorUser: pairing.evaluatorUser ? {
+      id:pairing.evaluatorUser.id, username:pairing.evaluatorUser.username,
+      ...(involved.has(pairing.evalueeGroupId) && {email:pairing.evaluatorUser.email}),
+    } : undefined,
+    passKey: closed.has(pairing.evalueeGroupId) ? pairing.passKey : null }))
+}
+
 // get all EvalAssignments for one particular assignment.id
-const getEvalAssignments = async (assignmentId)=>{
+const getEvalAssignments = async (assignmentId, viewer)=>{
   const assignmentIdInt = parseInt(assignmentId)
 
   const assignment = await prisma.assignment.findUnique({
@@ -149,13 +169,13 @@ const getEvalAssignments = async (assignmentId)=>{
     evaluatorUser: {
       select: {
         id: true,
-        username: true
+        username: true, email:true
       }
     }
   }
 
   const pairings = await utils.getEvalAssignments(assignmentIdInt, select)
-  return pairings.map(pairing => ({ ...pairing, outcome: evaluationOutcome(pairing, assignment), studentOutcome: evaluationDisplayOutcome(pairing, assignment) }))
+  return protectPairingDetails(pairings.map(pairing => ({ ...pairing, outcome: evaluationOutcome(pairing, assignment), studentOutcome: evaluationDisplayOutcome(pairing, assignment) })), viewer)
 }
 
 // delete all EvalAssignments for one particular assignment.id
@@ -172,7 +192,7 @@ const deleteEvalAssignments = async (assignmentId) => {
   return { message: 'Eval assignments deleted successfully', assignmentId: assignmentIdInt, count: result.count }
 }
 
-const getEvalAssignmentById = async (evalAssignmentId) => {
+const getEvalAssignmentById = async (evalAssignmentId, viewer) => {
   const evalAssignmentIdInt =
     parseInt(evalAssignmentId)
 
@@ -195,7 +215,7 @@ const getEvalAssignmentById = async (evalAssignmentId) => {
     evaluatorUser: {
       select: {
         id: true,
-        username: true
+        username: true, email:true
       }
     }
   }
@@ -212,7 +232,8 @@ const getEvalAssignmentById = async (evalAssignmentId) => {
     )
 
   const assignment = await utils.getAssignmentById(result.assignmentId)
-  return { ...result, outcome: evaluationOutcome(result, assignment), studentOutcome: evaluationDisplayOutcome(result, assignment) }
+  const [visible] = await protectPairingDetails([{ ...result, outcome: evaluationOutcome(result, assignment), studentOutcome: evaluationDisplayOutcome(result, assignment) }], viewer)
+  return visible
 }
 
 
@@ -473,7 +494,7 @@ const createEvalAssignment = async ({
 
         select: {
           id: true,
-          username: true
+          username: true, email:true
         }
 
       }
@@ -818,7 +839,7 @@ const updateEvalAssignment = async (evalAssignmentId, {
 
           select: {
             id: true,
-            username: true
+            username: true, email:true
           }
 
         }
@@ -954,7 +975,7 @@ const getAssignmentWithSheet = async (assignmentId)=>{
 }
 
 // One request supplies the course filters and evaluator-owned task display data.
-// Passkeys and email addresses are intentionally excluded from the task list.
+// Only evaluator-owned tasks include the involved evaluees' contact emails; no passkeys.
 const getMyEvaluatorTasks = async (userId) => {
   const evaluatorUserId = Number(userId)
   const enrollmentScope = { enrollments: { some: { userId: evaluatorUserId, status: 'Active' } } }
@@ -976,10 +997,10 @@ const getMyEvaluatorTasks = async (userId) => {
         { assignmentId: 'asc' }, { round: 'asc' }, { id: 'asc' }],
       select: {
         id: true, assignmentId: true, evalueeGroupId: true, round: true, status: true,
-        assignment: { select: { id: true, name: true, created_at: true, classid: true } },
+        assignment: { select: { id: true, name: true, created_at: true, classid: true, evaluationDurationMinutes:true } },
         evalueeGroup: {
           select: { id: true, name: true, members: {
-            orderBy: { userId: 'asc' }, select: { user: { select: { id: true, username: true } } }
+            orderBy: { userId: 'asc' }, select: { user: { select: { id: true, username: true, email:true } } }
           } }
         },
         evalResponse: { select: {
@@ -1010,33 +1031,35 @@ const startEvaluation = async ({ evalAssignmentId, evaluatorUserId, passkey }) =
   if (!pairing.passKey || pairing.passKey !== cleanPassKey)
     throw new ValidationError('Invalid evaluation passkey')
 
-  const submission = await prisma.submission.findFirst({
-    where: { groupId: pairing.evalueeGroupId }, include: { group: true, file: true }
-  })
-  if (!submission) throw new NotFoundError('Submission not found')
-  if (submission.status !== 'Close') throw new ValidationError('Submission is not closed yet')
-  if (submission.group.assId !== pairing.assignmentId ||
-      (pairing.submissionId && pairing.submissionId !== submission.id))
-    throw new ValidationError('Mismatched submission for this evaluation pairing')
-
-  const assignment = await getAssignmentWithSheet(pairing.assignmentId)
-  if (!assignment?.evalSheet) throw new NotFoundError('This assignment has no eval sheet yet')
-  if (!pairing.submissionId) {
-    const linked = await prisma.evalAssignment.updateMany({
-      where: { id, evaluatorUserId: evaluatorId, status: 'Pending', passKey: cleanPassKey, submissionId: null },
-      data: { submissionId: submission.id }
+  return prisma.$transaction(async tx => {
+    await tx.$queryRaw`SELECT id FROM submission WHERE "groupId" = ${pairing.evalueeGroupId} FOR UPDATE`
+    const submission = await tx.submission.findFirst({
+      where: { groupId: pairing.evalueeGroupId }, include: { group: true, file: true, fileVersions: fileVersionInclude }
     })
-    if (linked.count !== 1) throw new ConflictError('Evaluation changed; please open the task again')
-  }
-  return {
-    evalAssignmentId: pairing.id,
-    assignment: { id: assignment.id, name: assignment.name, description: assignment.description, max_score: assignment.max_score },
-    group: { id: submission.group.id, name: submission.group.name },
-    submission: { id: submission.id, file: submission.file ? {
-      ...submission.file, url: storage.getPublicUrl(submission.file.url)
-    } : null },
-    evalSheet: assignment.evalSheet
-  }
+    if (!submission) throw new NotFoundError('Submission not found')
+    if (submission.status !== 'Close') throw new ValidationError('Submission is not closed yet')
+    if (submission.group.assId !== pairing.assignmentId ||
+        (pairing.submissionId && pairing.submissionId !== submission.id))
+      throw new ValidationError('Mismatched submission for this evaluation pairing')
+
+    const assignment = await getAssignmentWithSheet(pairing.assignmentId)
+    if (!assignment?.evalSheet) throw new NotFoundError('This assignment has no eval sheet yet')
+    if (!pairing.submissionId) {
+      const linked = await tx.evalAssignment.updateMany({
+        where: { id, evaluatorUserId: evaluatorId, status: 'Pending', passKey: cleanPassKey, submissionId: null },
+        data: { submissionId: submission.id }
+      })
+      if (linked.count !== 1) throw new ConflictError('Evaluation changed; please open the task again')
+    }
+    const files = submissionFiles(submission).map(file => ({...file, url: storage.getPublicUrl(file.url)}))
+    return {
+      evalAssignmentId: pairing.id,
+      assignment: { id: assignment.id, name: assignment.name, description: assignment.description, max_score: assignment.max_score, evaluationDurationMinutes:assignment.evaluationDurationMinutes },
+      group: { id: submission.group.id, name: submission.group.name },
+      submission: { id: submission.id, file: files.at(-1) ?? null, files },
+      evalSheet: assignment.evalSheet
+    }
+  })
 }
 
 const submitEvaluation = async ({evalAssignmentId, evaluatorUserId, comment, scores})=>{
@@ -1045,6 +1068,9 @@ const submitEvaluation = async ({evalAssignmentId, evaluatorUserId, comment, sco
     if(!evalAssignmentIdInt || !evaluatorUserIdInt || !validateString(comment) || !Array.isArray(scores) || scores.length === 0)
         throw new ValidationError('evalAssignmentId, evaluatorUserId, comment and scores are required')
 
+    if (typeof comment !== 'string' || comment.trim().length < 100)
+        throw new ValidationError('Please provide at least 100 characters of constructive feedback.')
+    comment = comment.trim()
     const evalAssignment = await utils.getEvalAssignmentById(evalAssignmentIdInt)
     if(!evalAssignment)
         throw new NotFoundError('Eval assignment not found')

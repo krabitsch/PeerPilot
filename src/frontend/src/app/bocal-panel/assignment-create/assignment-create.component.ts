@@ -49,6 +49,7 @@ export class AssignmentCreateComponent implements OnInit {
   name          = signal('');
   description   = signal('');
   maxScore      = signal<number | null>(null);
+  evaluationDurationMinutes = signal(30);
   reqEval       = signal<number | null>(null);
   groupSize     = signal<number | null>(1);
   passThreshold = signal<number | null>(80);
@@ -121,6 +122,7 @@ export class AssignmentCreateComponent implements OnInit {
         this.description.set(a.description);
         this.maxScore.set(a.max_score);
         this.reqEval.set(a.req_eval);
+        this.evaluationDurationMinutes.set(a.evaluationDurationMinutes ?? 30);
         this.groupSize.set(a.groupSize ?? 1);
         this.passThreshold.set(a.pass_threshold ?? 80);
         this.fileName.set(a.file?.name ?? null);
@@ -249,6 +251,7 @@ export class AssignmentCreateComponent implements OnInit {
     if (!passThreshold || passThreshold <= 0) { this.error.set('Enter a valid pass threshold.'); return; }
     if (!classId)                             { this.error.set(this.translate.instant('error_missing_class_id')); return; }
     if (!createdBy)                           { this.error.set(this.translate.instant('error_user_not_identified')); return; }
+    if (!Number.isInteger(this.evaluationDurationMinutes()) || this.evaluationDurationMinutes() < 5 || this.evaluationDurationMinutes() > 180) { this.error.set('Recommended evaluation duration must be a whole number from 5 to 180 minutes.'); return; }
     if (!name)                                { this.error.set(this.translate.instant('error_name_required')); return; }
     if (!desc)                                { this.error.set(this.translate.instant('error_description_required')); return; }
     if (!maxScore || maxScore <= 0)           { this.error.set(this.translate.instant('error_invalid_max_score')); return; }
@@ -274,12 +277,13 @@ export class AssignmentCreateComponent implements OnInit {
       maxScore,
       reqEval,
       passThreshold,
+      evaluationDurationMinutes:this.evaluationDurationMinutes(),
       createdBy,
       file: this.file ?? undefined,
     }).subscribe({
       next: (assignment) => this.createEvalSheet(assignment, classId),
       error: (err) => {
-        this.error.set(err?.error?.message ?? this.translate.instant('error_create_assignment_failed'));
+        this.error.set(err?.error?.error ?? err?.error?.message ?? this.translate.instant('error_create_assignment_failed'));
         this.loading.hide();
       },
     });
@@ -328,6 +332,7 @@ export class AssignmentCreateComponent implements OnInit {
 
     if (!assId || !classId)                { this.error.set(this.translate.instant('error_missing_assignment')); return; }
     if (!createdBy)                        { this.error.set(this.translate.instant('error_user_not_identified')); return; }
+    if (!Number.isInteger(this.evaluationDurationMinutes()) || this.evaluationDurationMinutes() < 5 || this.evaluationDurationMinutes() > 180) { this.error.set('Recommended evaluation duration must be a whole number from 5 to 180 minutes.'); return; }
     if (!name)                             { this.error.set(this.translate.instant('error_name_required')); return; }
     if (!desc)                             { this.error.set(this.translate.instant('error_description_required')); return; }
     if (!maxScore || maxScore <= 0)        { this.error.set(this.translate.instant('error_invalid_max_score')); return; }
@@ -349,11 +354,12 @@ export class AssignmentCreateComponent implements OnInit {
     this.loading.show();
     this.assignService.updateAssignment(assId, {
       classId, name, description: desc, groupSize, reqEval, maxScore, passThreshold,
+      evaluationDurationMinutes:this.evaluationDurationMinutes(),
       createdBy, file: this.file ?? undefined,
     }).subscribe({
       next: () => this.syncEvalSheet(assId, classId),
       error: (err) => {
-        this.error.set(err?.error?.message ?? this.translate.instant('error_update_assignment_failed'));
+        this.error.set(err?.error?.error ?? err?.error?.message ?? this.translate.instant('error_update_assignment_failed'));
         this.loading.hide();
       },
     });
@@ -435,7 +441,7 @@ export class AssignmentCreateComponent implements OnInit {
 
       error: (err) => {
         this.error.set(
-          err?.error?.message ?? 'Failed to delete assignment.'
+          err?.error?.error ?? err?.error?.message ?? 'Failed to delete assignment.'
         );
         this.loading.hide();
       },

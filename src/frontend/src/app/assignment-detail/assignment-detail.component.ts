@@ -326,6 +326,7 @@ import { MarkdownMathComponent } from '../shared/markdown-math.component';
       background: ${DS.colors.surface};
       border: 1px solid ${DS.colors.border};
     }
+    .evaluation-row.before-close { grid-template-columns: minmax(120px, .8fr) minmax(170px, 1.35fr) minmax(110px, auto); }
     .evaluation-round {
       font-family: ${DS.fonts.display};
       font-size: 0.9375rem;
@@ -348,9 +349,8 @@ import { MarkdownMathComponent } from '../shared/markdown-math.component';
     .evaluation-value {
       font-size: 0.875rem;
       color: ${DS.colors.fg1};
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      white-space: normal;
+      overflow-wrap: anywhere;
     }
     .evaluation-passkey {
       display: flex;
@@ -416,7 +416,7 @@ import { MarkdownMathComponent } from '../shared/markdown-math.component';
     }
 
     @media (max-width: 760px) {
-      .evaluation-row {
+      .evaluation-row, .evaluation-row.before-close {
         grid-template-columns: 1fr;
         gap: 8px;
       }
@@ -771,14 +771,19 @@ export class AssignmentDetailComponent implements OnInit {
   evaluationRows = computed(() => {
     const summaries = this.mySubmission()?.evaluationRounds ?? [];
     const pairings = this.myEvaluators();
-    return Array.from({ length: this.assignment()?.req_eval ?? 0 }, (_, i) => {
-      const round = i + 1;
+    const closed = this.mySubmission()?.status === 'Close';
+    const rounds = closed
+      ? Array.from({ length: this.assignment()?.req_eval ?? 0 }, (_, i) => i + 1)
+      : [...new Set(pairings.filter(p => p.status !== 'Cancelled').map(p => p.round))].sort((a, b) => a - b);
+    return rounds.map(round => {
       const summary = summaries.find(r => r.round === round);
       return {
         round,
         outcome: summary?.displayOutcome ?? 'Pending',
         waitingForRematch: summary?.waitingForRematch ?? false,
-        pairing: pairings.find(p => p.id === summary?.evalAssignmentId) ?? null,
+        pairing: closed ? pairings.find(p => p.id === summary?.evalAssignmentId) ?? null
+          : pairings.filter(p => p.round === round && p.status !== 'Cancelled')
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() || b.id - a.id)[0] ?? null,
       };
     });
   });
@@ -842,6 +847,17 @@ export class AssignmentDetailComponent implements OnInit {
   private currentUserId() {
     const user = this.user() as { id?: number; userId?: number } | null;
     return user?.id ?? user?.userId ?? null;
+  }
+
+  submissionFiles = computed(() => this.mySubmission()?.files ?? (this.mySubmission()?.file ? [this.mySubmission()!.file!] : []));
+
+  downloadSubmissionFile(fileId: number) {
+    const group = this.myGroup();
+    if (!group) return;
+    this.subService.getDownloadUrl(group.id, undefined, fileId).subscribe({
+      next: result => window.open(result.url, '_blank', 'noopener'),
+      error: err => this.submissionError.set(err?.error?.error ?? 'Could not open submission file.'),
+    });
   }
 
   submittedFileMeta(submission: Submission | null) {
@@ -928,7 +944,7 @@ export class AssignmentDetailComponent implements OnInit {
           if (mine) {
             this.myGroup.set(mine.group);
             this.mySubmission.set(mine);
-            this.loadEvaluatorsIfClosed(id, mine);
+            this.loadEvaluators(id, mine.groupId, mine);
             this.loading.hide();
           } else if (userId) {
             this.groupService.getMyGroupForAssignment(userId, id).subscribe({
@@ -938,8 +954,8 @@ export class AssignmentDetailComponent implements OnInit {
                   const existingSubmission = subs.find(sub => sub.groupId === group.id);
                   if (existingSubmission) {
                     this.mySubmission.set(existingSubmission);
-                    this.loadEvaluatorsIfClosed(id, existingSubmission);
                   }
+                  this.loadEvaluators(id, group.id, existingSubmission);
                   this.loading.hide();
                 } else {
                   this.groupService.getInvites({ userId }).subscribe({
@@ -964,17 +980,16 @@ export class AssignmentDetailComponent implements OnInit {
     });
   }
 
-  /** Once a submission is closed, the assignees who'll evaluate it (and any feedback already left) are known. */
-  private loadEvaluatorsIfClosed(assignmentId: number, submission: Submission) {
-    if (submission.status !== 'Close') { this.myEvaluators.set([]); this.myResponses.set([]); return; }
-
+  /** Pairings are available before submission; feedback remains closed-only. */
+  private loadEvaluators(assignmentId: number, groupId: number, submission?: Submission) {
     this.evalService.getEvalAssignments(assignmentId).subscribe({
       next: (assignments) => {
-        this.myEvaluators.set(assignments.filter(ea => ea.evalueeGroupId === submission.groupId));
+        this.myEvaluators.set(assignments.filter(ea => ea.evalueeGroupId === groupId));
       },
       error: () => this.myEvaluators.set([]),
     });
 
+    if (submission?.status !== 'Close') { this.myResponses.set([]); return; }
     this.evalService.getResponsesForSubmission(submission.id).subscribe({
       next: (responses) => this.myResponses.set(responses),
       error: () => this.myResponses.set([]),
@@ -1115,7 +1130,10 @@ export class AssignmentDetailComponent implements OnInit {
     this.submissionError.set(null);
     this.uploadingFile.set(true);
     this.loading.show();
-    this.subService.uploadFile(group.id, userId, file).subscribe({
+    const upload = this.mySubmission()?.status === 'Close'
+      ? this.subService.uploadRetryFile(group.id, file)
+      : this.subService.uploadFile(group.id, userId, file);
+    upload.subscribe({
       next: (sub) => {
         this.mySubmission.set(sub);
         this.selectedFile.set(null);
@@ -1144,7 +1162,7 @@ export class AssignmentDetailComponent implements OnInit {
       next: (sub) => {
         this.mySubmission.set(sub);
         const assId = this.assignment()?.id;
-        if (assId) this.loadEvaluatorsIfClosed(assId, sub);
+        if (assId) this.loadEvaluators(assId, group.id, sub);
         this.loading.hide();
       },
       error: (err) => {

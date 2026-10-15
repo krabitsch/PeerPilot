@@ -13,13 +13,13 @@ let storage
 
 const getClasses = async () => {
   const select = {id: true, name: true, description: true, created_at: true, org_id: true,
-    term: true, externalCourseCodes: true, assignments: true}
+    term: true, externalCourseCodes: true, pass_threshold:true, assignments: true}
   return await utils.getClasses(select)
 }
 
 const getClassById = async (classId) => {
   const select = {id: true, name: true, description: true, created_at: true, org_id: true,
-    term: true, externalCourseCodes: true, assignments: true}
+    term: true, externalCourseCodes: true, pass_threshold:true, assignments: true}
   const result = await utils.getClassById(parseInt(classId), select)
   if (!result)
     throw new NotFoundError('Class not found')
@@ -28,17 +28,33 @@ const getClassById = async (classId) => {
 
 const getClassByOrgId = async (orgId) => {
   const select = {id: true, name: true, description: true, created_at: true, org_id: true,
-    term: true, externalCourseCodes: true, assignments: true}
+    term: true, externalCourseCodes: true, pass_threshold:true, assignments: true}
   const result = await utils.getClassByOrgId(parseInt(orgId), select)
   if (!result)
     throw new NotFoundError('Org not found')
   return result
 }
 
-const createClass = async ({org_id, created_by, name, description, pass_threshold})=>{
+const courseMetadata = ({term, externalCourseCodes}) => {
+  if (term !== undefined && term !== null && (typeof term !== 'string' || term.trim().length > 100))
+    throw new ValidationError('Term must be text of at most 100 characters')
+  if (externalCourseCodes !== undefined && (!Array.isArray(externalCourseCodes) ||
+      externalCourseCodes.some(c => typeof c !== 'string' || !c.trim() || c.trim().length > 40)))
+    throw new ValidationError('Official course numbers must be a list of non-empty codes (maximum 40 characters each)')
+  return { ...(term !== undefined && {term: term?.trim() || null}),
+    ...(externalCourseCodes !== undefined && {externalCourseCodes: [...new Set(externalCourseCodes.map(c => c.trim()))]}) }
+}
+const evaluationDuration = value => {
+  const minutes = Number(value)
+  if (!Number.isInteger(minutes) || minutes < 5 || minutes > 180)
+    throw new ValidationError('Recommended evaluation duration must be a whole number from 5 to 180 minutes')
+  return minutes
+}
+
+const createClass = async ({org_id, created_by, name, description, pass_threshold, term, externalCourseCodes})=>{
     if(!org_id || !created_by || !name || !description || !pass_threshold)
         throw new ValidationError("invalid request")
-    
+
     const org = await utils.getOrgById(org_id)
     if(!org)
         throw new NotFoundError('Org not found')
@@ -48,16 +64,16 @@ const createClass = async ({org_id, created_by, name, description, pass_threshol
         throw new NotFoundError('User not found')
 
     return await prisma.class.create({
-        data: {name, description, org_id:parseInt(org_id), created_by:parseInt(created_by), pass_threshold:parseFloat(pass_threshold)},
-        select:{name: true, description: true, org_id: true, created_by: true, pass_threshold: true}
+        data: {...courseMetadata({term, externalCourseCodes}), name, description, org_id:parseInt(org_id), created_by:parseInt(created_by), pass_threshold:parseFloat(pass_threshold)},
+        select:{id:true, name: true, description: true, org_id: true, created_by: true, pass_threshold: true, term:true, externalCourseCodes:true}
     })
 }
 
-const updateClass = async (classId, {org_id, created_by, name, description, pass_threshold})=>{     
+const updateClass = async (classId, {org_id, created_by, name, description, pass_threshold, term, externalCourseCodes})=>{
     if(!org_id || !created_by || !name || !description || !pass_threshold)
         throw new ValidationError("invalid request")
-    
-    const targetClass = getClassById(classId)
+
+    const targetClass = await getClassById(classId)
     if (!targetClass)
         throw new NotFoundError('Class not found')
 
@@ -69,11 +85,23 @@ const updateClass = async (classId, {org_id, created_by, name, description, pass
     if(!user)
         throw new NotFoundError('User not found')
 
-    return await prisma.class.update({
-        where: { id: parseInt(classId) },
-        data: {name, description, org_id:parseInt(org_id), created_by:parseInt(created_by), pass_threshold:parseFloat(pass_threshold)},
-        select:{name: true, description: true, org_id: true, created_by: true, pass_threshold: true}
-    })
+    const metadata = courseMetadata({term, externalCourseCodes})
+    return prisma.$transaction(async tx => {
+      const current = await tx.class.findUnique({where:{id:Number(classId)}})
+      const removed = (current.externalCourseCodes ?? []).filter(code => metadata.externalCourseCodes && !metadata.externalCourseCodes.includes(code))
+      if (removed.length) {
+        const where = {classId:Number(classId), externalCourseCode:{in:removed}}
+        const [enrolled, allowed] = await Promise.all([
+          tx.enrollment.count({where}), tx.allowedEnrollment.count({where}),
+        ])
+        if (enrolled || allowed) throw new ConflictError(`Cannot remove official course numbers ${removed.join(', ')}: existing enrollments or whitelist records still use them.`)
+      }
+      return await tx.class.update({
+          where: { id: parseInt(classId) },
+          data: {...courseMetadata({term, externalCourseCodes}), name, description, org_id:parseInt(org_id), created_by:parseInt(created_by), pass_threshold:parseFloat(pass_threshold)},
+          select:{id:true, name: true, description: true, org_id: true, created_by: true, pass_threshold: true, term:true, externalCourseCodes:true}
+      })
+    }, {isolationLevel:'Serializable'})
 }
 
 const getClassStudents = async (classId)=>{
@@ -92,18 +120,19 @@ const deleteClass = async (classId)=>{
     const targetClass = getClassById(classId)
     if (!targetClass)
         throw new NotFoundError('Class not found')
-    
+
     await prisma.class.delete({where: {id: parseInt(classId)}})
- 
+
     return {
         message: 'Course deleted successfully',
         id: classId }
 }
 
-const createAssignment = async (classId, {name, description, maxScore, reqEval, passThreshold, createdBy}, reqFile)=>{
+const createAssignment = async (classId, {name, description, maxScore, reqEval, passThreshold, createdBy, evaluationDurationMinutes}, reqFile)=>{
     if(!classId || !name|| !description || !maxScore || !reqEval)
         throw new ValidationError("Invalid request")
 
+    const duration = evaluationDuration(evaluationDurationMinutes ?? 30)
     const targetClass = await utils.getClassById(classId)
     if(!targetClass)
         throw new NotFoundError("Class not found")
@@ -132,12 +161,12 @@ const createAssignment = async (classId, {name, description, maxScore, reqEval, 
 
     const result = await prisma.assignment.create({
         data:{classid: parseInt(classId), name, description, max_score:parseInt(maxScore),
-            req_eval:parseInt(reqEval),
+            req_eval:parseInt(reqEval), evaluationDurationMinutes: duration,
             // Optional so older clients keep working; they get the schema default.
             ...(passThreshold && { pass_threshold: parseFloat(passThreshold) }),
             ...(subjectFile && { fileId: subjectFile.id })
         },
-         select: {id: true, name: true, description: true, max_score:true, req_eval:true,
+         select: {evaluationDurationMinutes:true, id: true, name: true, description: true, max_score:true, req_eval:true,
             pass_threshold: true, created_at: true, classid:true, fileId:true}
     })
     return {...result, file: subjectFile}
@@ -162,14 +191,14 @@ const getAssignments = async (classId)=>{
     if(!targetClass)
         throw new NotFoundError("Class not found")
 
-    const select = {id: true, name: true, description: true, max_score:true, req_eval:true,
+    const select = {evaluationDurationMinutes:true, id: true, name: true, description: true, max_score:true, req_eval:true,
             created_at: true, classid:true, fileId:true, groupSize:true, pass_threshold:true}
     const assignments = await utils.getAssignments(parseInt(classId), select)
     return await attachSubjectFile(assignments)
 }
 
 const getAssignmentById = async (assignId)=>{
-    const select = {id: true, classid: true, name: true, description: true, created_at: true,
+    const select = {evaluationDurationMinutes:true, id: true, classid: true, name: true, description: true, created_at: true,
             groupSize: true, req_eval: true, max_score: true, pass_threshold: true, subtype: true, fileId: true }
     const result = await utils.getAssignmentById(assignId, select, {
         groups: {
@@ -183,7 +212,7 @@ const getAssignmentById = async (assignId)=>{
     return (await attachSubjectFile(result))[0]
 }
 
-const updateAssignment = async (assignId, {classId, name, description, groupSize, reqEval, maxScore, passThreshold, createdBy}, reqFile)=>{
+const updateAssignment = async (assignId, {classId, name, description, groupSize, reqEval, maxScore, passThreshold, createdBy, evaluationDurationMinutes}, reqFile)=>{
     if(!assignId ||!classId || !name|| !description || !groupSize || !reqEval|| !maxScore || !passThreshold )
         throw new ValidationError("Invalid request")
 
@@ -195,6 +224,7 @@ const updateAssignment = async (assignId, {classId, name, description, groupSize
     if(!targetClass)
         throw new NotFoundError("Class not found")
 
+    const duration = evaluationDuration(evaluationDurationMinutes ?? targetAssign.evaluationDurationMinutes ?? 30)
     let fileId = targetAssign.fileId
     if (reqFile) {
         if (!createdBy)
@@ -220,9 +250,9 @@ const updateAssignment = async (assignId, {classId, name, description, groupSize
 
     const result = await prisma.assignment.update({
         where: { id: parseInt(assignId) },
-        data: { classid: parseInt(classId), name, description, groupSize: parseInt(groupSize), req_eval:parseInt(reqEval), max_score: parseInt(maxScore),
+        data: { evaluationDurationMinutes: duration, classid: parseInt(classId), name, description, groupSize: parseInt(groupSize), req_eval:parseInt(reqEval), max_score: parseInt(maxScore),
                     pass_threshold: parseInt(passThreshold), ...(reqFile && { fileId }) },
-        select: {id: true, classid: true, name: true, description: true, groupSize: true, req_eval: true, max_score: true,
+        select: {evaluationDurationMinutes:true, id: true, classid: true, name: true, description: true, groupSize: true, req_eval: true, max_score: true,
             created_at: true, fileId: true}
     })
     return (await attachSubjectFile(result))[0]
@@ -232,9 +262,9 @@ const deleteAssignment = async (assignId)=>{
     const targetAssign = await getAssignmentById(assignId)
     if (!targetAssign)
         throw new NotFoundError('Assignment not found')
-    
+
     await prisma.assignment.delete({where: {id: parseInt(assignId)}})
- 
+
     return {
         message: 'Assignment deleted successfully',
         id: assignId }

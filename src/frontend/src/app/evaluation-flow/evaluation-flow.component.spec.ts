@@ -11,7 +11,7 @@ import { evaluatorTasksFor } from './evaluator-tasks';
 const task = (id: number, assignmentId: number, courseId: number, round: number, status: EvaluatorTask['status']): EvaluatorTask => ({
   id, assignmentId, evalueeGroupId: id, round, status,
   assignment: { id: assignmentId, name: `Assignment ${assignmentId}`, classid: courseId, created_at: '2026-10-01T09:00:00Z' },
-  evalueeGroup: { id, name: `group${id}`, members: [{ user: { id: 42, username: 'student42' } }, { user: { id: 43, username: 'student43' } }] },
+  evalueeGroup: { id, name: `group${id}`, members: [{ user: { id: 42, username: 'student42', email:'student42@example.com' } }, { user: { id: 43, username: 'student43', email:'student43@example.com' } }] },
   evalResponse: status === 'Submitted' ? { id, givenMarks: 70, comment: 'Clear explanation.', reply: 'Thank you.', scores: [{ sectionId: 1, score: 70, section: { name: 'Explanation', marks: 100 } }] } : null,
 });
 const overview: EvaluatorTaskOverview = {
@@ -46,7 +46,7 @@ describe('evaluator task overview', () => {
     const text = fixture.nativeElement.textContent;
     expect(text).toContain('My evaluator tasks');
     expect(text).toContain('2 assigned · 1 pending · 1 completed');
-    expect(text).toContain('Evaluate: student42, student43');
+    expect(text).toContain('Evaluate: student42 (student42@example.com), student43 (student43@example.com)');
     expect(text).toContain('Pending');
     expect(text).toContain('Completed');
     expect(text).toContain('Start evaluation →');
@@ -63,6 +63,17 @@ describe('evaluator task overview', () => {
     component.startEvaluation();
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Enter the six-digit');
+  });
+  it('requires 100 trimmed feedback characters', () => {
+    component.comment.set(' '.repeat(150)); expect(component.commentOk()).toBe(false);
+    component.comment.set('a'.repeat(99)+' '); expect(component.commentOk()).toBe(false);
+    component.comment.set(' '+ 'a'.repeat(100)+' '); expect(component.commentOk()).toBe(true);
+  });
+  it('shows contact details and duration in the start panel', () => {
+    component.openTask({...overview.tasks[1], assignment:{...overview.tasks[1].assignment,evaluationDurationMinutes:45}});
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('student42 (student42@example.com)');
+    expect(fixture.nativeElement.textContent).toContain('Recommended session duration: 45 minutes');
   });
   it('filters assignments and courses, resetting assignment on course change', () => {
     component.selectAssignment('2');
@@ -113,7 +124,7 @@ describe('evaluator task overview', () => {
     expect(api.startEvaluation).toHaveBeenCalledWith({ evalAssignmentId: 1, passkey: '482913' });
     expect(component.phase()).toBe('flow');
     component.setSlider(component.sections()[0], 70);
-    component.comment.set('Clear explanation and well supported answers.');
+    component.comment.set('Clear explanation and well supported answers. '.repeat(3).trim());
     expect(component.canSubmit()).toBe(true);
     expect(fixture.nativeElement.querySelector('input[type=file]')).toBeNull();
     component.submit();
@@ -122,7 +133,7 @@ describe('evaluator task overview', () => {
     // the body. The evaluee uploads the recording when replying to feedback.
     expect(api.submitEvaluation).toHaveBeenCalledWith({
       evalAssignmentId: 1,
-      comment: 'Clear explanation and well supported answers.',
+      comment: 'Clear explanation and well supported answers. '.repeat(3).trim(),
       scores: [{ sectionId: 1, score: 70 }],
     });
     expect(component.submitted()).toBe(true);

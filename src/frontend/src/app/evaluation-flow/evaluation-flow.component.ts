@@ -26,6 +26,7 @@ import { MarkdownMathComponent } from '../shared/markdown-math.component';
     .course-description { color: ${DS.colors.fg2}; font-size: 0.875rem; line-height: 1.6; margin: 8px 0; }
     .filter-stack { display: flex; flex-direction: column; gap: 14px; }
     .task-row { padding: 22px 24px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+    .task-heading, .task-meta { overflow-wrap: anywhere; }
     .task-heading { font-family: ${DS.fonts.display}; font-weight: 600; color: ${DS.colors.fg1}; margin: 6px 0; }
     .task-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
     .task-meta, .empty-state { color: ${DS.colors.fg2}; font-size: 0.875rem; line-height: 1.6; }
@@ -228,7 +229,7 @@ export class EvaluationFlowComponent implements OnInit {
   maxScore   = computed(() => this.session()?.assignment.max_score ?? 0);
   allScored  = computed(() => this.sections().every(s => this.sectionScores().get(s.id) != null));
   totalScore = computed(() => [...this.sectionScores().values()].reduce((sum: number, v) => sum + (v ?? 0), 0));
-  commentOk  = computed(() => this.comment().trim().length >= 20);
+  commentOk  = computed(() => this.comment().trim().length >= 100);
   canSubmit  = computed(() => this.allScored() && this.commentOk());
 
   scoreColor = computed(() => {

@@ -10,6 +10,7 @@ export interface CreateAssignmentPayload {
   maxScore: number;
   reqEval: number;
   passThreshold: number;
+  evaluationDurationMinutes?: number;
   createdBy: number;
   file?: File;
 }
@@ -22,11 +23,13 @@ export interface UpdateAssignmentPayload {
   reqEval: number;
   maxScore: number;
   passThreshold: number;
+  evaluationDurationMinutes?: number;
   createdBy: number;
   file?: File;
 }
 
 export interface AssignmentResponse {
+  evaluationDurationMinutes?: number;
   id: number;
   classid: number;
   name: string;

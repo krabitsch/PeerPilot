@@ -1,9 +1,11 @@
 const {prisma} = require('@transcendence/database')
-const {NotFoundError, ValidationError, ConflictError, UnauthorizedError} = require('@transcendence/errors')
+const {NotFoundError, ValidationError} = require('@transcendence/errors')
 const utils = require('@transcendence/utils')
 const { createStorage } = require('@transcendence/filemanager')
 const logger = require('@transcendence/logger')
-const { submissionOutcome } = require('../eval/outcome')
+const { submissionOutcome, summarizeEvaluationRounds, evaluationOutcome, responseSelect } = require('../eval/outcome')
+const { fileVersionInclude, submissionFiles } = require('./files')
+const { randomUUID } = require('crypto')
 const storage = createStorage('submissions')
 
 const storageReady = (async () => {
@@ -47,135 +49,146 @@ const validateGroupMember = async (groupId, userId)=>{
     return {group, user, assId, classId}
 }
 
-const getGroupSubmissions = async (groupId) => {
+const getGroupSubmissions = async (groupId, {userId, isStaff} = {}) => {
+    if (!isStaff) await validateGroupMember(groupId, userId)
     if(!groupId)
         throw new ValidationError('Invalid request')
 
     // Include submissions in the query
-    const group = await utils.getGroupById(groupId, null, { submissions: true })
+    const group = await utils.getGroupById(groupId, null, { submissions: {include:{file:true,fileVersions:fileVersionInclude}} })
     
     if(!group)
         throw new NotFoundError("Group Not Found")
     
-    return Promise.all(group.submissions.map(s => submissionOutcome(prisma, s)))
+    return Promise.all(group.submissions.map(s => decorateSubmission(prisma, s)))
 }
 
-const createSubmission = async({groupId, userId, type})=>{
-    if(!groupId || !userId || !type)
+// The unique groupId and upsert make simultaneous starts share one row.
+const createSubmission = async ({groupId, userId, type}) => {
+    if (!groupId || !userId || !['FILE','IMAGE','PDF'].includes(type))
         throw new ValidationError('Invalid request')
     await validateGroupMember(groupId, userId)
-    const existingSub = await utils.getLastSubmission(groupId)
-    if(existingSub)
-    {
-        if(existingSub.status !== 'Close')
-            throw new ConflictError('Cannot Create new submission')
+    let saved
+    try { saved = await prisma.submission.upsert({
+        where:{groupId:Number(groupId)}, update:{},
+        create:{groupId:Number(groupId), status:'Open', type},
+        include:{file:true, fileVersions:fileVersionInclude},
+    }) } catch (error) {
+        if (error.code !== 'P2002') throw error
+        saved = await prisma.submission.findUnique({where:{groupId:Number(groupId)},include:{file:true,fileVersions:fileVersionInclude}})
+        if (!saved) throw error
     }
-    return await prisma.submission.create({
-        data:{groupId: parseInt(groupId), status: 'Open', type}
+    return decorateSubmission(prisma, saved)
+}
+
+const retryFileAllowed = async (db, submission) => {
+    if (submission.status !== 'Close') return false
+    const group = await db.group.findUnique({where:{id:submission.groupId}, include:{
+        assignment:true, evalAssignmentsAsEvaluee:{include:{evalResponse:{select:responseSelect}}},
+    }})
+    const pairings = group.evalAssignmentsAsEvaluee.filter(p => !p.submissionId || p.submissionId === submission.id)
+    const summary = summarizeEvaluationRounds(group.assignment, pairings)
+    return summary.evaluationRounds.some(round => {
+        if (round.waitingForRematch) return true
+        // A replacement may receive revised material until it starts (links the submission).
+        const current = pairings.find(p => p.id === round.evalAssignmentId)
+        return round.displayOutcome === 'Pending' && current?.status === 'Pending' && !current.submissionId &&
+            pairings.some(p => p.round === round.round && p.retryRequested &&
+                evaluationOutcome(p, group.assignment) === 'Failed')
     })
 }
-
-
-const closeSubmission = async (groupId, {userId})=>{
-    if(!groupId || !userId)
-        throw new ValidationError('Invalid request')
-    const {group, user} = await validateGroupMember(groupId, userId)
-    if(user.id !== group.leaderId)
-        throw new UnauthorizedError('the user is not the leader')
-
-    const existingSub = await utils.getLastSubmission(groupId)
-    if(!existingSub)
-        throw new NotFoundError('Submission not found')
-    if(existingSub.status != 'Open')
-        throw new ValidationError('Submission is already closed')
-    
-    const closed = await prisma.submission.update({
-        where: { id: existingSub.id },
-        data: { status: 'Close', closedAt: new Date() }
-    })
-    return submissionOutcome(prisma, closed)
+const decorateSubmission = async (db, submission) => ({
+    ...await submissionOutcome(db, submission),
+    files:submissionFiles(submission),
+    canUploadRetryFile:await retryFileAllowed(db, submission),
+})
+const lockSubmission = async (db, groupId) => {
+    await db.$queryRaw`SELECT id FROM submission WHERE "groupId" = ${Number(groupId)} FOR UPDATE`
+    const submission = await db.submission.findUnique({where:{groupId:Number(groupId)},
+        include:{file:true, fileVersions:fileVersionInclude}})
+    if (!submission) throw new NotFoundError('Submission not found')
+    return submission
 }
 
-const deleteExistingFile = async(url)=>{
-    if(!url.startsWith('http')){
-        await storage.delete(url)
-    }
-}
-
-const uploadFile = async (groupId, userId, reqFile)=>{
-    if(!groupId || !userId || !reqFile)
-        throw new ValidationError('Invalid request')
-
+const closeSubmission = async (groupId, {userId}) => {
     await validateGroupMember(groupId, userId)
-
-    const existingSub = await utils.getLastSubmission(groupId, {file: true})
-
-    if(!existingSub)
-        throw new NotFoundError('Submission not found')
-    if(existingSub.status != 'Open')
-        throw new ValidationError('Submission is already closed')
-
-    const fileName = `${groupId}-${Date.now()}-${reqFile.originalname}`
-    await storage.upload(fileName, reqFile.buffer, reqFile.mimetype, reqFile.size)
-    if(existingSub.file)
-    {
-        await deleteExistingFile(existingSub.file.url);
-        await prisma.file.update(
-            {
-                where: {id: existingSub.file.id},
-                data:{name: reqFile.originalname, size: reqFile.size,
-                    mimiType: reqFile.mimetype, url: fileName,
-                uploadedBy: parseInt(userId)}
-            })
-        return await prisma.submission.findUnique({
-            where: {id: existingSub.id},
-            include: {file: true}
+    return prisma.$transaction(async tx => {
+        const existing = await lockSubmission(tx, groupId)
+        const saved = existing.status === 'Close' ? existing : await tx.submission.update({
+            where:{id:existing.id}, data:{status:'Close',closedAt:new Date()},
+            include:{file:true,fileVersions:fileVersionInclude},
         })
-    }
-
-    const newFile = await prisma.file.create({
-        data: {name: reqFile.originalname, size: reqFile.size,
-            mimiType: reqFile.mimetype, url: fileName,
-            uploadedBy : parseInt(userId)}
+        return decorateSubmission(tx, saved)
     })
-    return await prisma.submission.update({
-        where: {id: parseInt(existingSub.id)},
-        data:{fileId: newFile.id},
-        include: {file: true}})
 }
+
+// Upload to a new object, then serialize writes and closing on the shared row.
+// A closed original is immutable; retry uploads only append a version relation.
+const saveFile = async (groupId, userId, reqFile, revised = false) => {
+    if (!groupId || !userId || !reqFile) throw new ValidationError('Invalid request')
+    await validateGroupMember(groupId, userId)
+    const fileName = `${groupId}-${randomUUID()}-${reqFile.originalname}`
+    await storage.upload(fileName, reqFile.buffer, reqFile.mimetype, reqFile.size)
+    let supersededDraft = null
+    let result
+    try {
+        result = await prisma.$transaction(async tx => {
+            const existing = await lockSubmission(tx, groupId)
+            if (revised ? !await retryFileAllowed(tx, existing) : existing.status !== 'Open')
+                throw new ValidationError(revised ? 'Updated files are only allowed while an unresolved retry is awaiting evaluation.' : 'Submission is already closed')
+            const file = await tx.file.create({data:{name:reqFile.originalname, size:reqFile.size,
+                mimiType:reqFile.mimetype, url:fileName, uploadedBy:Number(userId)}})
+            if (revised) await tx.submissionFileVersion.create({data:{submissionId:existing.id,fileId:file.id}})
+            else {
+                await tx.submission.update({where:{id:existing.id},data:{fileId:file.id}})
+                if (existing.file) {
+                    supersededDraft = existing.file
+                    await tx.file.delete({where:{id:existing.file.id}})
+                }
+            }
+            const saved = await tx.submission.findUnique({where:{id:existing.id},include:{file:true,fileVersions:fileVersionInclude}})
+            return decorateSubmission(tx, saved)
+        })
+    } catch (error) {
+        await storage.delete(fileName).catch(err => logger.error('submission-service','Failed to clean up rejected upload',err))
+        throw error
+    }
+    if (supersededDraft) await storage.delete(supersededDraft.url).catch(err =>
+        logger.error('submission-service','Failed to clean up superseded draft',err))
+    return result
+}
+const uploadFile = (groupId, userId, file) => saveFile(groupId, userId, file)
+const uploadRetryFile = (groupId, userId, file) => saveFile(groupId, userId, file, true)
 
 // Staff (teachers) may download any group's submission for grading/export, so
 // they skip the group-membership check students are held to.
-const getDownloadUrl = async(groupId, { userId, isStaff } = {})=>{
+const getDownloadUrl = async(groupId, { userId, isStaff, fileId } = {})=>{
     if(!groupId || !userId)
         throw new ValidationError('Invalid Request')
     if(!isStaff)
         await validateGroupMember(groupId, userId)
-    const existingSub = await utils.getLastSubmission(groupId, {file: true})
+    const existingSub = await utils.getLastSubmission(groupId, {file: true, fileVersions:fileVersionInclude})
     if(!existingSub) throw new NotFoundError('Submission not found')
-    if(!existingSub.file) throw new NotFoundError('File not found')
-    
-    const url = await storage.getUrl(existingSub.file.url, existingSub.file.name)
+    const files = submissionFiles(existingSub)
+    const file = fileId ? files.find(f => f.id === Number(fileId)) : files.at(-1)
+    if (!file) throw new NotFoundError('File not found')
+    const url = await storage.getUrl(file.url, file.name)
     return {url, expiresIn: '10 minutes' }
 }
 
-const removeFile = async (groupId, userId) =>{
-    if(!groupId || !userId)
-        throw new ValidationError('Invalid request')
+const removeFile = async (groupId, userId) => {
+    if (!groupId || !userId) throw new ValidationError('Invalid request')
     await validateGroupMember(groupId, userId)
-    const existingSub = await utils.getLastSubmission(groupId, {file: true})
-    if(!existingSub) throw new NotFoundError('Submission not found')
-    if(!existingSub.file) throw new NotFoundError('File not found')
-    if(existingSub.status !== 'Open') throw new ValidationError('Submission is already closed')
-    
-    await storage.delete(existingSub.file.url)
-    await prisma.submission.update({
-        where:{id: existingSub.id},
-        data:{fileId: null}
+    const removed = await prisma.$transaction(async tx => {
+        const existing = await lockSubmission(tx, groupId)
+        if (existing.status !== 'Open') throw new ValidationError('Submission is already closed')
+        if (!existing.file) throw new NotFoundError('File not found')
+        await tx.submission.update({where:{id:existing.id},data:{fileId:null}})
+        await tx.file.delete({where:{id:existing.file.id}})
+        return existing.file
     })
-    await prisma.file.delete({where: {id: existingSub.file.id }})
-
-    return { message: 'File deleted successfully' }
+    await storage.delete(removed.url).catch(err => logger.error('submission-service','Failed to clean up removed draft',err))
+    return {message:'File deleted successfully'}
 }
 
 // `memberId` narrows the list to submissions of groups that user belongs to.
@@ -189,13 +202,13 @@ const getSubmissionsForAssignment = async (assId, { memberId } = {})=>{
         where.group.members = { some: { userId: parseInt(memberId) } }
     const submissions = await utils.getSubmissionsBy(
         where,
-        {file: true, group: {include: {members: {include: {user: { select: { id: true, username: true } } }}}}}
+        {file: true, fileVersions:fileVersionInclude, group: {include: {members: {include: {user: { select: { id: true, username: true } } }}}}}
     )
-    return Promise.all(submissions.map(s => submissionOutcome(prisma, s)))
+    return Promise.all(submissions.map(s => decorateSubmission(prisma, s)))
 }
 
 module.exports = {
   getGroupSubmissions, createSubmission, closeSubmission,
-    uploadFile, getDownloadUrl, removeFile, getSubmissionsForAssignment,
+    uploadFile, uploadRetryFile, getDownloadUrl, removeFile, getSubmissionsForAssignment,
     storageReady
 }

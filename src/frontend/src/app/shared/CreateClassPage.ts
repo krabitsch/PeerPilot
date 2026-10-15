@@ -141,6 +141,8 @@ export class CreateClassPage {
 
     infoFields: FieldType[] = [
         { type: 'text',      label: 'bocal_label_class_name',     icon: 'title',       required: true,  allowEdit: true, value: undefined },
+        { type: 'text', label: 'Term', icon:'event', required:false, allowEdit:true, value:'' },
+        { type: 'text', label: 'Official course numbers (comma-separated)', icon:'tag', required:false, allowEdit:true, value:'' },
         { type: 'text-area', label: 'field_description',          icon: 'description', required: true,  allowEdit: true, value: undefined },
     ];
 
@@ -172,6 +174,8 @@ export class CreateClassPage {
         this.error.set(null);
         this.loading.show();
         this.courses.createClass({
+            term: String(this.getValue('Term') ?? '').trim() || null,
+            externalCourseCodes: String(this.getValue('Official course numbers (comma-separated)') ?? '').split(/[,\n]/).map(c=>c.trim()).filter(Boolean),
             name:           name.trim(),
             description:    desc.trim(),
             pass_threshold: threshold,
@@ -185,7 +189,7 @@ export class CreateClassPage {
             },
             error: (err) => {
                 this.loading.hide();
-                this.error.set(err?.error?.message ?? this.translate.instant('error_create_class_failed'));
+                this.error.set(err?.error?.error ?? err?.error?.message ?? this.translate.instant('error_create_class_failed'));
             },
         });
     }

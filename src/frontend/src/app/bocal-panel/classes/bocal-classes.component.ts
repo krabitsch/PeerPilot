@@ -31,6 +31,9 @@ export interface BocalClass {
   created_at: string;
   updated_at?: string;
   org_id: number;
+  term?: string | null;
+  externalCourseCodes?: string[];
+  pass_threshold?: number;
   assignmentCount: number;
   studentCount: number;
 }
@@ -88,6 +91,8 @@ export class BocalClassesComponent implements OnInit {
   groupActionError = signal<string | null>(null);
 
   // ── Edit class form state ──────────────────────────────────
+  editClassTerm = signal('');
+  editClassCodes = signal('');
   editClassName         = signal('');
   editClassDesc         = signal('');
   editClassThreshold    = signal(80);
@@ -177,6 +182,7 @@ export class BocalClassesComponent implements OnInit {
                 created_at: c.created_at,
                 updated_at: c.updated_at,
                 org_id: c.org_id,
+                term:c.term, externalCourseCodes:c.externalCourseCodes, pass_threshold:c.pass_threshold,
                 assignmentCount: courseData[i].assignments.length,
                 studentCount: courseData[i].students.length,
               }))
@@ -364,7 +370,9 @@ export class BocalClassesComponent implements OnInit {
 
     this.editClassName.set(course.name);
     this.editClassDesc.set(course.description ?? '');
-    this.editClassThreshold.set(80);
+    this.editClassTerm.set(course.term ?? '');
+    this.editClassCodes.set((course.externalCourseCodes ?? []).join(', '));
+    this.editClassThreshold.set(course.pass_threshold ?? 80);
 
     this.editClassError.set(null);
     this.showEditClass.set(true);
@@ -388,7 +396,10 @@ export class BocalClassesComponent implements OnInit {
 
     this.editClassError.set(null);
     this.loading.show();
+    const term = this.editClassTerm().trim() || null;
+    const externalCourseCodes = [...new Set(this.editClassCodes().split(/[,\n]/).map(c=>c.trim()).filter(Boolean))];
     this.courseService.updateClass(cls.id, {
+      term, externalCourseCodes,
       org_id: cls.org_id,
       created_by: user.id,
       name,
@@ -397,14 +408,14 @@ export class BocalClassesComponent implements OnInit {
     }).subscribe({
       next: () => {
         this.classes.update(list => list.map(c =>
-          c.id === cls.id ? { ...c, name, description: desc } : c
+          c.id === cls.id ? { ...c, name, description: desc, term, externalCourseCodes, pass_threshold:this.editClassThreshold() } : c
         ));
-        this.selectedClass.update(c => c ? { ...c, name, description: desc } : c);
+        this.selectedClass.update(c => c ? { ...c, name, description: desc, term, externalCourseCodes, pass_threshold:this.editClassThreshold() } : c);
         this.closeEditClassModal();
         this.loading.hide();
       },
       error: (err) => {
-        this.editClassError.set(err?.error?.message ?? this.translate.instant('error_update_class_failed'));
+        this.editClassError.set(err?.error?.error ?? err?.error?.message ?? this.translate.instant('error_update_class_failed'));
         this.loading.hide();
       },
     });
@@ -554,7 +565,7 @@ export class BocalClassesComponent implements OnInit {
         this.loading.hide(); },
       error: (err: any) => {
         this.groupActionError.set(
-          err?.error?.message ??
+          err?.error?.error ?? err?.error?.message ??
           err?.error?.error ??
           err?.message ??
           'Failed to delete groups.'
@@ -622,7 +633,7 @@ export class BocalClassesComponent implements OnInit {
         this.loading.hide(); },
       error: (err: any) => {
         this.createGroupError.set(
-          err?.error?.message ??
+          err?.error?.error ?? err?.error?.message ??
           err?.error?.error ??
           err?.message ??
           'Failed to create group.'
@@ -673,7 +684,7 @@ export class BocalClassesComponent implements OnInit {
         this.loading.hide(); },
       error: (err: any) => {
         this.editGroupMembersError.set(
-          err?.error?.message ??
+          err?.error?.error ?? err?.error?.message ??
           err?.error?.error ??
           err?.message ??
           this.translate.instant('error_remove_group_member_failed') );
@@ -704,7 +715,7 @@ export class BocalClassesComponent implements OnInit {
       },
       error: (err: any) => {
         this.editGroupMembersError.set(
-          err?.error?.message ?? 'Failed to add group member.');
+          err?.error?.error ?? err?.error?.message ?? 'Failed to add group member.');
         this.loading.hide(); },
     });
   }  
@@ -779,7 +790,7 @@ private nextGroupName(a: AssignmentResponse): string {
       },
       error: (err: any) => {
         this.groupActionError.set(
-          err?.error?.message ??
+          err?.error?.error ?? err?.error?.message ??
           err?.error?.error ??
           err?.message ??
           'Failed to generate groups.'

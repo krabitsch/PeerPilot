@@ -5,8 +5,7 @@ const { uploader } = require('@transcendence/filemanager')
 const { isStaff } = require('../../middleware/authenticate')
 
 // `validateGroupMember` in the service already requires the caller to be
-// enrolled in the class and a member of this exact group, and closing a
-// submission additionally requires being the leader. The caller's id now comes
+// enrolled in the class and a member of this exact group. The caller's id comes
 // from the token, so those checks can no longer be sidestepped by posting
 // someone else's user id.
 
@@ -40,9 +39,14 @@ router.post('/:groupId/file', uploader.single('file'), async (req, res, next) =>
 })
 
 
+router.post('/:groupId/retry-file', uploader.single('file'), async (req, res, next) => {
+  try { res.json(await subService.uploadRetryFile(req.params.groupId, req.user.userId, req.file)) }
+  catch (err) { next(err) }
+})
+
 router.get('/:groupId/file/download', async (req, res, next) => {
   try {
-    res.json(await subService.getDownloadUrl(req.params.groupId, { userId: req.user.userId, isStaff: isStaff(req) }))
+    res.json(await subService.getDownloadUrl(req.params.groupId, { userId: req.user.userId, isStaff: isStaff(req), fileId:req.query.fileId }))
   } catch (err) { next(err) }
 })
 
@@ -55,7 +59,7 @@ router.delete('/:groupId/file', async (req, res, next) => {
 
 router.get('/:groupId', async (req, res, next)=>{
     try{
-        res.json(await subService.getGroupSubmissions(req.params.groupId))
+        res.json(await subService.getGroupSubmissions(req.params.groupId, {userId:req.user.userId,isStaff:isStaff(req)}))
     }catch(err){next(err)}
 })
 

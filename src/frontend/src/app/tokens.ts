@@ -270,6 +270,8 @@ export interface File {
 
 // Submission related interfaces
 export interface Submission {
+  files?: File[];
+  canUploadRetryFile?: boolean;
   id: number;
   groupId: number;
   fileId?: number;

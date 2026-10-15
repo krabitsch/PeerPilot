@@ -150,6 +150,7 @@ model Assignment {
   groupSize   Int    @default(1) // solo or group
   fileId     Int?
 
+  evaluationDurationMinutes Int @default(30)
   req_eval            Int            @default(3)
   max_score           Int            @default(100)
   pass_threshold      Float          @default(100.0)
@@ -234,6 +235,7 @@ model File {
   url        String
   uploadedBy Int
   uploader   User        @relation(fields: [uploadedBy], references: [id], onDelete: Cascade)
+  submissionVersions SubmissionFileVersion[]
   submission Submission?
   evalRecording EvalResponse? @relation("EvalRecording")
   createdAt  DateTime    @default(now())
@@ -256,12 +258,26 @@ model Submission {
   createdAt DateTime  @default(now())
   closedAt  DateTime? @default(now())
 
+  fileVersions SubmissionFileVersion[]
   responses       EvalResponse[]
   evalAssignments EvalAssignment[]
   finalScore      Float?
   passed          Boolean?
 
   @@map("submission")
+}
+
+// Submission.fileId stays the immutable original after close; revisions are additive.
+model SubmissionFileVersion {
+  id           Int @id @default(autoincrement())
+  submissionId Int
+  fileId       Int @unique
+  createdAt    DateTime @default(now())
+  submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  file         File @relation(fields: [fileId], references: [id], onDelete: Restrict)
+
+  @@index([submissionId, createdAt, id])
+  @@map("submissionFileVersion")
 }
 
 model EvalSheet {

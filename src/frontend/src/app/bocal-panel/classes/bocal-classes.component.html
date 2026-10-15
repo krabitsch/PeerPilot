@@ -61,6 +61,14 @@
                       (input)="editClassDesc.set($any($event.target).value)"></textarea>
           </div>
           <div>
+            <label for="course-term" [ngStyle]="fieldLabelStyle">Term</label>
+            <input id="course-term" [ngStyle]="inputStyle" [value]="editClassTerm()" (input)="editClassTerm.set($any($event.target).value)" />
+          </div>
+          <div>
+            <label for="course-codes" [ngStyle]="fieldLabelStyle">Official course numbers (comma-separated)</label>
+            <input id="course-codes" [ngStyle]="inputStyle" [value]="editClassCodes()" (input)="editClassCodes.set($any($event.target).value)" placeholder="1268, 1269, 1421" />
+          </div>
+          <div>
             <label [ngStyle]="fieldLabelStyle">
               {{ 'bocal_label_pass_threshold' | translate }} — {{ editClassThreshold() }}%
             </label>

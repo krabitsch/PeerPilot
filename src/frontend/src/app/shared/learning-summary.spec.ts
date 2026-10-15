@@ -54,9 +54,9 @@ describe('student dashboard and progress', () => {
     expect(fixture.nativeElement.textContent).toContain('Respond to feedback on Assignment 1');
     expect(fixture.nativeElement.textContent).toContain('1 / 3');
     const component = fixture.componentInstance;
-    component.openAction(component.actions()[0]);
-    expect(navigation).toHaveBeenLastCalledWith(['/evaluation'], { queryParams: { classId: 1 } });
     component.openAction(component.actions()[1]);
+    expect(navigation).toHaveBeenLastCalledWith(['/evaluation'], { queryParams: { classId: 1 } });
+    component.openAction(component.actions()[0]);
     expect(navigation).toHaveBeenLastCalledWith(['/assignment-detail'], { queryParams: { assId: 1 } });
     expect(component.summary.metrics().passed).toBe(0);
     expect(Array.from(fixture.nativeElement.querySelectorAll('.metrics .muted'), (e: any) => e.textContent)).toEqual(['Evaluations passed', 'Assignments passed', 'Evaluator tasks completed']);
@@ -123,4 +123,13 @@ describe('student dashboard and progress', () => {
     expect(fixture.nativeElement.textContent).not.toContain('Info — no action needed');
   });
 
+});
+
+it('orders own-work actions by creation time then id, ahead of evaluator tasks', () => {
+  const a = { ...assignment(2), groupAssigned: true, evaluatorPending: 2 };
+  const b = { ...assignment(1), groupAssigned: true };
+  const c = { ...assignment(3), groupAssigned: true, created_at: '2026-09-01' };
+  expect(dashboardActions(course([a,b,c])).map(a => a.queryParams)).toEqual([
+    {assId:3}, {assId:1}, {assId:2}, {classId:1},
+  ]);
 });

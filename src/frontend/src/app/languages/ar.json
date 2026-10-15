@@ -166,7 +166,7 @@
     "eval_score_max_bonus": "100 كحد أقصى + 20 مكافأة",
     "eval_written_feedback": "ملاحظات مكتوبة",
     "eval_feedback_placeholder": "صف ما تم تنفيذه بشكل جيد وما يمكن تحسينه...",
-    "eval_feedback_min_length": "يجب ألا يقل طول الملاحظات عن 20 حرفًا.",
+    "eval_feedback_min_length": "يجب ألا يقل طول الملاحظات عن 100 حرفًا.",
     "eval_review_title": "راجع تقييمك",
     "eval_final_score": "النتيجة النهائية",
     "eval_progress_summary": "من أصل {{total}} تقييمًا تم استلامه",

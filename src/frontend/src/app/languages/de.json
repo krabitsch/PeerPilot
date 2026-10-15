@@ -166,7 +166,7 @@
     "eval_score_max_bonus": "max. 100 + 20 Bonus",
     "eval_written_feedback": "Schriftliches Feedback",
     "eval_feedback_placeholder": "Beschreibe, was gut gemacht wurde und was verbessert werden könnte...",
-    "eval_feedback_min_length": "Das Feedback muss mindestens 20 Zeichen lang sein.",
+    "eval_feedback_min_length": "Das Feedback muss mindestens 100 Zeichen lang sein.",
     "eval_review_title": "Überprüfe deine Bewertung",
     "eval_final_score": "Endpunktzahl",
     "eval_progress_summary": "von {{total}} erhaltenen Bewertungen",

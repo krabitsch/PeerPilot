@@ -166,7 +166,7 @@
     "eval_score_max_bonus": "max 100 + 20 bonus",
     "eval_written_feedback": "Written feedback",
     "eval_feedback_placeholder": "Describe what was done well and what could be improved...",
-    "eval_feedback_min_length": "Feedback must be at least 20 characters.",
+    "eval_feedback_min_length": "Please provide at least 100 characters of constructive feedback.",
     "eval_review_title": "Review your evaluation",
     "eval_final_score": "final score",
     "eval_progress_summary": "of {{total}} evaluations received",

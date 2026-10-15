@@ -9,14 +9,14 @@ import { DS } from '../tokens';
   template: `
     <app-container [config]="card">
       <div class="instructions" data-testid="assignment-instructions">
-        <div class="heading">Assignment instructions</div>
+        <div class="heading">Assignment description</div>
         @if (assignment().description.trim()) {
           <app-markdown-math [text]="assignment().description" />
         } @else {
-          <p>{{ assignment().file ? 'The assignment questions are provided in the attached file.' : 'Assignment instructions have not been provided yet.' }}</p>
+          <p>{{ assignment().file ? 'The assignment questions are provided in the attached file.' : 'Assignment description has not been provided yet.' }}</p>
         }
         @if (assignment().file; as file) {
-          <div class="file-action"><a [href]="file.url" target="_blank" rel="noopener noreferrer">Open assignment file ↗</a></div>
+          <div class="file-action"><a [href]="file.url" target="_blank" rel="noopener noreferrer">Download assignment file</a></div>
         }
       </div>
     </app-container>
@@ -26,8 +26,8 @@ import { DS } from '../tokens';
     .heading { font-size: .6875rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: ${DS.colors.violet}; margin-bottom: 8px; }
     p { margin: 0; font-size: .9375rem; color: ${DS.colors.fg2}; line-height: 1.75; }
     .file-action { display: flex; justify-content: flex-end; margin-top: 16px; }
-    a { font-size: .875rem; font-weight: 600; color: ${DS.colors.violet}; text-decoration: none; }
-    a:hover { text-decoration: underline; }
+    a { display: inline-flex; align-items: center; justify-content: center; padding: 9px 18px; border-radius: 8px; font-size: .875rem; font-weight: 500; color: ${DS.colors.violet}; background: ${DS.colors.violetSubtle}; border: 1px solid ${DS.colors.violetBorder}; text-decoration: none; }
+    a:hover { background: oklch(27% 0.09 296); }
   `],
 })
 export class AssignmentInstructionsComponent {

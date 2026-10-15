@@ -46,6 +46,7 @@ export interface EvalAssignment {
   evaluatorUser?: {
     id: number;
     username: string;
+    email?: string;
   };
 }
 
@@ -56,8 +57,8 @@ export interface EvaluatorTask {
   evalueeGroupId: number;
   round: number;
   status: EvalAssignmentStatus;
-  assignment: { id: number; name: string; created_at: string; classid: number };
-  evalueeGroup: { id: number; name: string; members: { user: { id: number; username: string } }[] };
+  assignment: { id: number; name: string; created_at: string; classid: number; evaluationDurationMinutes?: number };
+  evalueeGroup: { id: number; name: string; members: { user: { id: number; username: string; email?: string } }[] };
   evalResponse: {
     id: number; givenMarks: number; comment: string; reply: string | null;
     scores: { sectionId: number; score: number; section: { name: string; marks: number } }[];
@@ -122,6 +123,7 @@ export interface StartEvaluationResponse {
     name: string;
     description: string;
     max_score: number;
+    evaluationDurationMinutes?: number;
   };
 
   group: {
@@ -131,6 +133,7 @@ export interface StartEvaluationResponse {
 
   submission: {
     id: number;
+    files?: {id:number;name:string;url:string;size:number}[];
 
     file: {
       id: number;

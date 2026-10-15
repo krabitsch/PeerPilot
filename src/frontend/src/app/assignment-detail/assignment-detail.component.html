@@ -124,6 +124,10 @@
         <div class="card-inner submission-card">
           <div class="card-title">{{ 'card_submission' | translate }}</div>
 
+          @if ((myGroup()?.members?.length ?? 0) > 1) {
+            <p class="hint-text">This is a group submission. Any group member may upload and close it.
+              Once closed, the submission is closed for the entire group.</p>
+          }
           @if (!myGroup()) {
             <p class="hint-text">{{ 'submission_join_first' | translate }}</p>
           }
@@ -146,13 +150,21 @@
               <p class="hint-text">The following file was submitted:</p>
             }
 
-            @if (submittedFileMeta(submission); as meta) {
+            @for (file of submissionFiles(); track file.id; let i = $index; let latest = $last) {
+              @if (submissionFiles().length > 1) {
+                <div class="hint-text">{{ i === 0 ? 'Original submission' : i === 1 ? 'Updated submission' : 'Updated submission ' + i }}{{ latest ? ' · Latest version' : '' }}</div>
+              }
               <div class="file-preview">
-                <div class="file-preview-ext">{{ meta.ext }}</div>
-                <div class="file-preview-info">
-                  <span class="file-preview-name">{{ meta.name }}</span>
-                  <span class="file-preview-meta">{{ meta.size }} · {{ meta.type }}</span>
-                </div>
+                <div class="file-preview-info"><span class="file-preview-name">{{ file.name }}</span></div>
+                <app-btn variant="secondary" size="sm" (clicked)="downloadSubmissionFile(file.id)">Download</app-btn>
+              </div>
+            }
+
+            @if (submission.status === 'Close' && submission.canUploadRetryFile) {
+              <p class="hint-text">You may optionally upload an updated submission file before the retry evaluation.</p>
+              <div class="upload-picker">
+                <app-btn variant="secondary" size="sm" [disabled]="uploadingFile()">Upload updated submission file</app-btn>
+                <input class="file-input" type="file" [disabled]="uploadingFile()" accept=".zip,.pdf,.txt,.doc,.docx,image/*" (change)="onFileSelected($event)" />
               </div>
             }
 
@@ -190,14 +202,16 @@
     </div>
 
     <!-- ── Evaluations ───────────────────────────────────────── -->
-    @if (mySubmission()?.status === 'Close') {
+    @if (myEvaluators().length > 0 && evaluationRows().length > 0) {
       <app-container [config]="cardConfig">
         <div class="evaluations-inner">
           <div class="card-title">Evaluations</div>
+          <p class="hint-text">{{ evaluationRows().length > 1 ? 'Contact the evaluators listed below to schedule your peer-evaluation sessions.' : 'Contact your evaluator to schedule your peer-evaluation session.' }}
+            Recommended duration per session: {{ assignment()?.evaluationDurationMinutes ?? 30 }} minutes.</p>
 
           <div class="evaluation-list">
             @for (row of evaluationRows(); track row.round) {
-              <div class="evaluation-row">
+              <div class="evaluation-row" [class.before-close]="mySubmission()?.status !== 'Close'">
                 <div class="evaluation-round">
                   Evaluation {{ row.round }}
                 </div>
@@ -206,15 +220,18 @@
                   <span class="evaluation-label">Evaluator</span>
                   <span class="evaluation-value">
                     {{ row.pairing?.evaluatorUser?.username ?? 'Not assigned yet' }}
+                    @if (row.pairing?.evaluatorUser?.email; as email) { <span>({{ email }})</span> }
                   </span>
                 </div>
 
-                <div class="evaluation-passkey">
-                  <span class="evaluation-passkey-label">Eval passkey</span>
-                  <span class="evaluation-passkey-value">
-                    {{ evalPassKey(row.pairing) }}
-                  </span>
-                </div>
+                @if (mySubmission()?.status === 'Close') {
+                  <div class="evaluation-passkey">
+                    <span class="evaluation-passkey-label">Eval passkey</span>
+                    <span class="evaluation-passkey-value">
+                      {{ evalPassKey(row.pairing) }}
+                    </span>
+                  </div>
+                }
 
                 @if (row.outcome === 'FeedbackRequired') {
                   <div class="evaluation-status pending">Feedback required</div>
@@ -229,7 +246,7 @@
               @if (row.outcome === 'FeedbackRequired') {
                 <div class="evaluation-retry">Please respond to the evaluator's feedback and upload the evaluation recording before this evaluation can be finalized.</div>
               } @else if (row.waitingForRematch) {
-                <div class="evaluation-retry">Waiting to be rematched with a new evaluator.</div>
+                <div class="evaluation-retry">Waiting to be rematched with a new evaluator. You may optionally upload an updated submission file before the retry evaluation.</div>
               } @else if (row.outcome === 'Failed' && row.pairing && !row.pairing.retryRequested) {
                 <div class="evaluation-retry">
                   <app-btn variant="secondary" size="sm" [disabled]="requestingRetry() !== null"

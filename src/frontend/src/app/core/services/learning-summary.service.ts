@@ -32,7 +32,8 @@ export function courseMetrics(course: LearningCourse | null) {
 }
 export function dashboardActions(course: LearningCourse | null) {
   const actions: { label: string; route: string; queryParams?: { assId?: number; classId?: number } }[] = [];
-  for (const a of course?.assignments ?? []) {
+  for (const a of [...(course?.assignments ?? [])].sort((a, b) =>
+    new Date(a.created_at).getTime() - new Date(b.created_at).getTime() || a.id - b.id)) {
     const label = a.status === 'FeedbackRequired' && a.canReply ? `Respond to feedback on ${a.name}` :
       a.groupAssigned && a.submissionState === 'NotSubmitted' ? `${a.name} is ready for submission` :
       a.submissionState === 'Open' ? `Finish your submission for ${a.name}` :
@@ -40,7 +41,7 @@ export function dashboardActions(course: LearningCourse | null) {
     if (label) actions.push({ label, route: '/assignment-detail', queryParams: { assId: a.id } });
   }
   const pending = (course?.assignments ?? []).reduce((n, a) => n + a.evaluatorPending, 0);
-  if (pending) actions.unshift({ label: `${pending} evaluator ${pending === 1 ? 'task is' : 'tasks are'} waiting`, route: '/evaluation', queryParams: { classId: course!.id } });
+  if (pending) actions.push({ label: `${pending} evaluator ${pending === 1 ? 'task is' : 'tasks are'} waiting`, route: '/evaluation', queryParams: { classId: course!.id } });
   return actions;
 }
 export function dashboardInformation(course: LearningCourse | null) {

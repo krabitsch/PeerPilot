@@ -16,6 +16,8 @@ describe('unified assignment instructions', () => {
       if(attached) expect(fixture.nativeElement.querySelector('a').getAttribute('href')).toBe(file.url);
       if(!description) expect(fixture.nativeElement.textContent).toContain('The assignment questions are provided in the attached file.');
       else expect(fixture.nativeElement.textContent).toContain(description);
+      expect(fixture.nativeElement.textContent).toContain('Assignment description');
+      if (attached) expect(fixture.nativeElement.querySelector('a').textContent).toBe('Download assignment file');
       expect(fixture.nativeElement.textContent).not.toContain('View subject');
       expect(fixture.nativeElement.textContent).not.toContain('Download assignment instructions');
     });

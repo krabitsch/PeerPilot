@@ -75,7 +75,7 @@ route.post('/eval-assignments', requireStaff, async(req, res, next) => {
 route.get('/assignment/:id/eval-assignments', async (req, res, next) => {
   //console.log('DELETE all eval assignments route reached, assignment id:', req.params.id)
   try {
-    res.json(await service.getEvalAssignments(req.params.id))
+    res.json(await service.getEvalAssignments(req.params.id, { userId: req.user.userId, isStaff: isStaff(req) }))
   } catch (err) {
     next(err)
   }
@@ -93,7 +93,7 @@ route.delete('/assignment/:id/eval-assignments', requireStaff, async (req, res, 
 // get one EvalAssignment by its EvalAssignment-id (GET /api/eval/eval-assignments/:id)
 route.get('/eval-assignments/:id', async (req, res, next) => {
   try {
-    res.json(await service.getEvalAssignmentById(req.params.id))
+    res.json(await service.getEvalAssignmentById(req.params.id, { userId: req.user.userId, isStaff: isStaff(req) }))
   } catch (err) {
     next(err)
   }

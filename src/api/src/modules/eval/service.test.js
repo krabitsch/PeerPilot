@@ -9,7 +9,7 @@ const assignment = { id: 1, req_eval: 3, max_score: 100, pass_threshold: 50,
   evalSheet: { sections: [{ id: 1, marks: 100, name: 'Score', sectionType: 'Slider' }] } }
 
 const harness = (marks = 20) => {
-  const record = { id: 1, round: 1, assignmentId: 1, evalueeGroupId: 2, evaluatorUserId: 4,
+  const record = { id: 1, round: 1, assignmentId: 1, evalueeGroupId: 2, evaluatorUserId: 4, evaluatorUser:{id:4,username:'student4',email:'student4@example.com'},
     submissionId: 3, evalResponseId: marks == null ? null : 10, createdAt: new Date(),
     status: marks == null ? 'Pending' : 'Submitted', assignment, passKey: '482913',
     retryRequested: false, retryRequestedAt: null,
@@ -33,7 +33,8 @@ const harness = (marks = 20) => {
       },
     },
     groupMember: { findUnique: async ({ where }) => where.userId_groupId.userId === 5 ? { userId: 5 } : null },
-    group: { findUnique: async () => ({ assignment, evalAssignmentsAsEvaluee: [record] }) },
+    assignment: { findUnique: async () => assignment },
+    group: { findMany: async ({where}) => where.members.some.userId === 5 ? [{id:2,submissions:saved.status ? [{status:saved.status}] : []}] : [], findUnique: async () => ({ assignment, evalAssignmentsAsEvaluee: [record] }) },
     submission: { findFirst: async () => saved, findUnique: async () => saved, update: async ({ data }) => Object.assign(saved, data) },
     evalResponse: {
       create: async ({ data }) => { const response = { id: 11, ...data }; responses.push(response); return response },
@@ -54,9 +55,10 @@ const harness = (marks = 20) => {
     module, Date, require: name => {
       if (name === '@transcendence/database') return { prisma: db }
       if (name === '@transcendence/errors') return errors
-      if (name === '@transcendence/utils') return { getEvalAssignmentById: async () => record, getAssignmentById: async () => assignment }
-      if (name === '@transcendence/filemanager') return { recordingUploader: { single: () => () => {} }, createStorage: () => ({ ensureBucket: async () => {}, upload: async () => {} }) }
+      if (name === '@transcendence/utils') return { getEvalAssignments: async () => [record], getEvalAssignmentById: async () => record, getAssignmentById: async () => assignment }
+      if (name === '@transcendence/filemanager') return { recordingUploader: { single: () => () => {} }, createStorage: () => ({ ensureBucket: async () => {}, upload: async () => {}, getPublicUrl: key => key }) }
       if (name === '@transcendence/logger') return { error() {} }
+      if (name === '../submission/files') return require('../submission/files')
       if (name === './outcome') return outcome
       if (name === 'crypto') return require('node:crypto')
       throw new Error('Unexpected import: ' + name)
@@ -96,12 +98,12 @@ test('non-member cannot request retry for another group', async () => {
 
 test('submission stores one pairing response and updates failure immediately without reply', async () => {
   const h = harness(null)
-  await h.service.submitEvaluation({ evalAssignmentId: 1, evaluatorUserId: 4, comment: 'New feedback', scores: [{ sectionId: 1, score: 20 }] })
+  await h.service.submitEvaluation({ evalAssignmentId: 1, evaluatorUserId: 4, comment: 'New feedback'.repeat(20), scores: [{ sectionId: 1, score: 20 }] })
   assert.equal(h.record.status, 'Submitted')
   assert.equal(h.record.evalResponseId, 11)
   assert.equal(h.saved.passed, false)
   assert.equal(h.responses[0].reply, undefined)
-  await assert.rejects(h.service.submitEvaluation({ evalAssignmentId: 1, evaluatorUserId: 4, comment: 'Repeat', scores: [{ sectionId: 1, score: 80 }] }), /already been submitted/)
+  await assert.rejects(h.service.submitEvaluation({ evalAssignmentId: 1, evaluatorUserId: 4, comment: 'Repeat'.repeat(20), scores: [{ sectionId: 1, score: 80 }] }), /already been submitted/)
   assert.equal(h.responses.length, 1)
 })
 
@@ -140,7 +142,7 @@ test('a new pairing does not overwrite earlier feedback by the same evaluator', 
   const h = harness(null)
   const earlier = { id: 10, subId: 3, userId: 4, givenMarks: 20, comment: 'Earlier failed attempt', reply: 'Earlier reply' }
   h.responses.push(earlier)
-  await h.service.submitEvaluation({ evalAssignmentId: 1, evaluatorUserId: 4, comment: 'Later attempt', scores: [{ sectionId: 1, score: 80 }] })
+  await h.service.submitEvaluation({ evalAssignmentId: 1, evaluatorUserId: 4, comment: 'Later attempt'.repeat(20), scores: [{ sectionId: 1, score: 80 }] })
   assert.equal(h.responses.length, 2)
   assert.equal(h.responses[0], earlier)
   assert.equal(h.responses[0].comment, 'Earlier failed attempt')
@@ -177,7 +179,7 @@ test('completed and cancelled pairings cannot restart', async () => {
   await assert.rejects(h.service.startEvaluation({ evalAssignmentId: 1, evaluatorUserId: 4, passkey: '482913' }), /no longer pending/)
 })
 
-test('A/E: evaluator task query scopes identity and enrollments without passkeys/emails', async () => {
+test('A/E: evaluator task query scopes identity and enrollments with scoped contact emails and no passkeys', async () => {
   let taskQuery, courseQuery
   const database = {
     class: { findMany: async query => { courseQuery = query; return [{ id: 1, name: 'Course' }] } },
@@ -189,8 +191,9 @@ test('A/E: evaluator task query scopes identity and enrollments without passkeys
       if (name === '@transcendence/database') return { prisma: database }
       if (name === '@transcendence/errors') return errors
       if (name === '@transcendence/utils') return {}
-      if (name === '@transcendence/filemanager') return { recordingUploader: { single: () => () => {} }, createStorage: () => ({ ensureBucket: async () => {}, upload: async () => {} }) }
+      if (name === '@transcendence/filemanager') return { recordingUploader: { single: () => () => {} }, createStorage: () => ({ ensureBucket: async () => {}, upload: async () => {}, getPublicUrl: key => key }) }
       if (name === '@transcendence/logger') return { error() {} }
+      if (name === '../submission/files') return require('../submission/files')
       if (name === './outcome') return outcome
       return require(name)
     },
@@ -200,7 +203,7 @@ test('A/E: evaluator task query scopes identity and enrollments without passkeys
   assert.equal(taskQuery.where.assignment.class.enrollments.some.userId, 4)
   assert.equal(courseQuery.where.enrollments.some.status, 'Active')
   assert.equal(taskQuery.select.evalueeGroup.select.members.select.user.select.username, true)
-  assert.equal(JSON.stringify(taskQuery.select).includes('email'), false)
+  assert.equal(taskQuery.select.evalueeGroup.select.members.select.user.select.email, true)
   assert.equal(JSON.stringify(taskQuery.select).includes('passKey'), false)
   assert.equal(result.tasks[0].evalueeGroup.members[0].user.username, 'student42')
 })
@@ -259,4 +262,55 @@ test('historical reply missing recording can be completed without discarding fee
   await h.service.replyToEvalResponse(10, { userId: 5, reply: 'Response submitted', recording })
   assert.equal(h.responses[0].recordingFileId, 42)
   assert.equal(h.responses[0].comment, 'Old feedback')
+})
+
+for (const read of ['list', 'single']) {
+  test(`${read} pairing reads protect passkeys until close and preserve staff access`, async () => {
+    const h = harness(null)
+    const get = async viewer => read === 'list'
+      ? (await h.service.getEvalAssignments(1, viewer))[0]
+      : h.service.getEvalAssignmentById(1, viewer)
+    const student = {userId:5, isStaff:false}
+    h.saved.status = null // No closed submission exists.
+    assert.equal((await get(student)).passKey, null)
+    h.saved.status = 'Open'
+    assert.equal((await get(student)).passKey, null)
+    assert.equal((await get({userId:4, isStaff:false})).passKey, null)
+    assert.equal((await get({userId:7, isStaff:true})).passKey, '482913')
+    h.saved.status = 'Close'
+    assert.equal((await get(student)).passKey, '482913')
+    assert.equal((await get({userId:4, isStaff:false})).passKey, null)
+    assert.equal(h.record.passKey, '482913')
+  })
+}
+
+for (const text of [' '.repeat(200), 'a'.repeat(99), ' '+ 'a'.repeat(99)+' ']) {
+  test('rejects feedback under 100 trimmed characters', async () => {
+    const h = harness(null)
+    await assert.rejects(h.service.submitEvaluation({evalAssignmentId:1,evaluatorUserId:4,comment:text,scores:[{sectionId:1,score:60}]}), /at least 100 characters/)
+    assert.equal(h.responses.length, 0)
+  })
+}
+test('accepts 100 trimmed characters of evaluator feedback', async () => {
+  const h = harness(null)
+  await h.service.submitEvaluation({evalAssignmentId:1,evaluatorUserId:4,comment:'  '+ 'a'.repeat(100)+'  ',scores:[{sectionId:1,score:60}]})
+  assert.equal(h.responses[0].comment.length,100)
+})
+test('contact emails are visible only to the paired evaluee group and staff', async () => {
+  const h = harness(null)
+  h.saved.status = 'Open'
+  assert.equal((await h.service.getEvalAssignments(1,{userId:5}))[0].evaluatorUser.email, 'student4@example.com')
+  assert.equal((await h.service.getEvalAssignments(1,{userId:99}))[0].evaluatorUser.email, undefined)
+  assert.equal((await h.service.getEvalAssignmentById(1,{userId:99})).evaluatorUser.email, undefined)
+  assert.equal((await h.service.getEvalAssignments(1,{userId:7,isStaff:true}))[0].evaluatorUser.email, 'student4@example.com')
+})
+test('replacement evaluator receives the newest revised file and original history', async () => {
+  const h = harness(null)
+  h.record.submissionId = null
+  h.saved.file = {id:1,name:'original.pdf',url:'original.pdf'}
+  h.saved.fileVersions = [{id:1,file:{id:2,name:'revised.pdf',url:'revised.pdf'}}]
+  const result = await h.service.startEvaluation({evalAssignmentId:1,evaluatorUserId:4,passkey:'482913'})
+  assert.equal(result.submission.file.id,2)
+  assert.equal(result.submission.files[0].id,1)
+  assert.equal(h.record.passKey,'482913')
 })

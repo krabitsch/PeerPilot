@@ -3,6 +3,8 @@ import { inject, Injectable, signal } from "@angular/core";
 import { Course } from "../../../tokens";
 
 export interface CoursePayload {
+  term?: string | null;
+  externalCourseCodes?: string[];
   org_id: number;
   created_by: number;
   name: string;

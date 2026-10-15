@@ -43,6 +43,7 @@
       <div [ngStyle]="panelStyle">
         <div class="overline">Start evaluation</div>
         <div class="task-meta">You are evaluating: <strong>{{ taskNames(task) }}</strong></div>
+        <div class="task-meta">Recommended session duration: {{ task.assignment.evaluationDurationMinutes ?? 30 }} minutes</div>
         <div class="task-meta">Assignment: <strong>{{ task.assignment.name }}</strong> · Evaluation {{ task.round }}</div>
         <p class="course-description">
           @if (task.evalueeGroup.members.length > 1) {
@@ -162,11 +163,18 @@
         </div>
         @if (session()!.submission.file) {
           <a [href]="session()!.submission.file!.url" target="_blank" rel="noopener">
-            <app-btn variant="secondary" size="sm">{{ 'btn_view_submission' | translate }}</app-btn>
+            <app-btn variant="secondary" size="sm">View latest submission</app-btn>
           </a>
         }
       </div>
 
+      @if ((session()!.submission.files?.length ?? 0) > 1) {
+        <div class="task-meta">Previous versions:
+          @for (file of session()!.submission.files!.slice(0, -1); track file.id) {
+            <a [href]="file.url" target="_blank" rel="noopener">{{ file.name }}</a>
+          }
+        </div>
+      }
       <!-- Sections — each one clear: title, description, then a big control -->
       @for (s of sections(); track s.id) {
         <div class="section-card">
@@ -206,6 +214,7 @@
         <textarea [ngStyle]="textareaStyle" [value]="comment()"
                   (input)="comment.set($any($event.target).value)"
                   [placeholder]="'eval_feedback_placeholder' | translate"></textarea>
+        <div class="task-meta">{{ comment().trim().length }} / 100 characters</div>
         @if (comment().length > 0 && !commentOk()) {
           <span style="font-size:0.75rem;color:oklch(75% 0.18 80)"> {{ 'eval_feedback_min_length' | translate }}</span>
         }
