@@ -18,7 +18,10 @@ const buildLearningSummary = (enrollments, pairings, evaluatorTasks, userId) => 
             (new Date(p.createdAt) < new Date(current.createdAt) ||
               (+new Date(p.createdAt) === +new Date(current.createdAt) && p.id < current.id)))
           return { round: round.round, displayOutcome: round.displayOutcome,
-            waitingForRematch: round.waitingForRematch, pairingPending: round.attemptIds.length === 0, passedAfterRetry }
+            waitingForRematch: round.waitingForRematch, pairingPending: round.attemptIds.length === 0, passedAfterRetry,
+            // Same contact policy as Assignment Detail: only the caller's evaluee group.
+            meetingEvaluator: current?.status === 'Pending' && round.displayOutcome === 'Pending' && !round.waitingForRematch
+              ? current.evaluatorUser ?? null : null }
         })
         const tasks = evaluatorTasks.filter(t => t.assignmentId === assignment.id && t.status !== 'Cancelled')
         const status = !submission ? 'NotStarted' : submission.status !== 'Close' ? 'InProgress' : summary.workflowStatus
@@ -60,6 +63,7 @@ const getLearningSummary = async userId => {
       where: { evalueeGroup: { members: { some: { userId } } }, assignment: scope },
       select: { id: true, assignmentId: true, evalueeGroupId: true, evaluatorUserId: true,
         submissionId: true, evalResponseId: true, round: true, status: true, createdAt: true, retryRequested: true,
+        evaluatorUser: { select: { id: true, username: true, email: true } },
         evalResponse: { select: responseSelect } }
     }),
     prisma.evalAssignment.findMany({

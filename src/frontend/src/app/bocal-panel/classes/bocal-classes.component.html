@@ -68,15 +68,7 @@
             <label for="course-codes" [ngStyle]="fieldLabelStyle">Official course numbers (comma-separated)</label>
             <input id="course-codes" [ngStyle]="inputStyle" [value]="editClassCodes()" (input)="editClassCodes.set($any($event.target).value)" placeholder="1268, 1269, 1421" />
           </div>
-          <div>
-            <label [ngStyle]="fieldLabelStyle">
-              {{ 'bocal_label_pass_threshold' | translate }} — {{ editClassThreshold() }}%
-            </label>
-            <input type="range" min="50" max="100"
-                   [value]="editClassThreshold()"
-                   (input)="editClassThreshold.set(+$any($event.target).value)"
-                   style="width:100%" />
-          </div>
+
         </div>
         @if (editClassError()) {
           <div [ngStyle]="errorStyle">{{ editClassError() }}</div>

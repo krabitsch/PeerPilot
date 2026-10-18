@@ -7,7 +7,7 @@ export interface LearningAssignment {
   id: number; name: string; created_at: string; status: LearningStatus;
   groupAssigned: boolean; canReply: boolean; submissionState: 'NotSubmitted' | 'Open' | 'Submitted';
   completed: boolean; retryAvailable: boolean;
-  evaluationRounds: { round: number; displayOutcome: EvaluationOutcome; waitingForRematch: boolean; pairingPending?: boolean; passedAfterRetry: boolean }[];
+  evaluationRounds: { round: number; displayOutcome: EvaluationOutcome; waitingForRematch: boolean; pairingPending?: boolean; meetingEvaluator?: { id: number; username: string; email: string } | null; passedAfterRetry: boolean }[];
   evaluatorAssigned: number; evaluatorCompleted: number; evaluatorPending: number;
 }
 export interface LearningCourse {
@@ -39,6 +39,13 @@ export function dashboardActions(course: LearningCourse | null) {
       a.submissionState === 'Open' ? `Finish your submission for ${a.name}` :
       a.retryAvailable ? `Review the failed evaluation on ${a.name}` : null;
     if (label) actions.push({ label, route: '/assignment-detail', queryParams: { assId: a.id } });
+    for (const round of [...a.evaluationRounds].sort((a, b) => a.round - b.round)) {
+      const evaluator = round.meetingEvaluator;
+      if (a.groupAssigned && round.displayOutcome === 'Pending' && !round.waitingForRematch && evaluator) {
+        actions.push({ label: `Schedule and complete your peer-evaluation session with ${evaluator.username} (${evaluator.email}) for ${a.name} — Round ${round.round}.`,
+          route: '/assignment-detail', queryParams: { assId: a.id } });
+      }
+    }
   }
   const pending = (course?.assignments ?? []).reduce((n, a) => n + a.evaluatorPending, 0);
   if (pending) actions.push({ label: `${pending} evaluator ${pending === 1 ? 'task is' : 'tasks are'} waiting`, route: '/evaluation', queryParams: { classId: course!.id } });

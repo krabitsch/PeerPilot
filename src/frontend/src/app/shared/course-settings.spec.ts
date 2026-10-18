@@ -36,9 +36,9 @@ describe('Bocal course metadata and assignment duration',()=>{
     const fixture=TestBed.createComponent(BocalClassesComponent),c=fixture.componentInstance;
     c.openEditClass(course);fixture.detectChanges();
     expect((fixture.nativeElement.querySelector('#course-term') as HTMLInputElement).value).toBe('Fall 2026');
-    expect(c.editClassThreshold()).toBe(75);
+    expect(fixture.nativeElement.querySelector('input[type=range]')).toBeNull();
     c.editClassTerm.set('Spring 2027');c.editClassCodes.set('1268,1421,9999');c.onSaveClassEdit();
-    expect(courses.updateClass).toHaveBeenCalledWith(1,expect.objectContaining({term:'Spring 2027',externalCourseCodes:['1268','1421','9999']}));
+    expect(courses.updateClass).toHaveBeenCalledWith(1,expect.objectContaining({term:'Spring 2027',externalCourseCodes:['1268','1421','9999'],pass_threshold:75}));
   });
   it('rejected code removal stays in the modal and shows the backend error',()=>{
     const fixture=TestBed.createComponent(BocalClassesComponent),c=fixture.componentInstance;

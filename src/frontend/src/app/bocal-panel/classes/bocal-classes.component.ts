@@ -95,7 +95,6 @@ export class BocalClassesComponent implements OnInit {
   editClassCodes = signal('');
   editClassName         = signal('');
   editClassDesc         = signal('');
-  editClassThreshold    = signal(80);
 
   // ── Create group form state ──────────────────────────────────
   createGroupAssignment = signal<AssignmentResponse | null>(null);
@@ -372,7 +371,6 @@ export class BocalClassesComponent implements OnInit {
     this.editClassDesc.set(course.description ?? '');
     this.editClassTerm.set(course.term ?? '');
     this.editClassCodes.set((course.externalCourseCodes ?? []).join(', '));
-    this.editClassThreshold.set(course.pass_threshold ?? 80);
 
     this.editClassError.set(null);
     this.showEditClass.set(true);
@@ -404,13 +402,13 @@ export class BocalClassesComponent implements OnInit {
       created_by: user.id,
       name,
       description: desc,
-      pass_threshold: this.editClassThreshold(),
+      pass_threshold: cls.pass_threshold ?? 80,
     }).subscribe({
       next: () => {
         this.classes.update(list => list.map(c =>
-          c.id === cls.id ? { ...c, name, description: desc, term, externalCourseCodes, pass_threshold:this.editClassThreshold() } : c
+          c.id === cls.id ? { ...c, name, description: desc, term, externalCourseCodes, pass_threshold:cls.pass_threshold ?? 80 } : c
         ));
-        this.selectedClass.update(c => c ? { ...c, name, description: desc, term, externalCourseCodes, pass_threshold:this.editClassThreshold() } : c);
+        this.selectedClass.update(c => c ? { ...c, name, description: desc, term, externalCourseCodes, pass_threshold:cls.pass_threshold ?? 80 } : c);
         this.closeEditClassModal();
         this.loading.hide();
       },

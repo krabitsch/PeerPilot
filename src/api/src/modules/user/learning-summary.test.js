@@ -59,6 +59,7 @@ test('query scope is authenticated user and active course enrollment; summary ex
   assert.equal(queries[0].where.userId, 5)
   assert.equal(queries[1].where.evalueeGroup.members.some.userId, 5)
   assert.equal(queries[2].where.evaluatorUserId, 5)
+  assert.equal(queries[1].select.evaluatorUser.select.email, true)
   const result = JSON.stringify(buildLearningSummary([enrollment], [pairing(1,80)], [], 5))
   for (const key of ['passKey', 'passkey', 'comment', 'reply', 'email', 'givenMarks']) assert(!result.includes('"'+key+'"'))
 })
@@ -76,4 +77,22 @@ test('pairing-pending info is round-aware and removes cancelled/failed retry amb
   a=buildLearningSummary([enrollment],[failed,{...pairing(1,null,4)}],[],5).courses[0].assignments[0]
   assert.equal(a.evaluationRounds[0].waitingForRematch,false)
   assert.equal(a.evaluationRounds[0].pairingPending,false)
+})
+
+test('meeting contact follows selected pending attempt, before close and through feedback/retry/rematch', () => {
+  const pending = {...pairing(1,null), evaluatorUser:{id:11,username:'original',email:'original@example.com'}}
+  const get = (ps, e=enrollment) => buildLearningSummary([e],ps,[],5).courses[0].assignments[0].evaluationRounds[0]
+  const open = {...enrollment,class:{...enrollment.class,assignments:[{...assignment,groups:[{id:2,leaderId:5,submissions:[]}]}]}}
+  assert.equal(get([{...pending,submissionId:null}],open).meetingEvaluator.email,'original@example.com')
+  const failed = {...pairing(1,20),retryRequested:true,evaluatorUser:pending.evaluatorUser}
+  failed.evalResponse.reply=null
+  assert.equal(get([failed]).meetingEvaluator,null)
+  failed.evalResponse.reply='Answered'
+  assert.equal(get([failed]).waitingForRematch,true)
+  assert.equal(get([failed]).meetingEvaluator,null)
+  const replacement={...pairing(1,null,4),evaluatorUser:{id:14,username:'replacement',email:'replacement@example.com'}}
+  assert.equal(get([failed,replacement]).meetingEvaluator.email,'replacement@example.com')
+  assert.equal(get([{...replacement,status:'Cancelled'}]).meetingEvaluator,null)
+  assert.equal(get([{...pending,evalueeGroupId:999}]).meetingEvaluator,null)
+  assert.equal(get([pairing(1,80)]).meetingEvaluator,null)
 })

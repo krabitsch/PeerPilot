@@ -1,9 +1,8 @@
 import { Component, EventEmitter, inject, Output, signal } from "@angular/core";
 import { TranslateModule, TranslateService } from "@ngx-translate/core";
 import { DS } from "../tokens";
-import { FieldType, SliderField } from "./field.types";
+import { FieldType } from "./field.types";
 import { FieldComponent } from "./field.component";
-import { TabListComponent, TabDirective } from "./tabs.component";
 import { BtnComponent } from "./btn.component";
 import { AuthService } from "../services/auth.service";
 import { CourseService } from "../core/services/course-service/course-service";
@@ -12,41 +11,20 @@ import { LoadingService } from "../core/services/loading-service/loading.service
 @Component({
     selector: 'app-create-class',
     standalone: true,
-    imports: [FieldComponent, TabListComponent, TabDirective, BtnComponent, TranslateModule],
+    imports: [FieldComponent, BtnComponent, TranslateModule],
     template: `
         <div class="page">
 
 
             <div class="card">
                 <div class="card-body">
-                    <app-tab-list (tabChanged)="activeTab.set($event)">
-                        <ng-template appTab label="tab_info"     icon="info" />
-                        <ng-template appTab label="tab_settings" icon="tune" />
-                    </app-tab-list>
-
                     <div class="fields-scroll">
-                        @if (activeTab() === 0) {
                             <div class="fields">
                                 @for (field of infoFields; track field.label) {
                                     <app-field [field]="field" [isEditing]="true"
                                         (valueChanged)="onFieldChanged($event)" />
                                 }
                             </div>
-                        }
-                        @if (activeTab() === 1) {
-                            <div class="fields">
-                                @for (field of settingsFields; track field.label) {
-                                    <app-field [field]="field" [isEditing]="true"
-                                        (valueChanged)="onFieldChanged($event)" />
-                                }
-                                <div class="threshold-hint">
-                                    {{ 'create_class_threshold_prefix' | translate }}
-                                    <strong>{{ getValue('bocal_label_pass_threshold') }}%</strong>
-                                    {{ 'create_class_threshold_suffix' | translate }}
-                                </div>
-                            </div>
-                        }
-
                         @if (error()) {
                             <div class="error">{{ error() }}</div>
                         }
@@ -134,7 +112,6 @@ export class CreateClassPage {
     @Output() saved     = new EventEmitter<void>();
     @Output() cancelled = new EventEmitter<void>();
 
-    activeTab = signal(0);
     error     = signal<string | null>(null);
 
     private changes = new Map<string, FieldType>();
@@ -146,9 +123,6 @@ export class CreateClassPage {
         { type: 'text-area', label: 'field_description',          icon: 'description', required: true,  allowEdit: true, value: undefined },
     ];
 
-    settingsFields: FieldType[] = [
-        { type: 'slider', label: 'bocal_label_pass_threshold', icon: 'leaderboard', required: true, allowEdit: true, value: 80, min: 50, max: 100 } as SliderField,
-    ];
 
     onFieldChanged(field: FieldType) {
         this.changes.set(field.label, field);
@@ -157,13 +131,14 @@ export class CreateClassPage {
     getValue(label: string): any {
         const changed = this.changes.get(label);
         if (changed !== undefined) return changed.value;
-        return [...this.infoFields, ...this.settingsFields].find(f => f.label === label)?.value;
+        return this.infoFields.find(f => f.label === label)?.value;
     }
 
     onSave() {
         const name      = this.getValue('bocal_label_class_name') as string | undefined;
         const desc      = this.getValue('field_description') as string | undefined;
-        const threshold = (this.getValue('bocal_label_pass_threshold') as number | undefined) ?? 80;
+        // Preserve the previous Create Course value for API compatibility; grading uses Assignment.pass_threshold.
+        const threshold = 80;
 
         if (!name?.trim()) { this.error.set(this.translate.instant('error_class_name_required')); return; }
         if (!desc?.trim()) { this.error.set(this.translate.instant('error_description_required')); return; }

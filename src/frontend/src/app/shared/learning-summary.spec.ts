@@ -133,3 +133,18 @@ it('orders own-work actions by creation time then id, ahead of evaluator tasks',
     {assId:3}, {assId:1}, {assId:2}, {classId:1},
   ]);
 });
+
+it('meeting actions sort rounds, link to own assignment and precede evaluator work', () => {
+  const evaluator={id:10,username:'student34',email:'student34@example.com'};
+  const a={...assignment(),groupAssigned:true,evaluatorPending:2,evaluationRounds:[2,1].map(round=>({round,displayOutcome:'Pending' as const,waitingForRematch:false,passedAfterRetry:false,meetingEvaluator:evaluator}))};
+  const actions=dashboardActions(course([a]));
+  expect(actions.map(a=>a.label)).toEqual([
+    'Assignment 1 is ready for submission',
+    'Schedule and complete your peer-evaluation session with student34 (student34@example.com) for Assignment 1 — Round 1.',
+    'Schedule and complete your peer-evaluation session with student34 (student34@example.com) for Assignment 1 — Round 2.',
+    '2 evaluator tasks are waiting',
+  ]);
+  expect(actions[1].queryParams).toEqual({assId:1});
+  a.evaluationRounds[0].waitingForRematch=true;
+  expect(dashboardActions(course([a])).filter(a=>a.label.includes('Schedule')).length).toBe(1);
+});
