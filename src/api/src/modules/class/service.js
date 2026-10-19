@@ -41,6 +41,9 @@ const courseMetadata = ({term, externalCourseCodes}) => {
   if (externalCourseCodes !== undefined && (!Array.isArray(externalCourseCodes) ||
       externalCourseCodes.some(c => typeof c !== 'string' || !c.trim() || c.trim().length > 40)))
     throw new ValidationError('Official course numbers must be a list of non-empty codes (maximum 40 characters each)')
+  // Enrollment assigns every student one of these numbers, so a course needs at least one.
+  if (externalCourseCodes !== undefined && externalCourseCodes.length === 0)
+    throw new ValidationError('At least one official course number is required')
   return { ...(term !== undefined && {term: term?.trim() || null}),
     ...(externalCourseCodes !== undefined && {externalCourseCodes: [...new Set(externalCourseCodes.map(c => c.trim()))]}) }
 }
@@ -54,6 +57,8 @@ const evaluationDuration = value => {
 const createClass = async ({org_id, created_by, name, description, pass_threshold, term, externalCourseCodes})=>{
     if(!org_id || !created_by || !name || !description || !pass_threshold)
         throw new ValidationError("invalid request")
+    if(externalCourseCodes === undefined)
+        throw new ValidationError('At least one official course number is required')
 
     const org = await utils.getOrgById(org_id)
     if(!org)
@@ -111,9 +116,15 @@ const getClassStudents = async (classId)=>{
 
     const enrollments = await prisma.enrollment.findMany({
         where: { classId: parseInt(classId), status: 'Active' },
-        select: { user: { select: { id: true, username: true, email: true, role: true, created_at: true } } }
+        select: {
+            externalCourseCode: true,
+            user: { select: { id: true, username: true, email: true, role: true, created_at: true,
+                userAuth: { select: { provider: true, pass_hash: true } } } }
+        }
     })
-    return enrollments.map(e => e.user)
+    // `pending`: enrolled by staff, not signed up yet. The hash never leaves here.
+    return enrollments.map(({ externalCourseCode, user: { userAuth, ...user } }) =>
+        ({ ...user, externalCourseCode, pending: utils.isPendingAuth(userAuth) }))
 }
 
 const deleteClass = async (classId)=>{

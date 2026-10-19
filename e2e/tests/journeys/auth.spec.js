@@ -10,13 +10,13 @@ test.describe('signing in', () => {
   test('a student lands on their dashboard', async ({ page }) => {
     await signIn(page, D.users.alice.email, D.PASSWORD)
     await expect(page).toHaveURL(/\/dashboard$/)
-    await expect(page.getByRole('heading', { name: 'Welcome back, alice.' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Welcome back, alice' })).toBeVisible()
   })
 
   test('staff land on the Bocal panel', async ({ page }) => {
     await signIn(page, D.users.bocal.email, D.PASSWORD)
-    await expect(page).toHaveURL(/\/bocal\/classes$/)
-    await expect(page.getByRole('heading', { name: 'Courses' })).toBeVisible()
+    await expect(page).toHaveURL(/\/bocal\/dashboard$/)
+    await expect(page.getByRole('heading', { name: `Welcome back, ${D.users.bocal.username}` })).toBeVisible()
   })
 
   test('a wrong password is refused', async ({ page }) => {
@@ -93,7 +93,7 @@ test.describe('signing out', () => {
 
   test('ends the session and protects pages again', async ({ page }) => {
     await page.goto('/dashboard')
-    await expect(page.getByRole('heading', { name: 'Welcome back, bob.' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Welcome back, bob' })).toBeVisible()
     await page.getByText('Sign out').click()
     await expect(page).toHaveURL(/\/login$/)
     await page.goto('/dashboard')

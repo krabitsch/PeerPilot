@@ -87,7 +87,14 @@ const isAlreadyInvited = async (inviteeId, groupId)=>{
     })
 }
 
+// A pending account was created by staff enrolling an email before its owner
+// signed up: a local auth row with no password yet. The student claims it by
+// signing up with that email. Accepts a userAuth row, or the flat user shape
+// auth/userModel returns (it carries the same two fields).
+const isPendingAuth = (auth)=>
+    !!auth && auth.provider === 'local' && !auth.pass_hash
+
 
 module.exports = {getUserById, getUserProfile, searchUser, getAllUsers, 
     existingMembership, getGroupById, getGroupCurrentCount,
-    getinvite, isAlreadyInvited}
+    getinvite, isAlreadyInvited, isPendingAuth}

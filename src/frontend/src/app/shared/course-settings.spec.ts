@@ -32,6 +32,18 @@ describe('Bocal course metadata and assignment duration',()=>{
     fixture.detectChanges();c.onSave();
     expect(courses.createClass).toHaveBeenCalledWith(expect.objectContaining({term:'Fall 2027',externalCourseCodes:['1268','1421']}));
   });
+  it('Create and Edit Course require at least one official course number',()=>{
+    const create=TestBed.createComponent(CreateClassPage).componentInstance;
+    for(const [label,value] of [['bocal_label_class_name','Course'],['field_description','Description'],['Official course numbers (comma-separated)',' , ']])
+      create.onFieldChanged({type:'text',label,value,icon:'',required:false,allowEdit:true});
+    create.onSave();
+    expect(create.error()).toBe('error_course_numbers_required');
+    expect(courses.createClass).not.toHaveBeenCalled();
+    const edit=TestBed.createComponent(BocalClassesComponent).componentInstance;
+    edit.openEditClass(course);edit.editClassCodes.set('');edit.onSaveClassEdit();
+    expect(edit.editClassError()).toBe('error_course_numbers_required');
+    expect(courses.updateClass).not.toHaveBeenCalled();
+  });
   it('group allocation uses independent saved evaluee eligibility, including explicitly enabled staff',()=>{
     const c=TestBed.createComponent(BocalClassesComponent).componentInstance;
     const a={id:1} as any;

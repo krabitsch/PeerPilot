@@ -119,7 +119,7 @@ export class CreateClassPage {
     infoFields: FieldType[] = [
         { type: 'text',      label: 'bocal_label_class_name',     icon: 'title',       required: true,  allowEdit: true, value: undefined },
         { type: 'text', label: 'Term', icon:'event', required:false, allowEdit:true, value:'' },
-        { type: 'text', label: 'Official course numbers (comma-separated)', icon:'tag', required:false, allowEdit:true, value:'' },
+        { type: 'text', label: 'Official course numbers (comma-separated)', icon:'tag', required:true, allowEdit:true, value:'' },
         { type: 'text-area', label: 'field_description',          icon: 'description', required: true,  allowEdit: true, value: undefined },
     ];
 
@@ -140,7 +140,10 @@ export class CreateClassPage {
         // Preserve the previous Create Course value for API compatibility; grading uses Assignment.pass_threshold.
         const threshold = 80;
 
+        const externalCourseCodes = String(this.getValue('Official course numbers (comma-separated)') ?? '').split(/[,\n]/).map(c=>c.trim()).filter(Boolean);
+
         if (!name?.trim()) { this.error.set(this.translate.instant('error_class_name_required')); return; }
+        if (!externalCourseCodes.length) { this.error.set(this.translate.instant('error_course_numbers_required')); return; }
         if (!desc?.trim()) { this.error.set(this.translate.instant('error_description_required')); return; }
 
         const user = this.auth.user();
@@ -150,7 +153,7 @@ export class CreateClassPage {
         this.loading.show();
         this.courses.createClass({
             term: String(this.getValue('Term') ?? '').trim() || null,
-            externalCourseCodes: String(this.getValue('Official course numbers (comma-separated)') ?? '').split(/[,\n]/).map(c=>c.trim()).filter(Boolean),
+            externalCourseCodes,
             name:           name.trim(),
             description:    desc.trim(),
             pass_threshold: threshold,

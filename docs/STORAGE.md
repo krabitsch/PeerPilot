@@ -5,8 +5,8 @@ Last updated 2026-10-05.
 
 ## TL;DR
 
-- **Decision: stay on self-hosted MinIO** (now on the official, pinned
-  `quay.io/minio/minio` image) **plus the backups in `docs/BACKUPS.md`.** At our
+- **Decision: stay on self-hosted MinIO** (on the pinned, maintained community
+  build `pgsty/minio` — see *Image* below) **plus the backups in `docs/BACKUPS.md`.** At our
   scale (~60 users) managed object storage isn't warranted — capacity and load
   were never the problem, and we have no audit/compliance obligation that demands
   provider-grade durability. The one real requirement is *don't lose files*,
@@ -45,9 +45,14 @@ Config knobs (all env): `MINIO_ENDPOINT`, `MINIO_PORT`, `MINIO_USE_SSL`,
 - **Local volume = single point of failure**, no redundancy. Mitigated (not
   removed) by the scheduled backups in `docs/BACKUPS.md` — which must be moved
   off-host to actually protect against losing the box.
-- ~~Image is a community mirror~~ — **fixed**: pinned to the official
-  `quay.io/minio/minio` image (published on quay.io, not Docker Hub; bundles
-  `mc` + `curl`, so the healthcheck and backup scripts work unchanged).
+- **Image:** MinIO stopped publishing community images in late 2025 — the
+  official `quay.io/minio/minio` and `minio/minio` tags were withdrawn (found
+  2026-10-19, when fresh pulls in CI started failing). We pin
+  `pgsty/minio:RELEASE.2026-08-04T00-00-00Z`, a maintained community build of
+  the same server that bundles `mc` + `curl`, so the healthcheck and backup
+  scripts work unchanged. Data written by the old official image is read as-is
+  (verified). Bumping it is a one-line change in `src/minio/docker-compose.yml`;
+  `MINIO_IMAGE` overrides it without editing.
 - Presigned URLs are rewritten to go back through **our nginx** — fine for MinIO
   on the same host, but a managed store serves presigned URLs from its own
   domain (see "Switching", below).
@@ -71,7 +76,7 @@ Config knobs (all env): `MINIO_ENDPOINT`, `MINIO_PORT`, `MINIO_USE_SSL`,
 - **Cons:** we own durability, backups, upgrades, and uptime. A single volume has
   no redundancy. Real resilience means multi-node MinIO or disk-level
   replication + snapshots — operational work we'd rather not carry.
-- **What we do (chosen):** pinned the **official `quay.io/minio/minio`** image,
+- **What we do (chosen):** pinned the **`pgsty/minio`** community build,
   run the scheduled `docs/BACKUPS.md` backups (DB + buckets) and move them
   off-host, and set strong `MINIO_*` creds (already env-driven). Optionally put
   the volume on a disk with snapshots for faster recovery.

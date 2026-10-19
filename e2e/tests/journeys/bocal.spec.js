@@ -22,14 +22,19 @@ const openAssignments = async (page, courseName) => {
 test('creates a course', async ({ page }) => {
   await page.goto('/bocal/classes')
   await page.getByRole('button', { name: '+ New course' }).click()
+  // Fields: name, term, official course numbers (required), description.
   const form = page.getByRole('main')
   await form.getByRole('textbox').nth(0).fill('Algorithms')
-  await form.getByRole('textbox').nth(1).fill('Sorting, searching and graphs.')
+  await form.getByRole('textbox').nth(3).fill('Sorting, searching and graphs.')
+  await page.getByRole('button', { name: 'Create class' }).click()
+  await expect(page.getByText('At least one official course number is required')).toBeVisible()
+
+  await form.getByRole('textbox').nth(2).fill('1268, 1421')
   await page.getByRole('button', { name: 'Create class' }).click()
 
   await expect(page.getByText('Algorithms')).toBeVisible()
   const created = await db().class.findFirst({ where: { name: 'Algorithms' } })
-  expect(created).toMatchObject({ created_by: seeded().users.bocal, org_id: seeded().orgId })
+  expect(created).toMatchObject({ created_by: seeded().users.bocal, org_id: seeded().orgId, externalCourseCodes: ['1268', '1421'] })
 })
 
 test('creates an assignment with an eval sheet that sums to the max score', async ({ page }) => {
@@ -40,10 +45,11 @@ test('creates an assignment with an eval sheet that sums to the max score', asyn
   const main = page.getByRole('main')
   await main.getByRole('textbox').nth(0).fill('Team Project')
   await main.getByRole('textbox').nth(1).fill('Build it together.')
-  await main.getByRole('spinbutton').nth(0).fill('100')   // max score
-  await main.getByRole('spinbutton').nth(1).fill('2')     // required evaluations
-  await main.getByRole('spinbutton').nth(2).fill('1')     // group size
-  await main.getByRole('spinbutton').nth(3).fill('60')    // pass threshold
+  // nth(0) is the evaluation duration (default 30 min).
+  await main.getByRole('spinbutton').nth(1).fill('100')   // max score
+  await main.getByRole('spinbutton').nth(2).fill('2')     // required evaluations
+  await main.getByRole('spinbutton').nth(3).fill('1')     // group size
+  await main.getByRole('spinbutton').nth(4).fill('60')    // pass threshold
 
   await page.getByRole('button', { name: /Eval sheet/ }).click()
   for (const [name, marks, type] of [['Works', '70', 'Slider'], ['Tested', '30', 'Toggle']]) {

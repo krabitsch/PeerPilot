@@ -34,7 +34,9 @@ test('a wrong passkey does not open the evaluation', async ({ browser }) => {
 })
 
 test('Dave evaluates Carol, and Carol replies to the feedback', async ({ browser }) => {
-  const feedback = 'Clear structure and solid error handling throughout.'
+  // Evaluations need at least 100 characters of feedback.
+  const feedback = 'Clear structure and solid error handling throughout. ' +
+    'The tests cover the edge cases; naming could be more consistent.'
 
   // ── Dave scores the submission ──
   const dave = await pageAs(browser, 'dave')

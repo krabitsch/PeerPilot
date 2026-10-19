@@ -1,6 +1,116 @@
 const { prisma } = require('@transcendence/database')
-const {NotFoundError, ValidationError, ConflictError} = require('@transcendence/errors')
+const {AppError, NotFoundError, ValidationError, ConflictError, ForbiddenError} = require('@transcendence/errors')
 const utils = require('@transcendence/utils')
+const { createPendingUser } = require('../auth/userModel')
+
+const MAX_ROSTER_ROWS = 1000
+const EMAIL_PATTERN = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/
+
+// Staff enrol students by email, each with one of the course's official course
+// numbers. An email without an account gets a pending one, so the student is in
+// the roster (and in groups and pairings) before they ever sign up; signing up
+// with that email later claims the account. Rows are applied one at a time and
+// a bad row is reported back instead of failing the whole list.
+const enrollByEmail = async ({ classId, students, actor }) => {
+  const classIdNum = Number(classId)
+  if (!Number.isInteger(classIdNum))
+    throw new ValidationError('Invalid request')
+  if (!Array.isArray(students) || students.length === 0)
+    throw new ValidationError('Provide at least one student')
+  if (students.length > MAX_ROSTER_ROWS)
+    throw new ValidationError(`At most ${MAX_ROSTER_ROWS} students per request`)
+
+  const course = await prisma.class.findUnique({
+    where: { id: classIdNum },
+    select: { id: true, org_id: true, externalCourseCodes: true }
+  })
+  if (!course)
+    throw new NotFoundError('Class Not Found')
+  if (actor.role !== 'Admin' && actor.orgId !== course.org_id)
+    throw new ForbiddenError('You can only manage courses in your organisation')
+
+  const codes = course.externalCourseCodes ?? []
+  const seen = new Set()
+  const results = []
+  for (const row of students) {
+    const email = String(row?.email ?? '').trim().toLowerCase()
+    const code = String(row?.externalCourseCode ?? '').trim() || null
+    const fail = (error) =>
+      results.push({ email, externalCourseCode: code, status: 'failed', error })
+
+    if (!EMAIL_PATTERN.test(email)) { fail('Invalid email address'); continue }
+    if (seen.has(email)) { fail('Listed more than once'); continue }
+    seen.add(email)
+    if (codes.length > 0 && !code) { fail('Course number required'); continue }
+    if (code && !codes.includes(code)) { fail(`${code} is not a course number of this course`); continue }
+
+    try {
+      results.push({ email, externalCourseCode: code, ...await enrollOneByEmail(course, email, code, actor) })
+    } catch (err) {
+      if (!(err instanceof AppError)) throw err
+      fail(err.message)
+    }
+  }
+  return { results }
+}
+
+// One roster row in one transaction. Returns which account was used
+// (created / pending / registered) and what happened to the enrollment
+// (enrolled / updated / unchanged).
+const enrollOneByEmail = (course, email, code, actor) => prisma.$transaction(async (tx) => {
+  let user = await tx.user.findUnique({
+    where: { email },
+    select: { id: true, role: true, orgId: true, userAuth: { select: { provider: true, pass_hash: true } } }
+  })
+  let account
+  if (!user) {
+    user = await createPendingUser(email, course.org_id, tx)
+    account = 'created'
+  } else {
+    if (user.role !== 'Student')
+      throw new ConflictError(`${email} is a ${user.role} account, not a student`)
+    if (user.orgId != null && user.orgId !== course.org_id)
+      throw new ConflictError(`${email} belongs to another organisation`)
+    if (user.orgId == null)
+      await tx.user.update({ where: { id: user.id }, data: { orgId: course.org_id } })
+    account = utils.isPendingAuth(user.userAuth) ? 'pending' : 'registered'
+  }
+
+  // The whitelist entry is what lets the student sign up and claim the account.
+  if (account !== 'registered') {
+    await tx.authAllowedEmail.upsert({
+      where: { email },
+      create: { email, orgId: course.org_id, invited_by: actor.userId },
+      update: { used: false }
+    })
+  }
+
+  const existing = await tx.enrollment.findUnique({
+    where: { userId_classId: { userId: user.id, classId: course.id } }
+  })
+  let status
+  if (!existing) {
+    await tx.enrollment.create({
+      data: { userId: user.id, classId: course.id, externalCourseCode: code, status: 'Active' }
+    })
+    status = 'enrolled'
+  } else if (existing.status !== 'Active') {
+    await tx.enrollment.update({
+      where: { id: existing.id },
+      data: { status: 'Active', externalCourseCode: code }
+    })
+    status = 'enrolled'
+  } else if (existing.externalCourseCode !== code) {
+    await tx.enrollment.update({
+      where: { id: existing.id },
+      data: { externalCourseCode: code }
+    })
+    status = 'updated'
+  } else {
+    status = 'unchanged'
+  }
+  return { userId: user.id, account, status }
+})
 
 const enrollStudent = async ({
   classId,
@@ -238,4 +348,4 @@ const getEnrollmentEligibility = async (
   }
 }
 
-module.exports = {enrollStudent, dropStudent, getEnrollement, getEnrolledClasses, getEnrollmentEligibility}
+module.exports = {enrollStudent, enrollByEmail, dropStudent, getEnrollement, getEnrolledClasses, getEnrollmentEligibility}

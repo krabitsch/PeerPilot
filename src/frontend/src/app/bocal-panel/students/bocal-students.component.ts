@@ -10,7 +10,7 @@ import { AuthService } from '../../services/auth.service';
 import { OrgService } from '../../core/services/org-service/org-service';
 import { CourseService } from '../../core/services/course-service/course-service';
 import { AssignmentService, AssignmentResponse } from '../../core/services/course-service/Assignment.service';
-import { EnrollService } from '../../core/services/enroll-service/enroll-service';
+import { EnrollService, RosterRow, RosterResult } from '../../core/services/enroll-service/enroll-service';
 import { LoadingService } from '../../core/services/loading-service/loading.service';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 
@@ -20,9 +20,11 @@ export interface OrgMember {
   email: string;
   role: string;
   created_at: string;
+  // Enrolled by staff, not signed up yet.
+  pending?: boolean;
 }
 
-interface ClassOption { id: number; name: string; }
+interface ClassOption { id: number; name: string; externalCourseCodes: string[]; }
 
 const ROLE_OPTIONS = ['All', 'Student', 'Bocal', 'Admin'];
 
@@ -111,10 +113,31 @@ export class BocalStudentsComponent implements OnInit {
 
   students = computed(() => this.members().filter(m => m.role === 'Student'));
 
-  // Students in the org who are not yet enrolled in the selected course — the
-  // candidates for the "add student to class" picker. Empty until a course is
-  // selected and its roster has loaded.
-  addStudentId = signal<number | null>(null);
+  // ── Add students to the selected course ────────────────────
+  // By email, so students can be enrolled (and grouped and paired) before they
+  // sign up: the API creates a pending account they claim by signing up.
+  addEmail     = signal('');
+  addCode      = signal('');
+  bulkOpen     = signal(false);
+  bulkText     = signal('');
+  rosterNotice = signal('');
+  rosterFailures = signal<RosterResult[]>([]);
+  // Official course number per enrolled student of the selected course.
+  classCourseCodes = signal<Map<number, string | null>>(new Map());
+
+  courseCodes = computed(() =>
+    this.classes().find(c => c.id === this.classFilter())?.externalCourseCodes ?? []);
+  // A course with a single official number needs no choice.
+  selectedCode = computed(() => {
+    const codes = this.courseCodes();
+    return this.addCode() || (codes.length === 1 ? codes[0] : '');
+  });
+  canAddSingle = computed(() =>
+    !!this.addEmail().trim() && (this.courseCodes().length === 0 || !!this.selectedCode()));
+
+  // Students in the org who are not yet enrolled in the selected course —
+  // suggestions for the email field. Empty until a course is selected and its
+  // roster has loaded.
   enrollableStudents = computed(() => {
     const enrolled = this.classStudentIds();
     if (this.classFilter() === null || !enrolled) return [];
@@ -159,7 +182,9 @@ export class BocalStudentsComponent implements OnInit {
     if (!orgId) return;
 
     this.courseService.getClassByOrgId(orgId).subscribe({
-      next: (classes) => this.classes.set(classes.map(c => ({ id: c.id, name: c.name }))),
+      next: (classes) => this.classes.set(classes.map(c => ({
+        id: c.id, name: c.name, externalCourseCodes: c.externalCourseCodes ?? [],
+      }))),
       error: () => {},
     });
   }
@@ -186,24 +211,81 @@ export class BocalStudentsComponent implements OnInit {
     });
   }
 
-  // ── Enrol a student into the currently filtered class ──────
+  // ── Enrol students into the currently filtered class ───────
   addToClass() {
-    const classId = this.classFilter();
-    const studentId = this.addStudentId();
-    if (!classId || !studentId) return;
+    if (!this.canAddSingle()) return;
+    this.submitRoster(
+      [{ email: this.addEmail().trim(), externalCourseCode: this.selectedCode() || null }],
+      () => this.addEmail.set(''),
+    );
+  }
 
+  // One student per line: "email, course number". Lines without a number use
+  // the one selected above. Failed lines stay in the box to be fixed.
+  addBulk() {
+    const rows: RosterRow[] = this.bulkText().split('\n')
+      .map(line => line.trim())
+      .filter(Boolean)
+      .map(line => {
+        const [email, code] = line.split(/[\s,;]+/);
+        return { email, externalCourseCode: code || this.selectedCode() || null };
+      });
+    if (!rows.length) return;
+    this.submitRoster(rows, failures =>
+      this.bulkText.set(failures.map(f => [f.email, f.externalCourseCode].filter(Boolean).join(', ')).join('\n')));
+  }
+
+  private submitRoster(rows: RosterRow[], onDone: (failures: RosterResult[]) => void) {
+    const classId = this.classFilter();
+    if (!classId) return;
+
+    this.rosterNotice.set('');
+    this.rosterFailures.set([]);
     this.loading.show();
-    this.enrollService.enrollStudent({ classId, studentId }).subscribe({
-      next: () => {
-        this.classStudentIds.update(ids => {
-          const next = new Set(ids ?? []);
-          next.add(studentId);
-          return next;
-        });
-        this.addStudentId.set(null);
+    this.enrollService.enrollByEmail(classId, rows).subscribe({
+      next: ({ results }) => {
         this.loading.hide();
+        const failures = results.filter(r => r.status === 'failed');
+        this.rosterNotice.set(this.rosterSummary(results));
+        this.rosterFailures.set(results.length > 1 ? failures : []);
+        onDone(failures);
+        // New pending accounts join the org; refresh both lists.
+        this.loadMembers();
+        this.loadClassRoster(classId);
       },
-      error: () => this.loading.hide(),
+      error: (err) => {
+        this.loading.hide();
+        this.rosterNotice.set(err?.error?.error ?? this.translate.instant('error_add_students_failed'));
+      },
+    });
+  }
+
+  private rosterSummary(results: RosterResult[]): string {
+    if (results.length === 1) {
+      const r = results[0];
+      if (r.status === 'failed') return `${r.email}: ${r.error}`;
+      if (r.status === 'updated') return this.translate.instant('roster_code_updated', { email: r.email, code: r.externalCourseCode });
+      if (r.status === 'unchanged') return this.translate.instant('roster_unchanged', { email: r.email });
+      return this.translate.instant(r.account === 'registered' ? 'roster_added' : 'roster_added_pending', { email: r.email });
+    }
+    const count = (match: (r: RosterResult) => boolean) => results.filter(match).length;
+    return this.translate.instant('roster_summary', {
+      added:     count(r => r.status === 'enrolled'),
+      pending:   count(r => r.status === 'enrolled' && r.account !== 'registered'),
+      updated:   count(r => r.status === 'updated'),
+      unchanged: count(r => r.status === 'unchanged'),
+      failed:    count(r => r.status === 'failed'),
+    });
+  }
+
+  private loadClassRoster(classId: number) {
+    this.courseService.getClassStudents(classId).subscribe({
+      next: (students) => {
+        if (this.classFilter() !== classId) return;
+        this.classStudentIds.set(new Set(students.map(s => s.id)));
+        this.classCourseCodes.set(new Map(students.map(s => [s.id, s.externalCourseCode ?? null])));
+      },
+      error: () => this.classStudentIds.set(null),
     });
   }
 
@@ -214,17 +296,18 @@ export class BocalStudentsComponent implements OnInit {
     this.subjectFilter.set(null);
     this.subjects.set([]);
     this.subjectStudentIds.set(null);
-    this.addStudentId.set(null);
+    this.addEmail.set('');
+    this.addCode.set('');
+    this.rosterNotice.set('');
+    this.rosterFailures.set([]);
+    this.classCourseCodes.set(new Map());
 
     if (classId === null) {
       this.classStudentIds.set(null);
       return;
     }
 
-    this.courseService.getClassStudents(classId).subscribe({
-      next: (students) => this.classStudentIds.set(new Set(students.map(s => s.id))),
-      error: () => this.classStudentIds.set(null),
-    });
+    this.loadClassRoster(classId);
     this.assignService.getAssignments(classId).subscribe({
       next: (assignments) => this.subjects.set(assignments),
       error: () => this.subjects.set([]),
@@ -269,6 +352,12 @@ export class BocalStudentsComponent implements OnInit {
   }
 
   // ── Styles ─────────────────────────────────────────────────
+  readonly pendingBadgeStyle = {
+    fontSize: '0.6875rem', fontWeight: '600', letterSpacing: '0.08em', textTransform: 'uppercase' as const,
+    padding: '2px 8px', borderRadius: '9999px',
+    background: DS.colors.amberSubtle, color: DS.colors.amber, border: `1px solid ${DS.colors.amberBorder}`,
+  };
+  readonly failureListStyle = { margin: '0', paddingLeft: '18px', fontSize: '0.8125rem', color: DS.colors.red };
   readonly pageStyle       = { display: 'flex', flexDirection: 'column' as const, gap: '0' };
   readonly studentLinkStyle = { background: 'none', border: 'none', padding: '0', fontFamily: DS.fonts.body, fontWeight: '600', fontSize: '0.9375rem', color: DS.colors.cyan, cursor: 'pointer', textAlign: 'left' as const };
   readonly detailsOverlayStyle = { position: 'fixed' as const, inset: '0', background: 'oklch(0% 0 0 / 0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', zIndex: '100' };

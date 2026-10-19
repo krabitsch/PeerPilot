@@ -8,6 +8,7 @@ require('dotenv').config();
 const {
     findOrCreateOAuthUser,
     createUser,
+    claimPendingUser,
     findUserByEmail,
     findUserById,
     storeRefreshToken,
@@ -21,6 +22,10 @@ const {
 } = require('./userModel');
 const { generateAccessToken, generateRefreshToken, verifyRefreshToken,
         validatePasswordStrength } = require('./utils');
+const { isPendingAuth } = require('@transcendence/utils');
+
+// Whitelist entries and staff-enrolled accounts are stored lowercased.
+const normalizeEmail = (email) => String(email).trim().toLowerCase();
 
 
 
@@ -34,18 +39,21 @@ const { generateAccessToken, generateRefreshToken, verifyRefreshToken,
 
 exports.register = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
-    if (!email || !password) {
+    const { password } = req.body;
+    if (!req.body.email || !password) {
       throw new ValidationError('Email and password required');
     }
+    const email = normalizeEmail(req.body.email);
 
     const allowedEmail = await isEmailAllowed(email);
     if (!allowedEmail) {
       throw new ForbiddenError('Registration not permitted for this email address.');
     }
 
+    // An account staff created when enrolling this email is claimed by signing
+    // up; any account that already has a password is not.
     const existing = await findUserByEmail(email);
-    if (existing) {
+    if (existing && !isPendingAuth(existing)) {
       throw new ConflictError('Email already exists');
     }
 
@@ -58,7 +66,13 @@ exports.register = async (req, res, next) => {
 
     // No mail service in this deployment: whitelisted accounts are created
     // already verified and can sign in immediately. (See GOING-LIVE.md.)
-    const user = await createUser(email, password, allowedEmail.orgId);
+    let user;
+    if (existing) {
+      await claimPendingUser(existing.id, password);
+      user = existing;
+    } else {
+      user = await createUser(email, password, allowedEmail.orgId);
+    }
     await markEmailAsUsed(email);   // consume the whitelist entry
 
     return res.status(201).json({
@@ -77,8 +91,16 @@ exports.login = async (req, res, next) => {
     if (!email || !password) {
       throw new ValidationError('Email and password required');
     }
-    const user = await findUserByEmail(email);
+    const user = await findUserByEmail(email) ?? await findUserByEmail(normalizeEmail(email));
     if (!user) {
+      throw new UnauthorizedError('Invalid credentials');
+    }
+    if (isPendingAuth(user)) {
+      throw new UnauthorizedError('This account is not activated yet. Sign up with this email to set your password.');
+    }
+    // Accounts without a password (OAuth-only) cannot sign in here; bcrypt
+    // would throw on the missing hash.
+    if (!user.pass_hash) {
       throw new UnauthorizedError('Invalid credentials');
     }
     const valid = await bcrypt.compare(password, user.pass_hash);
@@ -367,7 +389,7 @@ exports.createInvite = async (req, res, next) => {
             parsedOrgId = parseInt(orgId, 10);
             if (Number.isNaN(parsedOrgId)) throw new ValidationError('Invalid orgId');
         }
-        const invite = await addAllowedEmail(email, req.user.userId, parsedOrgId);
+        const invite = await addAllowedEmail(normalizeEmail(email), req.user.userId, parsedOrgId);
         res.status(201).json(invite);
     } catch (err) {
         next(err);

@@ -391,14 +391,16 @@ export class BocalClassesComponent implements OnInit {
     const name = this.editClassName().trim();
     const desc = this.editClassDesc().trim();
 
+    const externalCourseCodes = [...new Set(this.editClassCodes().split(/[,\n]/).map(c=>c.trim()).filter(Boolean))];
+
     if (!cls || !user) return;
     if (!name) { this.editClassError.set(this.translate.instant('error_class_name_required')); return; }
+    if (!externalCourseCodes.length) { this.editClassError.set(this.translate.instant('error_course_numbers_required')); return; }
     if (!desc) { this.editClassError.set(this.translate.instant('error_description_required')); return; }
 
     this.editClassError.set(null);
     this.loading.show();
     const term = this.editClassTerm().trim() || null;
-    const externalCourseCodes = [...new Set(this.editClassCodes().split(/[,\n]/).map(c=>c.trim()).filter(Boolean))];
     this.courseService.updateClass(cls.id, {
       term, externalCourseCodes,
       org_id: cls.org_id,

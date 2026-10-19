@@ -28,13 +28,18 @@ else from this doc, learn that list.
 
 ## 1. First-time setup (once, when you get the VPS + domain)
 
+> The full step-by-step version for the Hetzner CPX22 — domain, server
+> creation, hardening, Docker/Node install, TLS, cron and backups — is
+> **`docs/VPS-SETUP.md`**. The list below is the short summary.
+
 1. **Point DNS at the server.** Create an `A` record for your domain →
    the server's IPv4. (Keep the box dual-stack; an `AAAA` is fine too, but the
    `A` record is what matters — see the IPv4 note in `GOING-LIVE.md`.) Make sure
    ports **80 and 443** are open to the internet.
 
 2. **Install prerequisites on the server:** Docker Engine + the Compose plugin,
-   `git`, and `make`. Give the box some **swap** (2–4 GB) — the frontend image
+   `git`, `make`, and **Node.js + npm** (the Prisma client is generated on the
+   host by `make build` / `gen-env.sh` and copied into the API image). Give the box some **swap** (2–4 GB) — the frontend image
    build is memory-hungry and the VPS has 4 GB RAM (see `docs/STORAGE.md`):
    ```bash
    sudo fallocate -l 4G /swapfile && sudo chmod 600 /swapfile \
@@ -57,6 +62,7 @@ else from this doc, learn that list.
      MinIO credentials when this is set; it also hardens behaviour.)
    - `BASE_URL=https://<your-domain>/` — public origin; file/links are built
      from it.
+   - `FRONTEND_URL=https://<your-domain>` — the API's CORS origin.
    - `ADMIN_EMAIL`, `ADMIN_USERNAME`, `ADMIN_PASSWORD` — **change these from the
      defaults** (`admin@example.com` / `Test1234!`). This is the first admin
      login, seeded on first start.

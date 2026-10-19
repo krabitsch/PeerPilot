@@ -18,6 +18,23 @@ export interface EnrollmentEligibility {
 }
 
 
+export interface RosterRow {
+  email: string;
+  externalCourseCode?: string | null;
+}
+
+// One result per submitted row. `account`: 'created' / 'pending' means the
+// student has not signed up yet; signing up with this email claims the account.
+export interface RosterResult {
+  email: string;
+  externalCourseCode: string | null;
+  status: 'enrolled' | 'updated' | 'unchanged' | 'failed';
+  account?: 'created' | 'pending' | 'registered';
+  userId?: number;
+  error?: string;
+}
+
+
 @Injectable({
   providedIn: 'root'
 })
@@ -43,6 +60,19 @@ export class EnrollService {
     return this.http.post(
       `${this.base}/${studentId}`,
       payload
+    );
+  }
+
+
+  // Staff only: enroll by email, creating pending accounts for emails that
+  // have not signed up yet.
+  enrollByEmail(
+    classId: number,
+    students: RosterRow[]
+  ) {
+    return this.http.post<{ results: RosterResult[] }>(
+      `${this.base}/class/${classId}/students`,
+      { students }
     );
   }
 

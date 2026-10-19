@@ -108,9 +108,12 @@ const deleteOrg = async (orgId)=>{
 const listOrgMembers = async (orgId) => {
   const id = parseInt(orgId)
   await getOrg(id)
-  return await prisma.user.findMany({
+  const members = await prisma.user.findMany({
     where: {orgId: id},
-    select: {id: true, email: true, username: true, role: true, created_at: true }})
+    select: {id: true, email: true, username: true, role: true, created_at: true,
+      userAuth: {select: {provider: true, pass_hash: true}} }})
+  // `pending`: enrolled by staff, not signed up yet. The hash never leaves here.
+  return members.map(({userAuth, ...member}) => ({...member, pending: utils.isPendingAuth(userAuth)}))
 }
 
 // create or update org profile:

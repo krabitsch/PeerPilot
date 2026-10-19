@@ -46,6 +46,39 @@ const createUser = async (email, plainPassword, orgId = null) => {
   });
 };
 
+// ========== PENDING ACCOUNTS ==========
+// Staff can enrol a student before they sign up (enroll/service.js). The account
+// exists right away, so groups and pairings can include it, but it has no
+// password until the student signs up with that email and claims it.
+// `db` lets the enrolment transaction create it.
+const createPendingUser = async (email, orgId, db = prisma) => {
+  const username = await generateUsername(email);
+  return await db.user.create({
+    data: {
+      email,
+      username,
+      role: 'Student',
+      orgId,
+      userAuth: { create: { pass_hash: null, provider: 'local', email_verified: true } },
+    },
+    select: { id: true, email: true, username: true, created_at: true, role: true, orgId: true },
+  });
+};
+
+// Sets the first password on a pending account. Matching on `pass_hash: null`
+// makes the claim atomic: a password, once set, is never replaced by a sign-up,
+// and of two concurrent sign-ups only one wins.
+const claimPendingUser = async (userId, plainPassword) => {
+  const pass_hash = await bcrypt.hash(plainPassword, SALT_ROUNDS);
+  const { count } = await prisma.userAuth.updateMany({
+    where: { userId, provider: 'local', pass_hash: null },
+    data: { pass_hash, email_verified: true },
+  });
+  if (count !== 1) {
+    throw new ConflictError('Email already exists');
+  }
+};
+
 const findUserByEmail = async (email) => {
   const user = await prisma.user.findUnique({
     where: { email },
@@ -310,6 +343,8 @@ const findUserById = async (userId) => {
 
 module.exports = {
   createUser,
+  createPendingUser,
+  claimPendingUser,
   findUserByEmail,
   findUserById,
   findOrCreateOAuthUser,

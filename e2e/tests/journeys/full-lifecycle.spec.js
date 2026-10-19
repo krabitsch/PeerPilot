@@ -21,6 +21,7 @@ const ORG = { name: 'Lifecycle Academy', email: 'life-org@e2e.test', tag: 'LIFE'
 const TEACHER = 'life-teacher@e2e.test'
 const STUDENTS = ['life-s1@e2e.test', 'life-s2@e2e.test', 'life-s3@e2e.test']
 const CLASS_NAME = 'Lifecycle Web'
+const COURSE_CODES = ['1268', '1421']
 const ASSIGNMENT = 'Lifecycle Project'
 
 // State carried across the ordered steps.
@@ -108,13 +109,17 @@ test.describe.serial('full lifecycle, bottom-up through the UI', () => {
     await teacher.goto('/bocal/classes')
     await teacher.getByRole('button', { name: '+ New course' }).click()
     const form = teacher.getByRole('main')
+    // Fields: name, term, official course numbers, description.
     await form.getByRole('textbox').nth(0).fill(CLASS_NAME)
-    await form.getByRole('textbox').nth(1).fill('Built from scratch by the e2e lifecycle test.')
+    await form.getByRole('textbox').nth(1).fill('Fall 2026')
+    await form.getByRole('textbox').nth(2).fill(COURSE_CODES.join(', '))
+    await form.getByRole('textbox').nth(3).fill('Built from scratch by the e2e lifecycle test.')
     await teacher.getByRole('button', { name: 'Create class' }).click()
 
     await expect(teacher.getByText(CLASS_NAME).first()).toBeVisible()
     const cls = await db().class.findFirst({ where: { name: CLASS_NAME, org_id: S.orgId } })
     expect(cls, 'class created in the org').toBeTruthy()
+    expect(cls.externalCourseCodes).toEqual(COURSE_CODES)
     S.classId = cls.id
     await context.close()
   })
@@ -132,16 +137,21 @@ test.describe.serial('full lifecycle, bottom-up through the UI', () => {
       .last()
     await expect(addRow.getByRole('button', { name: 'Add to class' })).toBeVisible()
 
-    for (const email of STUDENTS) {
-      const id = S.idByEmail[email]
-      await addRow.locator('select').selectOption(String(id))
+    // Students are added by email (the field suggests org students not yet in
+    // the course), each with one of the course's official numbers.
+    const codeFor = (i) => COURSE_CODES[i % COURSE_CODES.length]
+    for (const [i, email] of STUDENTS.entries()) {
+      await addRow.getByPlaceholder('Student email').fill(email)
+      await addRow.getByRole('combobox', { name: 'Course number' }).selectOption(codeFor(i))
       await addRow.getByRole('button', { name: 'Add to class' }).click()
-      // The student leaves the "enrollable" picker once enrolled.
-      await expect(addRow.locator(`option[value="${id}"]`)).toHaveCount(0)
+      await expect(teacher.getByText(`${email} added to the course.`)).toBeVisible()
     }
 
     const enrolled = await db().enrollment.findMany({ where: { classId: S.classId, status: 'Active' } })
     expect(enrolled.map(e => e.userId).sort()).toEqual(STUDENTS.map(e => S.idByEmail[e]).sort())
+    for (const [i, email] of STUDENTS.entries()) {
+      expect(enrolled.find(e => e.userId === S.idByEmail[email]).externalCourseCode).toBe(codeFor(i))
+    }
     await context.close()
   })
 
@@ -160,10 +170,11 @@ test.describe.serial('full lifecycle, bottom-up through the UI', () => {
     const main = teacher.getByRole('main')
     await main.getByRole('textbox').nth(0).fill(ASSIGNMENT)
     await main.getByRole('textbox').nth(1).fill('Each student submits solo, then peers evaluate.')
-    await main.getByRole('spinbutton').nth(0).fill('100')  // max score
-    await main.getByRole('spinbutton').nth(1).fill('2')    // required evaluations = rounds
-    await main.getByRole('spinbutton').nth(2).fill('1')    // group size (one student per group)
-    await main.getByRole('spinbutton').nth(3).fill('50')   // pass threshold
+    // nth(0) is the evaluation duration (default 30 min).
+    await main.getByRole('spinbutton').nth(1).fill('100')  // max score
+    await main.getByRole('spinbutton').nth(2).fill('2')    // required evaluations = rounds
+    await main.getByRole('spinbutton').nth(3).fill('1')    // group size (one student per group)
+    await main.getByRole('spinbutton').nth(4).fill('50')   // pass threshold
 
     // Subject file — a throwaway PDF.
     await main.locator('input[type=file]').setInputFiles(samplePdf(testInfo.outputDir, 'subject.pdf'))
@@ -242,7 +253,9 @@ test.describe.serial('full lifecycle, bottom-up through the UI', () => {
   test('the teacher generates two rounds of pairings', async ({ browser }) => {
     const { page: teacher, context } = await freshContext(browser, TEACHER, PW)
     await teacher.goto(`/eval-assignments?assignmentId=${S.assignmentId}`)
-    await teacher.getByRole('button', { name: 'Generate all pairings' }).click()
+    // Generation opens a preview (groups + evaluator pool) before it runs.
+    await teacher.getByRole('button', { name: 'Generate missing pairings' }).click()
+    await teacher.getByRole('dialog').getByRole('button', { name: 'Save pool and generate missing pairings' }).click()
 
     await expect.poll(async () =>
       (await db().evalAssignment.findMany({ where: { assignmentId: S.assignmentId } })).length,
@@ -292,7 +305,8 @@ test.describe.serial('full lifecycle, bottom-up through the UI', () => {
         await page.getByRole('slider').fill('45')
         await page.getByRole('button', { name: /^Yes/ }).click()
         await page.getByPlaceholder('Describe what was done well and what could be improved...')
-          .fill(`Round ${job.round}: solid work overall, a few things to tighten up.`)
+          .fill(`Round ${job.round}: solid work overall, a few things to tighten up. ` +
+                'The structure is clear; error handling and tests could go further.')  // 100+ chars
 
         const submit = page.getByRole('button', { name: 'Submit evaluation' })
         await expect(submit).toBeEnabled()

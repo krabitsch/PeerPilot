@@ -42,6 +42,15 @@ test('omitting optional metadata preserves it and malformed codes are rejected',
   assert.equal(h.course.term,'Fall 2026');assert.equal(h.course.externalCourseCodes.length,3)
   await assert.rejects(h.service.updateClass(1,{...fields,externalCourseCodes:'1268'}),/list of non-empty codes/)
 })
+test('a course needs at least one official course number; an edit that omits them keeps them',async()=>{
+  const h=harness()
+  await assert.rejects(h.service.createClass(fields),/At least one official course number/)
+  await assert.rejects(h.service.createClass({...fields,externalCourseCodes:[]}),/At least one official course number/)
+  await assert.rejects(h.service.updateClass(1,{...fields,externalCourseCodes:[]}),/At least one official course number/)
+  assert.equal(h.course.externalCourseCodes.length,3)
+  await h.service.updateClass(1,{...fields,term:'Fall 2027'})
+  assert.equal(h.course.externalCourseCodes.length,3)
+})
 test('new assignments default to 30 minutes and can be edited to 45',async()=>{
   const h=harness();const created=await h.service.createAssignment(1,assFields)
   assert.equal(created.evaluationDurationMinutes,30)
