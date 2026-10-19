@@ -21,6 +21,7 @@ const ORG = { name: 'Lifecycle Academy', email: 'life-org@e2e.test', tag: 'LIFE'
 const TEACHER = 'life-teacher@e2e.test'
 const STUDENTS = ['life-s1@e2e.test', 'life-s2@e2e.test', 'life-s3@e2e.test']
 const CLASS_NAME = 'Lifecycle Web'
+const COURSE_CODES = ['1268', '1421']
 const ASSIGNMENT = 'Lifecycle Project'
 
 // State carried across the ordered steps.
@@ -108,13 +109,17 @@ test.describe.serial('full lifecycle, bottom-up through the UI', () => {
     await teacher.goto('/bocal/classes')
     await teacher.getByRole('button', { name: '+ New course' }).click()
     const form = teacher.getByRole('main')
+    // Fields: name, term, official course numbers, description.
     await form.getByRole('textbox').nth(0).fill(CLASS_NAME)
-    await form.getByRole('textbox').nth(1).fill('Built from scratch by the e2e lifecycle test.')
+    await form.getByRole('textbox').nth(1).fill('Fall 2026')
+    await form.getByRole('textbox').nth(2).fill(COURSE_CODES.join(', '))
+    await form.getByRole('textbox').nth(3).fill('Built from scratch by the e2e lifecycle test.')
     await teacher.getByRole('button', { name: 'Create class' }).click()
 
     await expect(teacher.getByText(CLASS_NAME).first()).toBeVisible()
     const cls = await db().class.findFirst({ where: { name: CLASS_NAME, org_id: S.orgId } })
     expect(cls, 'class created in the org').toBeTruthy()
+    expect(cls.externalCourseCodes).toEqual(COURSE_CODES)
     S.classId = cls.id
     await context.close()
   })
@@ -132,16 +137,21 @@ test.describe.serial('full lifecycle, bottom-up through the UI', () => {
       .last()
     await expect(addRow.getByRole('button', { name: 'Add to class' })).toBeVisible()
 
-    for (const email of STUDENTS) {
-      const id = S.idByEmail[email]
-      await addRow.locator('select').selectOption(String(id))
+    // Students are added by email (the field suggests org students not yet in
+    // the course), each with one of the course's official numbers.
+    const codeFor = (i) => COURSE_CODES[i % COURSE_CODES.length]
+    for (const [i, email] of STUDENTS.entries()) {
+      await addRow.getByPlaceholder('Student email').fill(email)
+      await addRow.getByRole('combobox', { name: 'Course number' }).selectOption(codeFor(i))
       await addRow.getByRole('button', { name: 'Add to class' }).click()
-      // The student leaves the "enrollable" picker once enrolled.
-      await expect(addRow.locator(`option[value="${id}"]`)).toHaveCount(0)
+      await expect(teacher.getByText(`${email} added to the course.`)).toBeVisible()
     }
 
     const enrolled = await db().enrollment.findMany({ where: { classId: S.classId, status: 'Active' } })
     expect(enrolled.map(e => e.userId).sort()).toEqual(STUDENTS.map(e => S.idByEmail[e]).sort())
+    for (const [i, email] of STUDENTS.entries()) {
+      expect(enrolled.find(e => e.userId === S.idByEmail[email]).externalCourseCode).toBe(codeFor(i))
+    }
     await context.close()
   })
 

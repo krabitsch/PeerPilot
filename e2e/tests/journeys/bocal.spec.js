@@ -22,14 +22,19 @@ const openAssignments = async (page, courseName) => {
 test('creates a course', async ({ page }) => {
   await page.goto('/bocal/classes')
   await page.getByRole('button', { name: '+ New course' }).click()
+  // Fields: name, term, official course numbers (required), description.
   const form = page.getByRole('main')
   await form.getByRole('textbox').nth(0).fill('Algorithms')
-  await form.getByRole('textbox').nth(1).fill('Sorting, searching and graphs.')
+  await form.getByRole('textbox').nth(3).fill('Sorting, searching and graphs.')
+  await page.getByRole('button', { name: 'Create class' }).click()
+  await expect(page.getByText('At least one official course number is required')).toBeVisible()
+
+  await form.getByRole('textbox').nth(2).fill('1268, 1421')
   await page.getByRole('button', { name: 'Create class' }).click()
 
   await expect(page.getByText('Algorithms')).toBeVisible()
   const created = await db().class.findFirst({ where: { name: 'Algorithms' } })
-  expect(created).toMatchObject({ created_by: seeded().users.bocal, org_id: seeded().orgId })
+  expect(created).toMatchObject({ created_by: seeded().users.bocal, org_id: seeded().orgId, externalCourseCodes: ['1268', '1421'] })
 })
 
 test('creates an assignment with an eval sheet that sums to the max score', async ({ page }) => {

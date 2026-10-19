@@ -2,6 +2,7 @@
 // the fixes that followed, so a later change can't quietly reopen them.
 const { test, expect, expectError, expectOk } = require('../../support/api')
 const { seeded } = require('../../support/sessions')
+const { PASSWORD } = require('../../support/data')
 
 const MODULES = ['user', 'org', 'class', 'enroll', 'group', 'submission', 'eval']
 
@@ -146,6 +147,36 @@ test.describe('enrolment is staff-driven', () => {
     expect(enrolled).toMatchObject({ userId: users.bob, classId: classes.open, status: 'Active' })
     const dropped = await expectOk(await bocal.patch('enroll/', { data: { classId: classes.open, studentId: users.bob } }))
     expect(dropped.status).toBe('Dropped')
+  })
+
+  // Students are enrolled (and can be grouped and paired) before they sign
+  // up. Signing up claims the pending account — exactly once.
+  test('a Bocal enrols an unregistered email, and signing up claims it once', async ({ api }) => {
+    const { classes } = seeded()
+    const bocal = await api('bocal')
+    const anon = await api('anon')
+    const email = `pending-${Date.now()}@e2e.test`
+
+    const { results: [row] } = await expectOk(await bocal.post(`enroll/class/${classes.open}/students`, { data: { students: [{ email }] } }))
+    expect(row).toMatchObject({ email, status: 'enrolled', account: 'created' })
+    const roster = await expectOk(await bocal.get(`class/${classes.open}/students`))
+    expect(roster.find((s) => s.email === email)).toMatchObject({ id: row.userId, pending: true })
+
+    await expectError(await anon.post('auth/login', { data: { email, password: PASSWORD } }), 401)
+    const registered = await expectOk(await anon.post('auth/register', { data: { email, password: PASSWORD } }))
+    expect(registered.id, 'sign-up claims the enrolled account').toBe(row.userId)
+
+    // A second sign-up cannot replace the password.
+    const res = await anon.post('auth/register', { data: { email, password: 'Another-Passw0rd!' } })
+    expect((await res.json()).ok).toBe(false)
+    await expectOk(await anon.post('auth/login', { data: { email, password: PASSWORD } }))
+    const after = await expectOk(await bocal.get(`class/${classes.open}/students`))
+    expect(after.find((s) => s.email === email)).toMatchObject({ pending: false })
+  })
+
+  test('a student cannot enrol by email', async ({ api }) => {
+    await expectError(await (await api('alice')).post(`enroll/class/${seeded().classes.open}/students`,
+      { data: { students: [{ email: 'x@e2e.test' }] } }), 403)
   })
 })
 

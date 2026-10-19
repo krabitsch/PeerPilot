@@ -37,6 +37,34 @@ route.get(
 
 
 // ---------------------------------------------------------
+// Staff enroll students by email, each with an official
+// university course number:
+//   { students: [{ email, externalCourseCode }] }
+//
+// Emails without an account get a pending one that the
+// student claims by signing up, so they can be grouped and
+// paired before they register. Returns one result per row.
+// ---------------------------------------------------------
+route.post(
+  '/class/:classId/students',
+  requireStaff,
+  async (req, res, next) => {
+    try {
+      res.json(
+        await enrollService.enrollByEmail({
+          classId: req.params.classId,
+          students: req.body?.students,
+          actor: req.user
+        })
+      )
+    } catch (err) {
+      next(err)
+    }
+  }
+)
+
+
+// ---------------------------------------------------------
 // Enroll a student.
 //
 // Student can enroll THEMSELVES.

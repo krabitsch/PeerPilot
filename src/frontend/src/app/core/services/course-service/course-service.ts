@@ -37,7 +37,8 @@ export class CourseService {
   }
 
   getClassStudents(classId: number) {
-    return this.http.get<{ id: number; username: string; email: string; role: string; created_at: string }[]>(
+    return this.http.get<{ id: number; username: string; email: string; role: string; created_at: string;
+                           externalCourseCode?: string | null; pending?: boolean }[]>(
       `${this.base}/${classId}/students`
     );
   }

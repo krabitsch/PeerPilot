@@ -64,27 +64,78 @@
     </span>
   </div>
 
-  <!-- ── Add a student to the selected course ───────────────── -->
+  <!-- ── Add students to the selected course ────────────────── -->
+  <!-- By email: students who have not signed up yet get a pending account,
+       so they can be grouped and paired right away. -->
   @if (classFilter()) {
-    <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:16px">
-      <label [ngStyle]="filterLabelStyle">{{ 'label_add_student_to_class' | translate }}</label>
-      @if (enrollableStudents().length === 0) {
-        <div style="font-size:0.8125rem;color:oklch(48% 0.01 272)">{{ 'bocal_all_students_enrolled' | translate }}</div>
-      } @else {
-        <div style="display:flex;gap:8px;align-items:center">
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
+      <label [ngStyle]="filterLabelStyle" for="add-student-email">{{ 'label_add_student_to_class' | translate }}</label>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input
+          id="add-student-email"
+          [ngStyle]="inputStyle" style="max-width:320px"
+          type="email"
+          list="enrollable-students"
+          autocomplete="off"
+          [placeholder]="'placeholder_student_email' | translate"
+          [value]="addEmail()"
+          (input)="addEmail.set($any($event.target).value)"
+          (keydown.enter)="addToClass()" />
+        <datalist id="enrollable-students">
+          @for (s of enrollableStudents(); track s.id) {
+            <option [value]="s.email">{{ s.username }}</option>
+          }
+        </datalist>
+        @if (courseCodes().length) {
           <select
-            [ngStyle]="inputStyle" style="max-width:320px"
-            [value]="addStudentId() ?? ''"
-            (change)="addStudentId.set(+$any($event.target).value)">
-            <option value="" disabled [selected]="addStudentId() === null">{{ 'label_student' | translate }}</option>
-            @for (s of enrollableStudents(); track s.id) {
-              <option [value]="s.id">{{ s.username }} · {{ s.email }}</option>
+            [ngStyle]="inputStyle" style="max-width:180px"
+            [attr.aria-label]="'label_course_number' | translate"
+            (change)="addCode.set($any($event.target).value)">
+            <option value="" disabled [selected]="!selectedCode()">{{ 'label_course_number' | translate }}</option>
+            @for (code of courseCodes(); track code) {
+              <option [value]="code" [selected]="code === selectedCode()">{{ code }}</option>
             }
           </select>
-          <app-btn variant="secondary" size="sm" [disabled]="!addStudentId()" (clicked)="addToClass()">
-            {{ 'btn_add_to_class' | translate }}
-          </app-btn>
+        }
+        <app-btn variant="secondary" size="sm" [disabled]="!canAddSingle()" (clicked)="addToClass()">
+          {{ 'btn_add_to_class' | translate }}
+        </app-btn>
+        <app-btn variant="ghost" size="sm" (clicked)="bulkOpen.set(!bulkOpen())">
+          {{ (bulkOpen() ? 'btn_hide_bulk_add' : 'btn_add_several') | translate }}
+        </app-btn>
+      </div>
+
+      @if (bulkOpen()) {
+        <div style="display:flex;flex-direction:column;gap:6px;max-width:520px">
+          <textarea
+            [ngStyle]="inputStyle"
+            rows="6"
+            style="font-family:monospace;resize:vertical"
+            [attr.aria-label]="'label_bulk_students' | translate"
+            [placeholder]="'placeholder_bulk_students' | translate"
+            [value]="bulkText()"
+            (input)="bulkText.set($any($event.target).value)"></textarea>
+          <div style="font-size:0.75rem;color:oklch(48% 0.01 272)">
+            {{ 'label_bulk_students' | translate }}
+            @if (courseCodes().length) { {{ 'hint_bulk_default_code' | translate }} }
+          </div>
+          <div>
+            <app-btn variant="secondary" size="sm" [disabled]="!bulkText().trim()" (clicked)="addBulk()">
+              {{ 'btn_add_all' | translate }}
+            </app-btn>
+          </div>
         </div>
+      }
+
+      @if (rosterNotice()) {
+        <div role="status" style="font-size:0.8125rem;color:oklch(68% 0.01 272)">{{ rosterNotice() }}</div>
+      }
+      @if (rosterFailures().length) {
+        <ul [ngStyle]="failureListStyle">
+          @for (f of rosterFailures(); track $index) {
+            <li>{{ f.email || '—' }}: {{ f.error }}</li>
+          }
+        </ul>
       }
     </div>
   }
@@ -108,6 +159,12 @@
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:16px">
+          @if (m.pending) {
+            <span [ngStyle]="pendingBadgeStyle" [title]="'hint_not_registered' | translate">{{ 'badge_not_registered' | translate }}</span>
+          }
+          @if (classFilter() && classCourseCodes().get(m.id); as code) {
+            <span style="font-family:monospace;font-size:0.8125rem;color:oklch(68% 0.01 272)">{{ code }}</span>
+          }
           <span [ngStyle]="roleStyle(m.role)">{{ m.role }}</span>
           <span style="font-size:0.8125rem;color:oklch(68% 0.01 272)">{{ m.created_at | date:'mediumDate' }}</span>
           @if (classFilter()) {
