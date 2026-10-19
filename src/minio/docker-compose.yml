@@ -1,10 +1,12 @@
 services:
   minio:
-    # Official MinIO image (published on quay.io, not Docker Hub), pinned.
-    # Bundles both `mc` and `curl`, so the healthcheck and the backup scripts
-    # (which run `mc` inside this container) work without a separate client.
-    # A local MINIO_IMAGE override permits recovery when Quay is unavailable.
-    image: ${MINIO_IMAGE:-quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z}
+    # MinIO stopped publishing community images in late 2025; the official
+    # quay.io/minio/minio and minio/minio tags are gone. pgsty/minio is a
+    # maintained community build of the same server, pinned. It bundles `mc`
+    # and `curl`, so the healthcheck and the backup scripts (which run `mc`
+    # inside this container) work without a separate client.
+    # MINIO_IMAGE overrides it (e.g. a mirror, if Docker Hub is unavailable).
+    image: ${MINIO_IMAGE:-pgsty/minio:RELEASE.2026-08-04T00-00-00Z}
     container_name: minio
     command: server /data --console-address ":9001"
     env_file:

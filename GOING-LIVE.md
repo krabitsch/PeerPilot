@@ -128,7 +128,8 @@ gone. The backend `/google` + `/github` routes remain in place but unreachable
 - **Object storage** ✅ decided (2026-10-05): **stay on self-hosted MinIO + the
   backups below** — managed S3 isn't warranted at ~60 users and there's no
   audit/compliance obligation; the bar is just not losing files. Done: pinned the
-  **official `quay.io/minio/minio`** image (was the `coollabsio` community mirror).
+  **`pgsty/minio`** community build (2026-10-19: the official `quay.io/minio/minio`
+  tags were withdrawn by MinIO, which broke every fresh pull — including CI).
   The code stays parameterised (`MINIO_*`, `BASE_URL`), so a managed S3-compatible
   store remains a config-level upgrade path if we outgrow this (see
   `docs/STORAGE.md`). Buckets: `submissions`, `assignment-subjects`,
