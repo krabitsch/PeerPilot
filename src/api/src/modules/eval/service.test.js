@@ -128,6 +128,7 @@ test('retry route uses authenticated user, ignoring a forged body userId', async
     module: { exports: {} }, require: name => {
       if (name === '@transcendence/filemanager') return { recordingUploader: { single: () => () => {} } }
       if (name === 'express') return { Router: () => router }
+      if (name === './pairing-management' || name === '../participation/service') return {}
       if (name === './service') return { requestEvaluationRetry: async (id, userId) => { actualUser = userId; return { id } } }
       if (name === '../../middleware/authenticate') return { requireStaff: () => {} }
       throw new Error(name)
@@ -206,6 +207,9 @@ test('A/E: evaluator task query scopes identity and enrollments with scoped cont
   assert.equal(taskQuery.select.evalueeGroup.select.members.select.user.select.email, true)
   assert.equal(JSON.stringify(taskQuery.select).includes('passKey'), false)
   assert.equal(result.tasks[0].evalueeGroup.members[0].user.username, 'student42')
+  await module.exports.getMyEvaluatorTasks(4,'Bocal')
+  assert.equal(courseQuery.where.OR[1].assignments.some.evalAssignments.some.evaluatorUserId,4)
+  assert.equal(taskQuery.where.evaluatorUserId,4)
 })
 
 test('start route ignores forged evaluator identity and obsolete leader email', async () => {
@@ -216,6 +220,7 @@ test('start route ignores forged evaluator identity and obsolete leader email', 
     module: { exports: {} }, require: name => {
       if (name === '@transcendence/filemanager') return { recordingUploader: { single: () => () => {} } }
       if (name === 'express') return { Router: () => router }
+      if (name === './pairing-management' || name === '../participation/service') return {}
       if (name === './service') return { startEvaluation: async data => { received = data; return {} } }
       if (name === '../../middleware/authenticate') return { requireStaff: () => {} }
       throw Error(name)

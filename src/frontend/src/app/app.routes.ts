@@ -98,7 +98,7 @@ export const routes: Routes = [
   },
   {
     path: 'eval-assignments',
-    canActivate: [authGuard],
+    canActivate: [authGuard, bocalGuard],
     loadComponent: () => import('./eval-assignment-list/eval-assignment-list.component').then(m => m.EvalAssignmentListComponent),
   },
   {

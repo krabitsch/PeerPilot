@@ -1,6 +1,8 @@
 const express = require('express')
 const route = express.Router()
 const service = require('./service')
+const management = require('./pairing-management')
+const participation = require('../participation/service')
 const { requireStaff, isStaff } = require('../../middleware/authenticate')
 const { recordingUploader } = require('@transcendence/filemanager')
 
@@ -12,7 +14,7 @@ const { recordingUploader } = require('@transcendence/filemanager')
 
 route.get('/my-tasks', async (req, res, next) => {
     try {
-        res.json(await service.getMyEvaluatorTasks(req.user.userId))
+        res.json(await service.getMyEvaluatorTasks(req.user.userId, req.user.role))
     } catch (err) { next(err) }
 })
 
@@ -62,12 +64,22 @@ route.get('/assignment/:id', async(req, res, next)=>{
 })
 
 
+route.get('/assignment/:id/management', requireStaff, async (req,res,next) => {
+  try { res.json(await management.getSummary(req.params.id, req.user)) } catch(err) { next(err) }
+})
+route.get('/assignment/:id/participation', requireStaff, async (req,res,next) => {
+  try { res.json(await participation.getParticipation(req.params.id, req.user)) } catch(err) { next(err) }
+})
+route.put('/assignment/:id/participation', requireStaff, async (req,res,next) => {
+  try { res.json(await participation.updateParticipation(req.params.id, req.body.participants, req.user)) } catch(err) { next(err) }
+})
+
 // Routes pertaining to EvalAssignment model/table
 
 // creates one EvalAssignment manually (POST /api/eval/eval-assignments) 
 route.post('/eval-assignments', requireStaff, async(req, res, next) => {
     try{
-        res.json(await service.createEvalAssignment(req.body))
+        res.json(await service.createEvalAssignment(req.body, req.user))
     }catch(err){next(err)}
 })
 
@@ -81,13 +93,8 @@ route.get('/assignment/:id/eval-assignments', async (req, res, next) => {
   }
 })
 
-// delete all EvalAssignments for one assignment (DELETE /api/eval/assignment/:id/eval-assignments)
-route.delete('/assignment/:id/eval-assignments', requireStaff, async (req, res, next) => {
-  try {
-    res.json(await service.deleteEvalAssignments(req.params.id))
-  } catch (err) {
-    next(err)
-  }
+route.delete('/assignment/:id/eval-assignments', requireStaff, (req, res) => {
+  res.status(409).json({error:'Bulk deletion is disabled to preserve evaluation history. Cancel individual pending pairings instead.'})
 })
 
 // get one EvalAssignment by its EvalAssignment-id (GET /api/eval/eval-assignments/:id)
@@ -99,23 +106,21 @@ route.get('/eval-assignments/:id', async (req, res, next) => {
   }
 })
 
-// update one EvalAssignment (PUT /api/eval/eval-assignments/:id)
-route.put('/eval-assignments/:id', requireStaff, async(req, res, next) => {
-    try{
-        res.json(await service.updateEvalAssignment(req.params.id, req.body))
-    }catch(err){next(err)}
+// Pairing identity and completed history are immutable. Cancel pending work and fill the slot instead.
+route.put('/eval-assignments/:id', requireStaff, (req, res) => {
+  res.status(409).json({error:'Cancel pending work and create a new pairing; existing attempts cannot be overwritten.'})
 })
 
 // delete one EvalAssignment (DELETE /api/eval/eval-assignments/:id)
 route.delete('/eval-assignments/:id', requireStaff, async(req, res, next) => {
     try{
-        res.json(await service.deleteEvalAssignment(req.params.id))
+        res.json(await management.cancelPairing(req.params.id, req.user))
     }catch(err){next(err)}
 })
 
 route.post('/assignment/:id/generate-simple-pairings', requireStaff, async(req, res, next) => {
     try{
-        res.json(await service.generateSimpleEvalAssignmentPairings(req.params.id))
+        res.json(await service.generateSimpleEvalAssignmentPairings(req.params.id, req.body, req.user))
     }catch(err){next(err)}
 })
 

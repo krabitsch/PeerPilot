@@ -30,7 +30,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'student-dashboard',   label: 'label_dashboard',  route: '/dashboard', icon: 'dashboard', roles: ['Student'] },
   { id: 'student-classes',     label: 'label_my_classes', route: '/classes',   icon: 'book',      roles: ['Student'] },
   { id: 'student-assignments', label: 'label_assignments',route: '/assignment',icon: 'file',      roles: ['Student'] },
-  { id: 'student-evaluations', label: 'label_evaluator_tasks',route: '/evaluation',icon: 'star',      roles: ['Student'] },
+  { id: 'student-evaluations', label: 'label_evaluator_tasks',route: '/evaluation',icon: 'star',      roles: ['Student', 'Bocal', 'Admin'] },
   { id: 'student-progress',    label: 'label_my_progress', route: '/progress',  icon: 'trending',  roles: ['Student'] },
   // Bocal navigation
   { id: 'bocal-dashboard', label: 'label_dashboard', route: '/bocal/dashboard', icon: 'dashboard', roles: ['Bocal', 'Admin'] },

@@ -3,60 +3,39 @@ const {NotFoundError, ValidationError, ConflictError, UnauthorizedError} = requi
 const utils = require('@transcendence/utils')
 
 
-const createGroup = async ({assId, userId, name, size})=>{
-    if(!assId || !userId || !name || !size)
-        throw new ValidationError("Invalid request")
-
-    const assignment = await utils.getAssignmentById(assId)
-    if(!assignment)
-        throw new NotFoundError("Assignment not found")
-
-    const user = await utils.getUserById(userId)
-    if(!user)
-        throw new NotFoundError("User not found")
-    const isEnrolledAndActive = await utils.isEnrolledAndActive(userId, assignment.classid)
-    if(!isEnrolledAndActive)
-        throw new ConflictError("User is not enrolled in this assignment")
-    const isAlreadyMemeber = await utils.existingMembership(userId, assId)
-    if(isAlreadyMemeber)
-        throw new ConflictError("User is already a member in another group")
-
-    const existingGroupWithName = await prisma.group.findFirst({
-        where: {
-            assId: parseInt(assId),
-            name: name
-        }
-    })
-
-    if (existingGroupWithName)
-        throw new ConflictError("Group name exists already")
-
-    const group = await prisma.group.create({
-        data: {
-            assId: parseInt(assId),
-            name,
-            size: parseInt(size),
-            leaderId: parseInt(userId),
-            members: {
-                create: { userId: parseInt(userId) }
-            }
-        },
-        include: {
-            members: {
-                include: {
-                    user: {
-                        select: {
-                            id: true,
-                            username: true,
-                            email: true
-                        }
-                    }
-                }
-            }
-        }
-    })
-    return group
+const participation = require('../participation/service')
+const groupInclude = {members:{include:{user:{select:{id:true,username:true,email:true}}}}}
+const createGroupInTransaction = async (db, assignment, {userId,name,size}) => {
+    userId=participation.positiveId(userId)
+    size=participation.positiveId(size)
+    if (typeof name!=='string'||!name.trim()) throw new ValidationError('Group name is required')
+    await participation.assertEvaluee(db,assignment,userId)
+    if(await db.groupMember.findFirst({where:{userId,group:{assId:assignment.id}}}))
+        throw new ConflictError('User is already a member of a group for this assignment')
+    if(await db.group.findFirst({where:{assId:assignment.id,name:name.trim()}}))
+        throw new ConflictError('Group name exists already')
+    return db.group.create({data:{assId:assignment.id,name:name.trim(),size,leaderId:userId,
+        members:{create:{userId}}},include:groupInclude})
 }
+const createGroup = (payload,actor) => participation.withAssignment(payload.assId,actor,
+    (db,a)=>createGroupInTransaction(db,a,payload))
+const generateGroups = (id,actor) => participation.withAssignment(id,actor,async(db,a)=>{
+    const participants=await participation.participantsFor(db,a)
+    const groups=await db.group.findMany({where:{assId:a.id},include:{members:true}})
+    const grouped=new Set(groups.flatMap(g=>g.members.map(m=>m.userId)))
+    const people=participants.filter(p=>p.evalueeEligible&&!grouped.has(p.id)).sort((a,b)=>a.id-b.id)
+    const size=participation.positiveId(a.groupSize)
+    const names=new Set(groups.map(g=>g.name.toLowerCase()))
+    let index=1
+    for(let i=0;i<people.length;i+=size){
+        while(names.has(`group${index}`)) index++
+        const name=`group${index++}`;names.add(name)
+        const chunk=people.slice(i,i+size)
+        await db.group.create({data:{assId:a.id,name,size,leaderId:chunk[0].id,
+            members:{create:chunk.map(p=>({userId:p.id}))}}})
+    }
+    return db.group.findMany({where:{assId:a.id},orderBy:{id:'asc'},include:groupInclude})
+})
 
 const inviteMember = async (groupId, {leaderId, inviteeId})=>{
 
@@ -97,51 +76,22 @@ const inviteMember = async (groupId, {leaderId, inviteeId})=>{
 }
 
 // add member to an existing group (as bocal)
-const addMemberAdmin = async (groupId, { userId }) => {
-    if (!groupId || !userId)
-        throw new ValidationError('Invalid request')
-    const group = await utils.getGroupById(groupId, null, { assignment: true })
-    if (!group)
-        throw new NotFoundError('Group not found')
-    const user = await utils.getUserById(userId)
-    if (!user)
-        throw new NotFoundError('User not found')
-
-    const targetClass = group.assignment.classid
-    const isEnrolledAndActive = await utils.isEnrolledAndActive(userId, targetClass)
-    if (!isEnrolledAndActive)
-        throw new ConflictError('User is not enrolled or active for this class')
-    const existingMembership = await utils.existingMembership(userId, group.assId)
-    if (existingMembership)
-        throw new ConflictError('User is already a member of a group for this assignment')
-
-    await prisma.groupMember.create({ data: { userId: parseInt(userId), groupId: parseInt(groupId) } })
-
-    const memberCount = await utils.getGroupCurrentCount(groupId)
-    if (memberCount > group.size) {
-        await prisma.group.update({
-            where: { id: parseInt(groupId) },
-            data: { size: memberCount } })
-    }
-
-    return await prisma.group.findUnique({
-        where: { id: parseInt(groupId) },
-        include: {
-            members: {
-                include: {
-                    user: {
-                        select: {
-                            id: true,
-                            username: true,
-                            email: true
-                        }
-                    }
-                }
-            }
-        }
+const addMemberAdmin = async (groupId, {userId}, actor) => {
+    const group=await prisma.group.findUnique({where:{id:participation.positiveId(groupId)}})
+    if(!group) throw new NotFoundError('Group not found')
+    return participation.withAssignment(group.assId,actor,async(db,a)=>{
+        userId=participation.positiveId(userId)
+        await participation.assertEvaluee(db,a,userId)
+        if(await db.groupMember.findFirst({where:{userId,group:{assId:a.id}}}))
+            throw new ConflictError('User is already a member of a group for this assignment')
+        if(await db.evalAssignment.findFirst({where:{evalueeGroupId:group.id,evaluatorUserId:userId,status:{not:'Cancelled'}}}))
+            throw new ConflictError('This participant evaluates this group and cannot become its evaluee')
+        await db.groupMember.create({data:{userId,groupId:group.id}})
+        const count=await db.groupMember.count({where:{groupId:group.id}})
+        if(count>group.size) await db.group.update({where:{id:group.id},data:{size:count}})
+        return db.group.findUnique({where:{id:group.id},include:groupInclude})
     })
 }
-
 
 const removeMemberAdmin = async (groupId, { userId }) => {
     if (!groupId || !userId)
@@ -297,17 +247,19 @@ const getGroupsForAssignment = async (assId)=>{
     })
 }
 
-//staff/admin removal of a group (members/submissions cascade per schema)
-const deleteGroup = async (groupId)=>{
-    if(!groupId)
-        throw new ValidationError('Invalid request')
-
-    const group = await utils.getGroupById(groupId)
-    if(!group)
-        throw new NotFoundError('Group not found')
-
-    await prisma.group.delete({where: {id: parseInt(groupId)}})
-    return {message: 'Group deleted successfully', id: groupId}
+// Never cascade-delete an evaluee's submission or evaluation history.
+const deleteGroup = async (groupId, actor) => {
+    const id=participation.positiveId(groupId)
+    const group=await prisma.group.findUnique({where:{id}})
+    if(!group) throw new NotFoundError('Group not found')
+    return participation.withAssignment(group.assId,actor,async(db)=>{
+        const current=await db.group.findUnique({where:{id},include:{_count:{select:{submissions:true,evalAssignmentsAsEvaluee:true}}}})
+        if(!current) throw new NotFoundError('Group not found')
+        if(current._count.submissions || current._count.evalAssignmentsAsEvaluee)
+            throw new ConflictError('This group has submission or evaluation history and cannot be deleted. Its existing records must be preserved.')
+        await db.group.delete({where:{id}})
+        return {message:'Group deleted successfully',id}
+    })
 }
 
 const getMyGroupForAssignment = async ({ userId, assId }) => {
@@ -323,6 +275,6 @@ const getMyGroupForAssignment = async ({ userId, assId }) => {
     return membership?.group ?? null
 }
 
-module.exports = {createGroup, inviteMember, addMemberAdmin, removeMemberAdmin, respondToInvite, getGroup, leaveGroup, 
+module.exports = {createGroup, generateGroups, inviteMember, addMemberAdmin, removeMemberAdmin, respondToInvite, getGroup, leaveGroup,
     deleteInvite, getInvites, getMyGroupForAssignment, getGroupsForAssignment, deleteGroup}
   

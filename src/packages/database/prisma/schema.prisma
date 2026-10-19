@@ -33,6 +33,7 @@ model User {
   membership      GroupMember[]
   enrollments     Enrollment[]
   evalAssignments EvalAssignment[]
+  assignmentParticipations AssignmentParticipation[]
 
   evalResponses EvalResponse[]
   uploadedFiles File[]
@@ -160,6 +161,7 @@ model Assignment {
 
   class           Class            @relation(fields: [classid], references: [id], onDelete: Cascade)
   groups          Group[]
+  participations  AssignmentParticipation[]
   evalAssignments EvalAssignment[]
 
   created_at DateTime @default(now())
@@ -452,3 +454,18 @@ model AuthAllowedEmail {
   @@map("auth_allowed_emails")
 }
 
+
+// Sparse overrides: active students default true/true; course staff false/false.
+model AssignmentParticipation {
+  id Int @id @default(autoincrement())
+  assignmentId Int
+  userId Int
+  evalueeEligible Boolean
+  evaluatorEligible Boolean
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([assignmentId, userId])
+  @@index([userId])
+  @@map("assignmentParticipation")
+}

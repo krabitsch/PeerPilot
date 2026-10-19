@@ -4,8 +4,13 @@ const { summarizeEvaluationRounds, responseSelect } = require('../eval/outcome')
 const buildStaffDashboard = courses => {
   const actions = []
   for (const course of courses) {
-    const students = new Set(course.enrollments.map(e => e.user.id))
+    const active = course.enrollments.map(e => e.user)
+    const staff = (course.org?.users ?? []).filter(u => !u.enrollments?.some(e=>e.classId===course.id&&e.status==='Dropped'))
     for (const assignment of course.assignments) {
+      const roster = new Map([...active,...staff].map(u=>[u.id,u]))
+      const overrides = new Map((assignment.participations ?? []).map(p=>[p.userId,p]))
+      const students = new Set([...roster.values()].filter(u=>overrides.get(u.id)?.evalueeEligible ??
+        (u.role === 'Student' || (!u.role && active.some(p=>p.id===u.id)))).map(u=>u.id))
       const base = { courseId: course.id, courseName: course.name, assignmentId: assignment.id,
         assignmentName: assignment.name, occurredAt: assignment.created_at }
       const add = (kind, label, route, queryParams, extra = {}) => actions.push({
@@ -25,7 +30,7 @@ const buildStaffDashboard = courses => {
       if (missingStudents)
         add('groups', `${assignment.name} needs groups for ${missingStudents} unassigned ${missingStudents === 1 ? 'student' : 'students'}.`,
           '/bocal/classes', { classId: course.id, groupAssignmentId: assignment.id })
-      const eligible = assignment.groups.filter(g => g.members.some(m => students.has(m.user.id)))
+      const eligible = assignment.groups.filter(g => g.members.length && g.members.every(m => students.has(m.user.id)))
       let missingRounds = 0
       for (const group of eligible) {
         const pairings = assignment.evalAssignments.filter(p => p.evalueeGroupId === group.id)
@@ -40,10 +45,7 @@ const buildStaffDashboard = courses => {
             })
         }
       }
-      if (eligible.length && !missingStudents && eligible.length < assignment.req_eval + 1)
-        add('groups-capacity', `Review grouping for ${assignment.name}: ${assignment.req_eval} evaluation rounds require at least ${assignment.req_eval + 1} populated groups.`,
-          '/bocal/classes', { classId: course.id, groupAssignmentId: assignment.id })
-      else if (missingRounds && eligible.length >= assignment.req_eval + 1)
+      if (missingRounds)
         add('pairings', `Create missing evaluation pairings for ${assignment.name} (${missingRounds} required ${missingRounds === 1 ? 'round' : 'rounds'} unassigned).`,
           '/eval-assignments', { assignmentId: assignment.id })
     }
@@ -61,9 +63,12 @@ const getStaffDashboard = async orgId => {
   const courses = await prisma.class.findMany({
     where: { org_id: orgId }, orderBy: { id: 'asc' }, select: {
       id: true, name: true, description: true, term: true,
-      enrollments: { where: { status: 'Active', user: { role: 'Student' } }, select: { user: { select: { id: true } } } },
+      enrollments: { where: { status: 'Active' }, select: { user: { select: { id: true, role:true } } } },
+      org: { select: { users: { where: { role: { in:['Bocal','Admin'] } }, select: { id:true,role:true,
+        enrollments:{select:{classId:true,status:true}} } } } },
       assignments: { select: {
         id: true, name: true, created_at: true, description: true, fileId: true, req_eval: true, max_score: true, pass_threshold: true,
+        participations: { select: { userId:true,evalueeEligible:true,evaluatorEligible:true } },
         evalSheet: { select: { sections: { select: { marks: true } } } },
         groups: { select: { id: true, members: { orderBy: { userId: 'asc' }, select: { user: { select: { id: true, username: true } } } } } },
         evalAssignments: { select: {

@@ -32,6 +32,18 @@ describe('Bocal course metadata and assignment duration',()=>{
     fixture.detectChanges();c.onSave();
     expect(courses.createClass).toHaveBeenCalledWith(expect.objectContaining({term:'Fall 2027',externalCourseCodes:['1268','1421']}));
   });
+  it('group allocation uses independent saved evaluee eligibility, including explicitly enabled staff',()=>{
+    const c=TestBed.createComponent(BocalClassesComponent).componentInstance;
+    const a={id:1} as any;
+    c.participationChanged(a,[
+      {id:1,username:'Exempt',email:'one@example.com',role:'Student',evalueeEligible:false,evaluatorEligible:true},
+      {id:2,username:'Student',email:'two@example.com',role:'Student',evalueeEligible:true,evaluatorEligible:false},
+      {id:20,username:'Staff',email:'staff@example.com',role:'Bocal',evalueeEligible:true,evaluatorEligible:false},
+    ]);
+    expect(c.ungroupedStudentsFor(a).map(p=>p.id)).toEqual([2,20]);
+    c.assignmentGroups.set(new Map([[1,[{id:2,name:'g',leaderId:2,members:[{id:1,userId:2}]}]]]));
+    expect(c.ungroupedStudentsFor(a).map(p=>p.id)).toEqual([20]);
+  });
   it('Edit Course preloads metadata and saves changes',()=>{
     const fixture=TestBed.createComponent(BocalClassesComponent),c=fixture.componentInstance;
     c.openEditClass(course);fixture.detectChanges();

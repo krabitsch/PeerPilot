@@ -1,9 +1,11 @@
+import {AssignmentParticipationComponent} from '../../shared/assignment-participation.component';
+import {AssignmentWorkflowService,Participant} from '../../core/services/assignment-workflow.service';
 import { Component, inject, signal, OnInit } from '@angular/core';
 import { NgStyle, DatePipe } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 //import { forkJoin } from 'rxjs';
-import { forkJoin, of, from } from 'rxjs';
-import { catchError, concatMap, map, switchMap, toArray } from 'rxjs/operators';
+import { forkJoin, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { DS } from '../../tokens';
 import { BtnComponent } from '../../shared/btn.component';
@@ -49,7 +51,7 @@ export interface EnrolledStudent {
 @Component({
   selector: 'app-bocal-classes',
   standalone: true,
-  imports: [
+  imports: [AssignmentParticipationComponent,
     NgStyle, DatePipe,
     BtnComponent, ContainerComponent,
     CreateClassPage,
@@ -62,6 +64,7 @@ export class BocalClassesComponent implements OnInit {
   private courseService = inject(CourseService);
   private assignService = inject(AssignmentService);
   private groupService  = inject(GroupService);
+  private workflow = inject(AssignmentWorkflowService);
   private loading       = inject(LoadingService);
   private route         = inject(ActivatedRoute);
   private translate     = inject(TranslateService);
@@ -305,16 +308,16 @@ export class BocalClassesComponent implements OnInit {
         // We need the groups immediately for the summary counters.
         forkJoin(
           assignments.map(a =>
-            this.groupService.getGroupsForAssignment(a.id).pipe(
-              catchError(() => of([] as AssignmentGroup[]))
-            )
+            this.workflow.summary(a.id).pipe(catchError(() => of(null)))
           )
         ).subscribe({
           next: (allGroups) => {
             const groupMap = new Map<number, AssignmentGroup[]>();
 
             assignments.forEach((a, i) => {
-              groupMap.set(a.id, allGroups[i] ?? []);
+              const data=allGroups[i];
+              groupMap.set(a.id, data?.groups ?? []);
+              if(data) this.participationChanged(a,data.participants);
             });
 
             this.assignmentGroups.set(groupMap);
@@ -493,6 +496,10 @@ export class BocalClassesComponent implements OnInit {
     });
   }
 
+  participation = signal(new Map<number, Participant[]>());
+  participationChanged(a: AssignmentResponse, people: Participant[]) {
+    this.participation.update(map => new Map(map).set(a.id, people));
+  }
   // ── Groups management ──────────────────────────────────────
   toggleGroups(a: AssignmentResponse) {
     if (this.expandedAssignment() === a.id) {
@@ -516,10 +523,8 @@ export class BocalClassesComponent implements OnInit {
     return this.assignmentGroups().get(a.id) ?? [];
   }
 
-  assignmentStudentCount(): number {
-    return this.classStudents()
-      .filter(student => student.role === 'Student')
-      .length;
+  assignmentStudentCount(a: AssignmentResponse): number {
+    return (this.participation().get(a.id) ?? []).filter(p => p.evalueeEligible).length;
   }
 
   groupCount(a: AssignmentResponse): number {
@@ -533,6 +538,7 @@ export class BocalClassesComponent implements OnInit {
   removeGroup(a: AssignmentResponse, g: AssignmentGroup) {
     if (!confirm(this.translate.instant('confirm_remove_group', { name: g.name }))) return;
 
+    this.groupActionError.set(null);
     this.loading.show();
     this.groupService.deleteGroup(g.id).subscribe({
       next: () => {
@@ -543,7 +549,7 @@ export class BocalClassesComponent implements OnInit {
         });
         this.loading.hide();
       },
-      error: () => this.loading.hide(),
+      error: err => {this.groupActionError.set(err?.error?.error ?? 'Could not remove group.');this.loading.hide();},
     });
   }
 
@@ -572,19 +578,11 @@ export class BocalClassesComponent implements OnInit {
     });
   }
 
-  ungroupedStudentsFor(a: AssignmentResponse): EnrolledStudent[] {
-  const groups = this.groupsFor(a);
-  const groupedUserIds = new Set<number>();
-  for (const group of groups) {
-    for (const member of group.members ?? []) {
-      groupedUserIds.add(member.userId);
-    }
+  ungroupedStudentsFor(a: AssignmentResponse): Participant[] {
+    const grouped=new Set(this.groupsFor(a).flatMap(g=>g.members.map(m=>m.userId)));
+    return (this.participation().get(a.id) ?? []).filter(p=>p.evalueeEligible&&!grouped.has(p.id))
+      .sort((a,b)=>a.id-b.id);
   }
-  return this.classStudents()
-    .filter(student => student.role === 'Student')
-    .filter(student => !groupedUserIds.has(student.id))
-    .sort((a, b) => a.username.localeCompare(b.username));
-}
 
   // method for group modal:
   openCreateGroup(a: AssignmentResponse): void {
@@ -726,77 +724,12 @@ private nextGroupName(a: AssignmentResponse): string {
   }
 
   generateAllGroups(a: AssignmentResponse): void {
-    this.groupActionError.set(null);
-    const groupSize = a.groupSize ?? 1;
-
-    const students = this.ungroupedStudentsFor(a);
-    if (students.length === 0) {this.groupActionError.set(this.translate.instant('error_no_ungrouped_students')); return; }
-
-    const chunks: typeof students[] = [];
-    for (let i = 0; i < students.length; i += groupSize) {
-      chunks.push(students.slice(i, i + groupSize));
-    }
-
-    const usedNames = new Set(this.groupsFor(a).map(g => g.name.trim().toLowerCase()));
-    let nextIndex = 1;
-    this.loading.show();
-
-    from(chunks).pipe(
-      concatMap(chunk => {
-        const leader = chunk[0];
-        while (usedNames.has(`group${nextIndex}`)) nextIndex++;
-        const groupName = `group${nextIndex++}`;
-        usedNames.add(groupName);
-
-        return this.groupService.createGroup({
-          assId: a.id,
-          userId: leader.id,
-          name: groupName,
-          size: groupSize,
-        }).pipe(
-          switchMap((createdGroup: AssignmentGroup) => {
-            const remainingMembers = chunk.slice(1);
-
-            if (remainingMembers.length === 0) {
-              return of(createdGroup);
-            }
-
-            return from(remainingMembers).pipe(
-              concatMap(student =>
-                this.groupService.addMemberAdmin(createdGroup.id, {
-                  userId: student.id,
-                })
-              ),
-              toArray(),
-              map((updatedGroups: any[]) =>
-                updatedGroups[updatedGroups.length - 1] ?? createdGroup
-              )
-            );
-          })
-        );
-      }),
-      toArray()
-    ).subscribe({
-      next: (createdGroups: AssignmentGroup[]) => {
-        this.assignmentGroups.update(map => {
-          const m = new Map(map);
-          m.set(a.id, [...(m.get(a.id) ?? []), ...createdGroups]);
-          return m;
-        });
-
-        this.loading.hide();
-      },
-      error: (err: any) => {
-        this.groupActionError.set(
-          err?.error?.error ?? err?.error?.message ??
-          err?.error?.error ??
-          err?.message ??
-          'Failed to generate groups.'
-        );
-        this.loading.hide();
-      },
+    this.groupActionError.set(null);this.loading.show();
+    this.groupService.generateGroups(a.id).subscribe({
+      next:groups=>{this.assignmentGroups.update(map=>new Map(map).set(a.id,groups));this.loading.hide();},
+      error:err=>{this.groupActionError.set(err?.error?.error??'Failed to generate groups.');this.loading.hide();}
     });
-}
+  }
 
   // ── Styles ─────────────────────────────────────────────────
   readonly pageStyle     = { display: 'flex', flexDirection: 'column' as const, gap: '0' };

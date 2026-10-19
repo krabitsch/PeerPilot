@@ -87,3 +87,12 @@ test('B: either text or an uploaded file satisfies instructions, without a text-
   }
   assert(buildStaffDashboard([course({...assignment,description:'   '})]).actions.some(a=>a.kind==='instructions'))
 })
+
+test('participation overrides exclude exempt evaluees and include explicitly enabled staff without imposing a group-count minimum',()=>{
+  const a={...assignment,participations:[{userId:5,evalueeEligible:false},{userId:20,evalueeEligible:true}],groups:[],evalAssignments:[]}
+  const c={...course(a),org:{users:[{id:20,role:'Bocal',enrollments:[]}]}}
+  let result=buildStaffDashboard([c]);assert(result.actions.find(a=>a.kind==='groups').label.includes('1 unassigned student'))
+  a.groups=[{id:2,members:[{user:{id:20,username:'Katrin'}}]}]
+  result=buildStaffDashboard([c]);assert(!result.actions.some(a=>a.kind==='groups'))
+  assert(result.actions.some(a=>a.kind==='pairings'));assert(!result.actions.some(a=>a.kind==='groups-capacity'))
+})
