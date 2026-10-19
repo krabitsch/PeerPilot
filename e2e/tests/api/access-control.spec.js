@@ -82,7 +82,9 @@ test.describe('identity comes from the token, not the request', () => {
   test('a student cannot submit an evaluation assigned to someone else', async ({ api }) => {
     const { evalAssignment, users } = seeded()
     const res = await (await api('bob')).post('eval/evaluate/submit', {
-      data: { evalAssignmentId: evalAssignment, evaluatorUserId: users.dave, comment: 'x'.repeat(30),
+      // Feedback must be 100+ characters (checked first), so the request gets
+      // as far as the ownership check this test is about.
+      data: { evalAssignmentId: evalAssignment, evaluatorUserId: users.dave, comment: 'x'.repeat(120),
               scores: [{ sectionId: 1, score: 1 }] },
     })
     const body = await expectError(res, 401)

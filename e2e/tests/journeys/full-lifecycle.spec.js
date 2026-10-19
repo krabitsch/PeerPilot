@@ -170,10 +170,11 @@ test.describe.serial('full lifecycle, bottom-up through the UI', () => {
     const main = teacher.getByRole('main')
     await main.getByRole('textbox').nth(0).fill(ASSIGNMENT)
     await main.getByRole('textbox').nth(1).fill('Each student submits solo, then peers evaluate.')
-    await main.getByRole('spinbutton').nth(0).fill('100')  // max score
-    await main.getByRole('spinbutton').nth(1).fill('2')    // required evaluations = rounds
-    await main.getByRole('spinbutton').nth(2).fill('1')    // group size (one student per group)
-    await main.getByRole('spinbutton').nth(3).fill('50')   // pass threshold
+    // nth(0) is the evaluation duration (default 30 min).
+    await main.getByRole('spinbutton').nth(1).fill('100')  // max score
+    await main.getByRole('spinbutton').nth(2).fill('2')    // required evaluations = rounds
+    await main.getByRole('spinbutton').nth(3).fill('1')    // group size (one student per group)
+    await main.getByRole('spinbutton').nth(4).fill('50')   // pass threshold
 
     // Subject file — a throwaway PDF.
     await main.locator('input[type=file]').setInputFiles(samplePdf(testInfo.outputDir, 'subject.pdf'))
@@ -252,7 +253,9 @@ test.describe.serial('full lifecycle, bottom-up through the UI', () => {
   test('the teacher generates two rounds of pairings', async ({ browser }) => {
     const { page: teacher, context } = await freshContext(browser, TEACHER, PW)
     await teacher.goto(`/eval-assignments?assignmentId=${S.assignmentId}`)
-    await teacher.getByRole('button', { name: 'Generate all pairings' }).click()
+    // Generation opens a preview (groups + evaluator pool) before it runs.
+    await teacher.getByRole('button', { name: 'Generate missing pairings' }).click()
+    await teacher.getByRole('dialog').getByRole('button', { name: 'Save pool and generate missing pairings' }).click()
 
     await expect.poll(async () =>
       (await db().evalAssignment.findMany({ where: { assignmentId: S.assignmentId } })).length,
@@ -302,7 +305,8 @@ test.describe.serial('full lifecycle, bottom-up through the UI', () => {
         await page.getByRole('slider').fill('45')
         await page.getByRole('button', { name: /^Yes/ }).click()
         await page.getByPlaceholder('Describe what was done well and what could be improved...')
-          .fill(`Round ${job.round}: solid work overall, a few things to tighten up.`)
+          .fill(`Round ${job.round}: solid work overall, a few things to tighten up. ` +
+                'The structure is clear; error handling and tests could go further.')  // 100+ chars
 
         const submit = page.getByRole('button', { name: 'Submit evaluation' })
         await expect(submit).toBeEnabled()

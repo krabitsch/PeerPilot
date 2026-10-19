@@ -10,10 +10,11 @@ test.use({ storageState: sessionFile('alice') })
 
 test('the dashboard shows her class and assignments', async ({ page }) => {
   await page.goto('/dashboard')
-  await expect(page.getByRole('heading', { name: 'Welcome back, alice.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Welcome back, alice' })).toBeVisible()
   const main = page.getByRole('main')
-  await expect(main.getByText(D.classes.web.name)).toBeVisible()
-  await expect(main.getByText(D.assignments.solo.name)).toBeVisible()
+  await expect(main.getByRole('heading', { name: D.classes.web.name })).toBeVisible()
+  // The assignment shows up in the dashboard's action/info messages.
+  await expect(main.getByText(D.assignments.solo.name).first()).toBeVisible()
 })
 
 test('My classes lists enrolled and available classes', async ({ page }) => {
