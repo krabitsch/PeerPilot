@@ -14,8 +14,12 @@ const { requireStaff } = require('../../middleware/authenticate')
 // Group formation is controlled by staff.
 route.post('/', requireStaff, async (req, res, next)=>{
     try{
-        res.json(await groupService.createGroup(req.body))
+        res.json(await groupService.createGroup(req.body, req.user))
     }catch(err){next(err)}
+})
+
+route.post('/assignment/:assId/generate', requireStaff, async(req,res,next)=>{
+    try { res.json(await groupService.generateGroups(req.params.assId, req.user)) } catch(err) { next(err) }
 })
 
 // Specific routes MUST come before parameterised /:id routes
@@ -57,7 +61,7 @@ route.patch('/invite/:id', async(req, res, next)=>{
 // staff/admin: directly add a member to a group
 route.post('/:id/admin/member', requireStaff, async (req, res, next) => {
     try {
-        res.json(await groupService.addMemberAdmin(req.params.id, req.body))
+        res.json(await groupService.addMemberAdmin(req.params.id, req.body, req.user))
     } catch (err) { next(err) }
 })
 
@@ -84,7 +88,7 @@ route.delete('/:id', async (req, res, next)=>{
 //staff/admin: force-remove a group entirely
 route.delete('/:id/admin', requireStaff, async (req, res, next)=>{
     try{
-        res.json(await groupService.deleteGroup(req.params.id))
+        res.json(await groupService.deleteGroup(req.params.id, req.user))
     }catch(err){next(err)}
 })
 

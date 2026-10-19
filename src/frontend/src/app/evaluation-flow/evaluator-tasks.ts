@@ -8,5 +8,5 @@ export function evaluatorTasksFor(tasks: EvaluatorTask[], courseId: number | nul
 }
 
 export function evalueeNames(task: EvaluatorTask): string {
-  return task.evalueeGroup.members.map(member => member.user.username).join(', ') || task.evalueeGroup.name;
+  return task.evalueeGroup.members.map(member => `${member.user.username}${member.user.email ? ` (${member.user.email})` : ''}`).join(', ') || task.evalueeGroup.name;
 }

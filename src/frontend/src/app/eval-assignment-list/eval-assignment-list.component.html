@@ -1,422 +1,74 @@
-<div [ngStyle]="pageStyle">
-  <div [ngStyle]="headerRowStyle">
-    <div>
-      <div [ngStyle]="overlineStyle">{{ 'eval_title' | translate }}</div>
-      <h1 [ngStyle]="h1Style">{{ 'eval_pairings_title' | translate }}</h1>
-
-      @if (assignmentName()) {
-        <p [ngStyle]="sublineStyle">
-          {{ 'label_assignment_colon' | translate }} <strong>{{ assignmentName() }}</strong>
-          @if (courseName()) {
-            · {{ 'label_course_colon' | translate }} <strong>{{ courseName() }}</strong>
-          }
-        </p>
-      } @else if (assignmentId()) {
-        <p [ngStyle]="sublineStyle">{{ 'label_assignment_id' | translate:{id: assignmentId()} }}</p>
-      } @else {
-        <p [ngStyle]="sublineStyle">{{ 'eval_pairings_no_assignment' | translate }}</p>
-      }
-    </div>
-
-    <div [ngStyle]="actionsStyle">
-      <app-btn
-        variant="secondary"
-        size="md"
-        (clicked)="goBackToAssignments()">
-        ← Back to assignments
-      </app-btn>
-
-      <app-btn
-        variant="primary"
-        [disabled]="!assignmentId() || loading()"
-        (clicked)="generateSimplePairings()">
-        {{ 'btn_generate_all_pairings' | translate }}
-      </app-btn>
-
-      <app-btn
-        variant="ghost"
-        [disabled]="!assignmentId() || loading() || evalAssignments().length === 0"
-        (clicked)="deleteAllEvalAssignments()">
-        {{ 'btn_delete_all_pairings' | translate }}
-      </app-btn>
-
-    </div>
-
-
-    <div [ngStyle]="actionsStyle">
-
-      <app-btn
-        variant="ghost"
-        [disabled]="loading() || manualPairingEvalueeGroupOptions().length === 0"
-        (clicked)="openCreateSinglePairingModal()">
-        {{ 'btn_create_single_pairing' | translate }}
-      </app-btn>
-
-      <app-btn
-        variant="ghost"
-        [disabled]="loading() || assignmentGroups().length === 0"
-        (clicked)="showEvaluatorWorkload.set(true)">
-        {{ 'btn_show_evaluator_counts' | translate }}
-      </app-btn>
-
-      <app-btn
-        variant="ghost"
-        [disabled]="loading()"
-        (clicked)="showUnmatchedStudents.set(true)">
-        {{ 'btn_show_unmatched_students' | translate }}
-      </app-btn>
-
-    </div>
+<div class="page">
+  <div class="heading"><div><div class="section-label">Evaluation pairings</div><h1>{{data()?.assignment?.name}}</h1><p class="muted">{{data()?.assignment?.courseName}}</p></div>
+    <app-btn variant="secondary" (clicked)="back()">← Back to assignments</app-btn></div>
+  <div class="actions">
+    <app-btn variant="primary" [disabled]="loading() || !data()" (clicked)="open('generate')">Generate missing pairings</app-btn>
+    <app-btn variant="secondary" [disabled]="loading() || !data()?.slots?.length" (clicked)="open('single')">Create single pairing</app-btn>
+    <app-btn variant="ghost" [disabled]="loading() || !data()" (clicked)="open('counts')">Show evaluator counts</app-btn>
+    <app-btn variant="ghost" [disabled]="loading() || !data()" (clicked)="open('queue')">Show unmatched / retry queue</app-btn>
   </div>
-
-
-
-  @if (error()) {
-    <div [ngStyle]="errorBannerStyle">
-      {{ error() }}
-    </div>
-  }
-
-  @if (loading()) {
-    <div [ngStyle]="loadingStyle">
-      {{ 'eval_pairings_loading' | translate }}
-    </div>
-  }
-
-    @if (showEvaluatorWorkload()) {
-    <div [ngStyle]="overlayStyle" (click)="showEvaluatorWorkload.set(false)">
-      <div [ngStyle]="modalStyle" (click)="$event.stopPropagation()">
-        <div [ngStyle]="modalTitleStyle">
-          {{ 'label_evaluator_counts' | translate }}
-        </div>
-
-        <div [ngStyle]="modalBodyStyle">
-          @if (evaluatorWorkload().length === 0) {
-            <div [ngStyle]="emptyStateStyle">
-              {{ 'eval_pairings_no_students' | translate }}
-            </div>
-          } @else {
-            @for (student of evaluatorWorkload(); track student.userId) {
-              <div [ngStyle]="workloadRowStyle">
-                <div>
-                  <div [ngStyle]="cardTitleStyle">
-                    {{ student.username }}
-                  </div>
-                  <div [ngStyle]="cardSubtitleStyle">
-                    {{ student.groupName }}
-                  </div>
-                </div>
-
-                <strong>
-                  {{ student.count }}
-                </strong>
-              </div>
-            }
-          }
-        </div>
-
-        <div [ngStyle]="modalActionsStyle">
-          <app-btn
-            variant="primary"
-            size="md"
-            (clicked)="showEvaluatorWorkload.set(false)">
-            {{ 'btn_close' | translate }}
-          </app-btn>
-        </div>
-      </div>
-    </div>
-  }
-
-  @if (showUnmatchedStudents()) {
-    <div [ngStyle]="overlayStyle" (click)="showUnmatchedStudents.set(false)">
-      <div [ngStyle]="modalStyle" (click)="$event.stopPropagation()">
-        <div [ngStyle]="modalTitleStyle">
-          {{ 'label_unmatched_students' | translate }}
-        </div>
-
-        <div [ngStyle]="modalBodyStyle">
-          @if (unmatchedStudents().length === 0) {
-            <div [ngStyle]="emptyStateStyle">
-              {{ 'eval_pairings_all_matched' | translate }}
-            </div>
-          } @else {
-            @for (student of unmatchedStudents(); track student.userId) {
-              <div [ngStyle]="workloadRowStyle">
-                <div>
-                  <div [ngStyle]="cardTitleStyle">
-                    {{ student.username }}
-                  </div>
-
-                  <div [ngStyle]="cardSubtitleStyle">
-                    {{ student.email }}
-                  </div>
-
-                  <div [ngStyle]="cardSubtitleStyle">
-                    {{ student.groupNames }}
-                  </div>
-
-                  <div [ngStyle]="cardSubtitleStyle">
-                    {{ 'label_evaluee_pairings_colon' | translate }}
-                    {{ student.evalueeAssignments }} /
-                    {{ student.requiredRounds }}
-                  </div>
-                </div>
-
-                <strong>
-                  {{ 'label_missing_count' | translate:{count: student.missingRounds} }}
-                </strong>
-              </div>
-            }
-          }
-        </div>
-
-        <div [ngStyle]="modalActionsStyle">
-          <app-btn
-            variant="primary"
-            size="md"
-            (clicked)="showUnmatchedStudents.set(false)">
-            {{ 'btn_close' | translate }}
-          </app-btn>
-        </div>
-      </div>
-    </div>
-  }
-
-  @if (showCreateSinglePairing()) {
-    <div [ngStyle]="overlayStyle" (click)="closeCreateSinglePairingModal()">
-      <div [ngStyle]="modalStyle" (click)="$event.stopPropagation()">
-        <div [ngStyle]="modalTitleStyle">
-          {{ 'btn_create_single_pairing' | translate }}
-        </div>
-
-        <div [ngStyle]="modalBodyStyle">
-          @if (manualPairingEvalueeGroupOptions().length === 0) {
-            <div [ngStyle]="emptyStateStyle">
-              {{ 'eval_pairings_no_missing_groups' | translate }}
-            </div>
-          } @else {
-            <div>
-              <label [ngStyle]="fieldLabelStyle">
-                {{ 'label_unmatched_evaluee_group_round' | translate }}
-              </label>
-
-              <select
-                [ngStyle]="inputStyle"
-                [ngModel]="createPairingEvalueeGroup()"
-                (ngModelChange)="onManualPairingEvalueeGroupChanged($event)">
-                @for (option of manualPairingEvalueeGroupOptions(); track option.groupId + '-' + option.round) {
-                  <option [ngValue]="option">
-                    {{ 'eval_pairings_option_round_group' | translate:{round: option.round, groupName: option.groupName, members: option.members, evalueeAssignments: option.evalueeAssignments, requiredRounds: option.requiredRounds} }}
-                  </option>
-                }
-              </select>
-            </div>
-
-            @if (createPairingEvalueeGroup()) {
-              <div [ngStyle]="readonlyFieldStyle">
-                {{ 'label_evaluee_group_prefix' | translate }}
-                {{ createPairingEvalueeGroup()?.groupName }}
-                —
-                {{ createPairingEvalueeGroup()?.members }}
-              </div>
-            }
-
-            <div>
-              <label [ngStyle]="fieldLabelStyle">
-                {{ 'label_evaluator' | translate }}
-              </label>
-
-              <select
-                [ngStyle]="inputStyle"
-                [ngModel]="createPairingEvaluator()"
-                (ngModelChange)="createPairingEvaluator.set($event)">
-                @for (candidate of availableManualPairingEvaluators(); track candidate.userId) {
-                  <option [ngValue]="candidate">
-                    {{ 'eval_pairings_evaluator_option' | translate:{username: candidate.username, groupName: candidate.groupName, count: candidate.count} }}
-                  </option>
-                }
-              </select>
-            </div>
-
-            @if (createPairingError()) {
-              <div [ngStyle]="errorBannerStyle">
-                {{ createPairingError() }}
-              </div>
-            }
-          }
-        </div>
-
-        <div [ngStyle]="modalActionsStyle">
-          <app-btn
-            variant="ghost"
-            size="md"
-            (clicked)="closeCreateSinglePairingModal()">
-            {{ 'btn_cancel' | translate }}
-          </app-btn>
-
-          <app-btn
-            variant="primary"
-            size="md"
-            [disabled]="loading() || !createPairingEvalueeGroup() || !createPairingEvaluator()"
-            (clicked)="saveCreateSinglePairing()">
-            {{ 'btn_create_pairing' | translate }}
-          </app-btn>
-        </div>
-      </div>
-    </div>
-  }
-
-
-  @if (editingPairing()) {
-    <div [ngStyle]="overlayStyle" (click)="closeEditPairingModal()">
-      <div [ngStyle]="modalStyle" (click)="$event.stopPropagation()">
-        <div [ngStyle]="modalTitleStyle">
-          {{ 'label_edit_pairing_title' | translate }} — {{ editingPairing()?.evalueeGroupName }}
-        </div>
-
-        <div [ngStyle]="modalBodyStyle">
-          <div>
-            <label [ngStyle]="fieldLabelStyle">{{ 'label_evaluee' | translate }}</label>
-            <div [ngStyle]="readonlyFieldStyle">
-              {{ editingPairing()?.evalueeGroupName }}:
-              {{ editingPairing()?.evalueeMembers }}
-            </div>
-          </div>
-
-          <div>
-            <label [ngStyle]="fieldLabelStyle">{{ 'label_evaluator_group' | translate }}</label>
-            <select
-              [ngStyle]="inputStyle"
-              [ngModel]="editEvaluatorGroupId()"
-              (ngModelChange)="onEditEvaluatorGroupChanged($event)">
-              @for (group of availableEvaluatorGroups(); track group.id) {
-                <option [ngValue]="group.id">
-                  {{ group.name }}
-                </option>
-              }
-            </select>
-          </div>
-
-          <div>
-            <label [ngStyle]="fieldLabelStyle">{{ 'label_evaluator' | translate }}</label>
-            <select
-              [ngStyle]="inputStyle"
-              [ngModel]="editEvaluatorUserId()"
-              (ngModelChange)="editEvaluatorUserId.set($event)">
-              @for (member of availableEvaluatorMembers(); track member.id) {
-                <option [ngValue]="member.userId">
-                  {{ member.user?.username ?? ('label_user_hash' | translate:{id: member.userId}) }}
-                </option>
-              }
-            </select>
-          </div>
-
-          @if (editPairingError()) {
-            <div [ngStyle]="errorBannerStyle">
-              {{ editPairingError() }}
-            </div>
-          }
-        </div>
-
-        <div [ngStyle]="modalActionsStyle">
-          <app-btn
-            variant="ghost"
-            size="md"
-            (clicked)="closeEditPairingModal()">
-            {{ 'btn_cancel' | translate }}
-          </app-btn>
-
-          <app-btn
-            variant="primary"
-            size="md"
-            [disabled]="loading()"
-            (clicked)="saveEditPairing()">
-            {{ 'bocal_btn_save_changes' | translate }}
-          </app-btn>
-        </div>
-      </div>
-    </div>
-  }
-
-  <!-- Display pairings list with container card functionality and buttons in each item -->
-  <div [ngStyle]="pairingsListStyle">
-    <div>
-      <div [ngStyle]="overlineStyle">{{ 'label_generated_pairings' | translate }}</div>
-      <h2 [ngStyle]="sectionHeadingStyle">{{ 'label_scheduled_eval_assignments' | translate }}</h2>
-    </div>
-
-    @if (evalAssignments().length === 0 && !loading()) {
-      <app-container [config]="flatConfig">
-        <div [ngStyle]="emptyStateStyle">
-          {{ 'eval_pairings_empty' | translate }}
-        </div>
-      </app-container>
-    } @else {
-      @if (pairingsByRound().length > 0) {
-        <div [ngStyle]="roundButtonRowStyle">
-          @for (roundGroup of pairingsByRound(); track roundGroup.round) {
-            <app-btn
-              [variant]="selectedRound() === roundGroup.round ? 'primary' : 'ghost'"
-              size="sm"
-              (clicked)="selectedRound.set(roundGroup.round)">
-              {{ 'progress_round' | translate:{round: roundGroup.round} }}
-            </app-btn>
-          }
-        </div>
-      }
-
-      @if (selectedRoundGroup(); as roundGroup) {
-        <div [ngStyle]="selectedRoundListStyle">
-          <h3 [ngStyle]="roundHeadingStyle">
-            {{ 'progress_round' | translate:{round: roundGroup.round} }}
-          </h3>
-
-          @for (ea of roundGroup.rows; track ea.id) {
-            <app-container [config]="flatConfig">
-              <div [ngStyle]="cardContentStyle">
-                <div>
-                  <div [ngStyle]="cardTitleStyle">
-                    {{ 'eval_pairings_evaluee_row' | translate:{name: ea.evalueeGroupName, members: ea.evalueeMembers} }}
-                  </div>
-
-                  <div [ngStyle]="cardSubtitleStyle">
-                    {{ 'eval_pairings_evaluator_meta' | translate:{name: ea.evaluatorName, group: ea.evaluatorGroupName, round: ea.round} }}
-                    · {{ ea.status }}
-                  </div>
-                </div>
-
-                <span [ngStyle]="cardActionsStyle">
-                  @if (ea.evalResponseId) {
-                    <app-btn
-                      variant="ghost"
-                      size="sm"
-                      [disabled]="loading()"
-                      (clicked)="playRecording(ea)">
-                      ▶ Recording
-                    </app-btn>
-                  }
-
-                  <app-btn
-                    variant="ghost"
-                    size="sm"
-                    [disabled]="loading()"
-                    (clicked)="openEditPairing(ea)">
-                    {{ 'btn_edit' | translate }}
-                  </app-btn>
-
-                  <app-btn
-                    variant="ghost"
-                    size="sm"
-                    [disabled]="loading()"
-                    (clicked)="deleteEvalAssignment(ea)">
-                    {{ 'bocal_btn_delete' | translate }}
-                  </app-btn>
-                </span>
-              </div>
-            </app-container>
-          }
-        </div>
-      }
-    }
-  </div>
+  @if(error()){<p class="error" role="alert">{{error()}}</p>}
+  @if(notice()){<p class="notice" role="status">{{notice()}}</p>}
+  @if(loading()){<p class="muted" role="status">Loading…</p>}
+  <p class="muted">Generation fills missing required rounds and requested retries. Existing pending and submitted evaluations are preserved.</p>
+  <div class="actions">@for(round of rounds();track round){<app-btn [variant]="selectedRound()===round?'primary':'ghost'" size="sm" (clicked)="selectedRound.set(round)">Round {{round}}</app-btn>}</div>
+  @for(row of rows();track row.id){
+    <app-container [config]="card"><div class="content row"><div>
+      <strong>{{groupName(row.evalueeGroupId)}}</strong><small>Evaluator: {{row.evaluatorName}} · Round {{row.round}} · {{row.status}} · {{row.outcome}}</small>
+      @if(row.retryRequested){<small>Retry requested on this attempt</small>}
+    </div><div class="actions">
+      @if(row.evalResponseId){<app-btn variant="ghost" size="sm" (clicked)="recording(row.evalResponseId)">▶ Recording</app-btn>}
+      @if(row.status==='Pending'){<app-btn variant="ghost" size="sm" [disabled]="loading()" (clicked)="cancel(row.id)">Cancel pending pairing</app-btn>}
+    </div></div></app-container>
+  } @empty {<p class="muted">No pairings for this round yet.</p>}
 </div>
+@if(modal()){
+  <div class="overlay" (click)="!loading() && modal.set(null)"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="pairing-modal-title" (click)="$event.stopPropagation()">
+    <h2 id="pairing-modal-title">{{modal()==='generate'?'Generate missing pairings':modal()==='single'?'Create single pairing':modal()==='counts'?'Evaluator workload':'Unmatched / retry queue'}}</h2>
+    <div class="muted">{{data()?.assignment?.name}} · {{data()?.assignment?.courseName}}</div>
+    @if(error()){<p class="error" role="alert">{{error()}}</p>}
+    @if(modal()==='generate'){
+      <div class="section-label">Evaluee groups</div>
+      <p class="muted">Include groups for this generation. Excluding a group leaves its allocation and evaluation history unchanged.</p>
+      @for(g of data()?.groups;track g.id){<label class="row"><span>{{groupName(g.id)}} @if(!g.eligible){<small>Contains participants currently ineligible as evaluees; existing group preserved.</small>}</span>
+        <input type="checkbox" [disabled]="!g.eligible || loading()" [checked]="groupIds().includes(g.id)" (change)="toggleGroup(g.id,$any($event.target).checked)" [attr.aria-label]="'Include '+g.name"></label>}
+      <div class="section-label">Evaluator pool</div>
+      <p class="muted">Evaluators perform peer evaluations and do not need a submission group. These selections are saved as assignment participation settings when you generate.</p>
+      <div class="table-scroll"><table><thead><tr><th>Use</th><th>Participant</th><th>This assignment</th><th>Course total</th></tr></thead><tbody>
+        @for(p of pool();track p.id){<tr><td><input type="checkbox" [checked]="p.evaluatorEligible" [disabled]="loading()" (change)="toggleEvaluator(p.id,$any($event.target).checked)" [attr.aria-label]="p.username+' evaluator'"></td>
+          <td>{{p.username}}<small>{{p.role}} · {{p.email}}</small></td><td>{{p.assignmentCount}}</td><td>{{p.courseCount}}</td></tr>}
+      </tbody></table></div>
+      <p class="muted">{{data()?.slots?.length}} missing / retry slots before exclusions. Course-wide workload is balanced first; slots with no valid evaluator remain in the queue.</p>
+      <app-btn variant="primary" [disabled]="loading()" (clicked)="generate()">Save pool and generate missing pairings</app-btn>
+    }
+    @if(modal()==='single'){
+      <label for="pairing-slot">Evaluee group / required slot</label>
+      <select id="pairing-slot" [ngModel]="slotKey()" (ngModelChange)="slotKey.set($event);chooseSlot()" [disabled]="loading()">
+        @for(s of data()?.slots;track key(s)){<option [value]="key(s)">{{groupName(s.groupId)}} — {{slotLabel(s)}}</option>}
+      </select>
+      @if(selectedSlot()?.kind==='RetryRequired'){<p class="muted">Previous failed evaluator(s): {{selectedSlot()?.previousEvaluators?.join(', ')}}. A new attempt stays in the same round.</p>}
+      <label for="pairing-evaluator">Evaluator</label>
+      <select id="pairing-evaluator" [ngModel]="evaluatorId()" (ngModelChange)="evaluatorId.set($event)" [disabled]="loading()">
+        @for(p of candidates();track p.id){<option [ngValue]="p.id">{{p.username}} — This assignment: {{p.assignmentCount}} · Course total: {{p.courseCount}}</option>}
+      </select>
+      @if(!candidates().length){<p class="muted">No eligible evaluator is available for this slot. Review participation settings.</p>}
+      <app-btn variant="primary" [disabled]="loading() || !evaluatorId() || !selectedSlot()" (clicked)="create()">Create pairing</app-btn>
+    }
+    @if(modal()==='counts'){
+      <p class="muted">Pending and submitted evaluator tasks count, including retry attempts. Cancelled work is excluded.</p>
+      <label for="workload-sort">Sort by</label><select id="workload-sort" [ngModel]="workloadSort()" (ngModelChange)="workloadSort.set($event)"><option value="course">Course total</option><option value="assignment">This assignment</option><option value="username">Username</option></select>
+      <div class="table-scroll"><table><thead><tr><th>Participant</th><th>This assignment</th><th>Course total</th></tr></thead><tbody>
+      @for(p of counts();track p.id){<tr><td>{{p.username}}<small>{{p.evaluatorEligible?'Eligible evaluator':'Not eligible for new evaluator tasks'}}</small></td><td>{{p.assignmentCount}}</td><td>{{p.courseCount}}</td></tr>}
+      </tbody></table></div>
+    }
+    @if(modal()==='queue'){
+      @for(p of data()?.ungrouped;track p.id){<div class="row"><div><strong>{{p.username}}</strong><small>Group allocation required before evaluation pairing</small></div></div>}
+      @for(s of data()?.slots;track key(s)){
+        <div class="row"><div><div class="section-label">{{s.kind==='RetryRequired'?'Retry required':'Initial pairing missing'}}</div><strong>{{groupName(s.groupId)}}</strong><small>Round {{s.round}} · {{data()?.assignment?.name}}</small>
+          @if(s.previousEvaluators.length){<small>Previous evaluator(s): {{s.previousEvaluators.join(', ')}}</small>}
+          <small>{{s.candidateIds.length}} eligible evaluator candidates · Waiting for {{s.kind==='RetryRequired'?'replacement evaluator':'initial pairing'}}</small></div></div>
+      } @empty {<p class="muted">No missing evaluation slots.</p>}
+    }
+    <div class="actions"><app-btn variant="ghost" [disabled]="loading()" (clicked)="modal.set(null)">Close</app-btn></div>
+  </div></div>
+}

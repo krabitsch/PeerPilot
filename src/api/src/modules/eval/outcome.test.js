@@ -6,7 +6,7 @@ const attempt = (round, marks, id = round) => ({
   id, assignmentId: 1, round, createdAt: new Date(id * 1000),
   evaluatorUserId: 10 + id, submissionId: 1, evalResponseId: marks == null ? null : id,
   status: marks == null ? 'Pending' : 'Submitted', retryRequested: false,
-  evalResponse: marks == null ? null : { id, givenMarks: marks, subId: 1, userId: 10 + id, isStaffReview: false, reply: 'Response' },
+  evalResponse: marks == null ? null : { id, givenMarks: marks, subId: 1, userId: 10 + id, isStaffReview: false, recordingFileId: 1, reply: 'Response' },
 })
 for (const [label, scores, passed] of [
   ['A: pass + pending + pending', [80, null, null], null],
@@ -79,12 +79,12 @@ test('unanswered submitted feedback gates display without altering numerical out
     const p = attempt(1, marks)
     p.evalResponse.reply = null
     const result = summarizeEvaluationRounds({ ...assignment, req_eval: 1 }, [p])
-    assert.equal(result.passed, marks >= 50)
+    assert.equal(result.passed, marks >= 50 ? null : false)
     assert.equal(result.workflowStatus, 'FeedbackRequired')
     assert.equal(result.evaluationRounds[0].displayOutcome, 'FeedbackRequired')
     p.evalResponse.reply = 'Acknowledged'
     const answered = summarizeEvaluationRounds({ ...assignment, req_eval: 1 }, [p])
-    assert.equal(answered.passed, result.passed)
+    assert.equal(answered.passed, marks >= 50)
     assert.equal(answered.workflowStatus, marks >= 50 ? 'Passed' : 'Failed')
   }
 })
@@ -97,7 +97,7 @@ test('unanswered feedback takes precedence over answered failures, including his
   assert.equal(result.workflowStatus, 'FeedbackRequired')
 })
 
-test('finalScore and numerical pass/fail do not depend on replies', async () => {
+test('finalScore remains available while passing waits for completed feedback', async () => {
   const p = attempt(1, 80)
   p.evalResponse.reply = null
   const a = { ...assignment, req_eval: 1 }
@@ -111,8 +111,22 @@ test('finalScore and numerical pass/fail do not depend on replies', async () => 
   const after = await submissionOutcome(db, sub)
   assert.equal(before.finalScore, 80)
   assert.equal(after.finalScore, 80)
-  assert.equal(before.passed, true)
+  assert.equal(before.passed, null)
   assert.equal(after.passed, true)
   assert.equal(before.workflowStatus, 'FeedbackRequired')
   assert.equal(after.workflowStatus, 'Passed')
+})
+
+
+test('a reply without a recording blocks passing and retry until both are present', () => {
+  for (const marks of [80, 20]) {
+    const p = attempt(1, marks)
+    p.evalResponse.recordingFileId = null
+    const a = { ...assignment, req_eval: 1 }
+    const waiting = summarizeEvaluationRounds(a, [p])
+    assert.equal(waiting.workflowStatus, 'FeedbackRequired')
+    assert.equal(waiting.passed, marks >= 50 ? null : false)
+    p.evalResponse.recordingFileId = 42
+    assert.equal(summarizeEvaluationRounds(a, [p]).workflowStatus, marks >= 50 ? 'Passed' : 'Failed')
+  }
 })

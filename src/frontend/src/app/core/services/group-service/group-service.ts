@@ -18,6 +18,10 @@ export class GroupService {
         return this.http.delete(`${this.base}/${id}`, { body: data })
     }
 
+    generateGroups(assId: number) {
+        return this.http.post<any[]>(`${this.base}/assignment/${assId}/generate`, {});
+    }
+
     getGroupsForAssignment(assId: number) {
         return this.http.get<any[]>(`${this.base}/assignment/${assId}`)
     }

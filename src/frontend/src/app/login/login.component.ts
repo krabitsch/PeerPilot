@@ -1,5 +1,6 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { NgStyle } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute, RouterLink } from '@angular/router';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { AuthService } from '../services/auth.service';
@@ -9,7 +10,7 @@ import { LogoComponent } from '../shared/logo.component';
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [NgStyle, LogoComponent, TranslateModule, RouterLink],
+  imports: [NgStyle, FormsModule, LogoComponent, TranslateModule, RouterLink],
   template: `
     <div [ngStyle]="pageStyle">
       <div [ngStyle]="gridStyle"></div>
@@ -35,7 +36,7 @@ import { LogoComponent } from '../shared/logo.component';
           <h1 [ngStyle]="h1Style">{{ 'login_title' | translate }}</h1>
           <p [ngStyle]="subtitleStyle">{{ 'login_subtitle' | translate }}</p>
 
-          <div style="display:flex;flex-direction:column;gap:14px">
+          <form (ngSubmit)="login()" style="display:flex;flex-direction:column;gap:14px">
             <div style="display:flex;flex-direction:column;gap:5px">
               <label [ngStyle]="labelStyle">{{ 'label_email' | translate }}</label>
               <input [value]="email()" (input)="email.set($any($event.target).value)"
@@ -55,18 +56,18 @@ import { LogoComponent } from '../shared/logo.component';
             </div>
             <!-- Sign in / Sign up — same shape, side by side -->
             <div style="display:flex;gap:8px">
-              <button (click)="login()" [ngStyle]="authBtnStyle('signin')"
+              <button type="submit" [ngStyle]="authBtnStyle('signin')"
                       (mouseenter)="authHover.set('signin')" (mouseleave)="authHover.set('')"
                       [disabled]="submitting()">
                 {{ (submitting() ? 'btn_signing_in' : 'btn_sign_in') | translate }}
               </button>
-              <button (click)="router.navigate(['/register'])" [ngStyle]="authBtnStyle('signup')"
+              <button type="button" (click)="router.navigate(['/register'])" [ngStyle]="authBtnStyle('signup')"
                       (mouseenter)="authHover.set('signup')" (mouseleave)="authHover.set('')">
                 {{ 'btn_sign_up' | translate }}
               </button>
             </div>
 
-          </div>
+          </form>
 
           @if (errorMsg()) {
             <p [ngStyle]="feedbackStyle('error')">{{ errorMsg() }}</p>
@@ -104,6 +105,8 @@ export class LoginComponent implements OnInit {
   }
 
   login() {
+    if (this.submitting()) return;
+
     this.errorMsg.set('');
 
     if (!this.email() || !this.password()) {

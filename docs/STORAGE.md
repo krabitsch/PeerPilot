@@ -129,3 +129,51 @@ Because `fileManager` is S3-compatible:
   are kept indefinitely as the teacher's proof.
 - (Only if we ever switch to managed storage) provider choice — R2 vs B2 vs S3,
   driven by where we host and budget.
+
+## Registry access failure during startup
+
+If Quay returns `401 Unauthorized` while pulling the pinned MinIO image, this
+is a registry-access failure, not a PostgreSQL or application build failure.
+Do not remove volumes or reseed the database to address it.
+
+The Compose image can be overridden through `MINIO_IMAGE` in `src/.env`.
+For temporary local recovery, an explicitly chosen, already-cached image can
+be used without changing the repository default. Verify that it includes `mc`,
+which the healthcheck and file backup script require. A community image changes
+the supplier; select it deliberately rather than silently substituting one.
+Restore the stack with `docker compose -f src/docker-compose.yml up -d --pull never`
+when all required images are already cached. Existing named volumes are reused.
+
+
+## Shared submissions and retry file history
+
+An assignment group has one `Submission`, enforced by the unique `groupId`.
+Every enrolled member of that group may start/access, upload a draft, and close
+it. Starts are idempotent, including concurrent starts. Draft writes and closing
+serialize on the submission row; ordinary writes cannot modify a closed file.
+
+`Submission.fileId` remains the original submitted file. It is intentionally
+retained for compatibility with existing data and consumers; there is no
+backfill and no removal of the legacy column. Additive `SubmissionFileVersion`
+rows hold revised retry files. The submission API returns `files` in chronological
+order (original first), plus `canUploadRetryFile`. The download endpoint accepts
+an optional `fileId` to select a file from that submission's history; without it,
+it returns the latest file. Authentication and exact group membership are
+required for student access; staff retain their download access.
+
+Revisions require a closed submission and an unresolved requested retry. They
+may be uploaded while awaiting rematch, or while the replacement pairing is
+pending and has not started/linked the submission. Starting the replacement
+evaluation serializes with uploads and returns the latest file as
+`submission.file`, with all versions in `submission.files`. Once the replacement
+has started, uploads for that round are refused. Revisions never reopen the
+submission, update original fileId, change outcomes/passkeys, or create pairings.
+Existing storage backups mirror every object, including revisions. Legacy
+consumers reading only `Submission.fileId` still receive the original; new
+consumers should explicitly use the `files` list/latest-file endpoint.
+
+Migration `20261015190000_evaluation_duration_submission_versions` also adds
+`Assignment.evaluationDurationMinutes` with a default of 30 and bounds of
+5–180 minutes. Apply it with normal `prisma migrate deploy` before serving the
+updated API. Regenerate the Prisma client and rebuild/recreate the API image
+(and the frontend image for a Docker deployment). No reset or reseed is needed.

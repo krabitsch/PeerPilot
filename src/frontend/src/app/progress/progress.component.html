@@ -1,0 +1,48 @@
+<div class="learning-page">
+  <div><div class="section-label">My progress</div><h1>My progress</h1></div>
+  @if (summary.loading()) { <div class="muted" role="status">Loading your progress…</div> }
+  @else if (summary.error()) {
+    <div class="error" role="alert">{{ summary.error() }}</div><app-btn variant="secondary" (clicked)="summary.load()">Try again</app-btn>
+  } @else if (summary.selectedCourse(); as course) {
+    <app-container [config]="card"><div class="card-content"><app-learning-course [courses]="summary.courses()" [selected]="course" (selectedId)="summary.courseId.set($event)" /></div></app-container>
+    <app-container [config]="card"><div class="card-content">
+      <div class="section-label">Course summary</div>
+      <div class="metrics">
+        <div><div class="muted">Evaluations passed</div><div class="metric-number">{{ summary.metrics().evaluationsPassed }} / {{ summary.metrics().evaluationsTotal }}</div></div>
+        <div><div class="muted">Assignments passed</div><div class="metric-number">{{ summary.metrics().passed }} / {{ summary.metrics().total }}</div></div>
+        <div><div class="muted">Evaluator tasks completed</div><div class="metric-number">{{ summary.metrics().evaluatorCompleted }} / {{ summary.metrics().evaluatorAssigned }}</div></div>
+      </div>
+    </div></app-container>
+    @if (!course.assignments.length) { <div class="empty">No assignments are available for this course yet.</div> }
+    @for (assignment of course.assignments; track assignment.id) {
+      <app-container [config]="card"><div class="card-content">
+        <div class="assignment-head"><h2>{{ assignment.name }}</h2><app-badge [variant]="statusMeta[assignment.status].variant" [customLabel]="statusMeta[assignment.status].label" /></div>
+        <div class="muted">Submission: {{ assignment.submissionState === 'Submitted' ? 'Submitted' : assignment.submissionState === 'Open' ? 'Started · not submitted' : 'Not submitted' }}</div>
+        <div class="results">
+          <div class="section-label">Peer evaluations</div>
+          @for (round of assignment.evaluationRounds; track round.round) {
+            <div class="result-row"><span>Evaluation {{ round.round }}</span>
+              @if (round.displayOutcome === 'FeedbackRequired') { <app-badge variant="reply_needed" customLabel="Feedback required" /> }
+              @else if (round.displayOutcome === 'Passed') { <app-badge variant="validated" [customLabel]="round.passedAfterRetry ? 'Passed after retry' : 'Passed'" /> }
+              @else if (round.displayOutcome === 'Failed') { <app-badge variant="failed" [customLabel]="round.waitingForRematch ? 'Failed · waiting for rematch' : 'Failed'" /> }
+              @else { <app-badge variant="under_review" customLabel="Pending" /> }
+            </div>
+          }
+        </div>
+        <div class="muted">Overall assignment result: {{ statusMeta[assignment.status].label }}</div>
+        <div class="shortcut"><app-btn variant="ghost" size="sm" (clicked)="viewAssignment(assignment.id)">View assignment →</app-btn></div>
+      </div></app-container>
+    }
+    <app-container [config]="card"><div class="card-content">
+      <div class="section-label">Peer evaluation contribution</div>
+      @if (summary.metrics().evaluatorAssigned === 0) { <div class="empty">No evaluator tasks have been assigned yet.</div> }
+      @else {
+        <p class="muted">Completed {{ summary.metrics().evaluatorCompleted }} of {{ summary.metrics().evaluatorAssigned }} assigned evaluator tasks.</p>
+        @for (assignment of course.assignments; track assignment.id) {
+          <div class="result-row"><span>{{ assignment.name }}</span><span>{{ assignment.evaluatorCompleted }} / {{ assignment.evaluatorAssigned }} completed</span></div>
+        }
+      }
+      <div class="shortcut"><app-btn variant="secondary" size="sm" (clicked)="evaluatorTasks()">View evaluator tasks →</app-btn></div>
+    </div></app-container>
+  } @else { <div class="empty">You are not enrolled in any course yet.</div> }
+</div>

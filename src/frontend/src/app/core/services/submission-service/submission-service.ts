@@ -32,10 +32,17 @@ export class SubmissionService {
         return this.http.post<Submission>(`${this.base}/${groupId}/file`, form)
     }
 
+    uploadRetryFile(groupId: number, file: File): Observable<Submission> {
+        const form = new FormData();
+        form.append('file', file);
+        return this.http.post<Submission>(`${this.base}/${groupId}/retry-file`, form);
+    }
+
     // The caller's identity comes from the token server-side; staff may download
     // any group's submission, members only their own. `userId` is vestigial.
-    getDownloadUrl(groupId: number, userId?: number) {
+    getDownloadUrl(groupId: number, userId?: number, fileId?: number) {
         const params: Record<string, string> = userId != null ? { userId: String(userId) } : {}
+        if (fileId != null) params['fileId'] = String(fileId);
         return this.http.get<{ url: string, expiresIn: string }>(`${this.base}/${groupId}/file/download`, { params })
     }
 

@@ -61,14 +61,14 @@
                       (input)="editClassDesc.set($any($event.target).value)"></textarea>
           </div>
           <div>
-            <label [ngStyle]="fieldLabelStyle">
-              {{ 'bocal_label_pass_threshold' | translate }} — {{ editClassThreshold() }}%
-            </label>
-            <input type="range" min="50" max="100"
-                   [value]="editClassThreshold()"
-                   (input)="editClassThreshold.set(+$any($event.target).value)"
-                   style="width:100%" />
+            <label for="course-term" [ngStyle]="fieldLabelStyle">Term</label>
+            <input id="course-term" [ngStyle]="inputStyle" [value]="editClassTerm()" (input)="editClassTerm.set($any($event.target).value)" />
           </div>
+          <div>
+            <label for="course-codes" [ngStyle]="fieldLabelStyle">Official course numbers (comma-separated)</label>
+            <input id="course-codes" [ngStyle]="inputStyle" [value]="editClassCodes()" (input)="editClassCodes.set($any($event.target).value)" placeholder="1268, 1269, 1421" />
+          </div>
+
         </div>
         @if (editClassError()) {
           <div [ngStyle]="errorStyle">{{ editClassError() }}</div>
@@ -119,12 +119,12 @@
           </div>
 
           <div>
-            <label [ngStyle]="fieldLabelStyle">{{ 'label_student' | translate }}</label>
+            <label [ngStyle]="fieldLabelStyle">Evaluee / group leader</label>
 
             @if (createGroupAssignment(); as a) {
               @if (ungroupedStudentsFor(a).length === 0) {
                 <div style="font-size:0.8125rem;color:oklch(48% 0.01 272)">
-                  {{ 'bocal_no_ungrouped_students' | translate }}
+                  No eligible ungrouped participants.
                 </div>
               } @else {
                 <select
@@ -211,12 +211,12 @@
           </div>
 
           <div>
-            <label [ngStyle]="fieldLabelStyle">{{ 'label_add_enrolled_student' | translate }}</label>
+            <label [ngStyle]="fieldLabelStyle">Add eligible evaluee</label>
 
             @if (editGroupAssignment(); as a) {
               @if (ungroupedStudentsFor(a).length === 0) {
                 <div style="font-size:0.8125rem;color:oklch(48% 0.01 272)">
-                  {{ 'bocal_no_ungrouped_students' | translate }}
+                  No eligible ungrouped participants.
                 </div>
               } @else {
                 <div style="display:flex;gap:8px;align-items:center">
@@ -339,14 +339,14 @@
                   {{ a.req_eval }}
                   {{ a.req_eval === 1 ? 'eval required' : 'evals required' }}
 
-                  · {{ assignmentStudentCount() }}
-                  {{ assignmentStudentCount() === 1 ? 'student' : 'students' }}
+                  · {{ assignmentStudentCount(a) }}
+                  {{ assignmentStudentCount(a) === 1 ? 'evaluee' : 'evaluees' }}
 
                   · {{ groupCount(a) }}
                   {{ groupCount(a) === 1 ? 'group' : 'groups' }}
 
                   · {{ unallocatedStudentCount(a) }}
-                  {{ unallocatedStudentCount(a) === 1 ? 'unallocated student' : 'unallocated students' }}
+                  {{ unallocatedStudentCount(a) === 1 ? 'unallocated evaluee' : 'unallocated evaluees' }}
 
                   · {{ a.max_score }} pts
 
@@ -385,6 +385,7 @@
 
 
             @if (expandedAssignment() === a.id) {
+              <app-assignment-participation [assignmentId]="a.id" [assignmentName]="a.name" (changed)="participationChanged(a,$event)" />
               <div style="padding:0 18px 14px;display:flex;flex-direction:column;gap:6px;border-top:1px solid oklch(22% 0.025 272)">
                 @if (groupsFor(a).length === 0) {
                   <div style="padding-top:12px;font-size:0.8125rem;color:oklch(48% 0.01 272)">

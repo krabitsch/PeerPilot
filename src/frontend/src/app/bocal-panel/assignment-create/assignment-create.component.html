@@ -45,6 +45,10 @@
           }
         </div>
 
+        <div>
+          <label for="evaluation-duration" [ngStyle]="fieldLabelStyle">Recommended evaluation duration (minutes)</label>
+          <input id="evaluation-duration" [ngStyle]="inputStyle" type="number" min="5" max="180" step="1" [value]="evaluationDurationMinutes()" (input)="evaluationDurationMinutes.set(+$any($event.target).value)" />
+        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px">
 
           <div>

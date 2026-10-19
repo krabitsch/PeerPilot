@@ -3,7 +3,8 @@ services:
     # Official MinIO image (published on quay.io, not Docker Hub), pinned.
     # Bundles both `mc` and `curl`, so the healthcheck and the backup scripts
     # (which run `mc` inside this container) work without a separate client.
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    # A local MINIO_IMAGE override permits recovery when Quay is unavailable.
+    image: ${MINIO_IMAGE:-quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z}
     container_name: minio
     command: server /data --console-address ":9001"
     env_file:

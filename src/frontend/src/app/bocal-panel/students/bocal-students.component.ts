@@ -1,7 +1,8 @@
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { NgStyle, DatePipe } from '@angular/common';
+import { A11yModule } from '@angular/cdk/a11y';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
-import { DS } from '../../tokens';
+import { DS, Course } from '../../tokens';
 import { AvatarComponent } from '../../shared/avatar.component';
 import { BtnComponent } from '../../shared/btn.component';
 import { ListComponent } from '../../shared/list.component';
@@ -11,7 +12,7 @@ import { CourseService } from '../../core/services/course-service/course-service
 import { AssignmentService, AssignmentResponse } from '../../core/services/course-service/Assignment.service';
 import { EnrollService } from '../../core/services/enroll-service/enroll-service';
 import { LoadingService } from '../../core/services/loading-service/loading.service';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 
 export interface OrgMember {
   id: number;
@@ -31,7 +32,7 @@ const ROLE_OPTIONS = ['All', 'Student', 'Bocal', 'Admin'];
   imports: [
     NgStyle, DatePipe,
     AvatarComponent, BtnComponent, ListComponent,
-    TranslateModule,
+    TranslateModule, RouterLink, A11yModule,
   ],
   templateUrl: './bocal-students.component.html',
 })
@@ -50,7 +51,7 @@ export class BocalStudentsComponent implements OnInit {
 
   // ── Filters ────────────────────────────────────────────────
   searchQuery  = signal('');
-  roleFilter   = signal('All');
+  roleFilter   = signal('Student');
   readonly roleOptions = ROLE_OPTIONS;
 
   // ── Advanced filters: class & subject (assignment) ─────────
@@ -72,8 +73,41 @@ export class BocalStudentsComponent implements OnInit {
       if (subjIds && !subjIds.has(m.id)) return false;
       if (!query) return true;
       return m.username.toLowerCase().includes(query) || m.email.toLowerCase().includes(query);
+    }).sort((a, b) => {
+      const ranks: Record<string, number> = { Admin: 0, Bocal: 1, Student: 2 };
+      return (ranks[a.role] ?? 3) - (ranks[b.role] ?? 3) ||
+        a.username.localeCompare(b.username, undefined, { sensitivity: 'base', numeric: true }) || a.id - b.id;
     });
   });
+
+  selectedStudent = signal<OrgMember | null>(null);
+  studentCourses = signal<Course[]>([]);
+  studentDetailsLoading = signal(false);
+  studentDetailsError = signal('');
+
+  openStudent(member: OrgMember) {
+    this.selectedStudent.set(member);
+    this.studentCourses.set([]);
+    this.studentDetailsError.set('');
+    this.studentDetailsLoading.set(true);
+    this.enrollService.getStudenEnrolledClasses(member.id).subscribe({
+      next: courses => {
+        if (this.selectedStudent()?.id !== member.id) return;
+        this.studentCourses.set(courses.map(course => ({
+          ...course,
+          assignments: [...(course.assignments ?? [])].sort((a, b) =>
+            a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }) || a.id - b.id
+          ),
+        })));
+        this.studentDetailsLoading.set(false);
+      },
+      error: () => {
+        if (this.selectedStudent()?.id !== member.id) return;
+        this.studentDetailsError.set('Could not load student details. Please try again.');
+        this.studentDetailsLoading.set(false);
+      },
+    });
+  }
 
   students = computed(() => this.members().filter(m => m.role === 'Student'));
 
@@ -236,6 +270,9 @@ export class BocalStudentsComponent implements OnInit {
 
   // ── Styles ─────────────────────────────────────────────────
   readonly pageStyle       = { display: 'flex', flexDirection: 'column' as const, gap: '0' };
+  readonly studentLinkStyle = { background: 'none', border: 'none', padding: '0', fontFamily: DS.fonts.body, fontWeight: '600', fontSize: '0.9375rem', color: DS.colors.cyan, cursor: 'pointer', textAlign: 'left' as const };
+  readonly detailsOverlayStyle = { position: 'fixed' as const, inset: '0', background: 'oklch(0% 0 0 / 0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', zIndex: '100' };
+  readonly detailsCardStyle = { background: DS.colors.surface, color: DS.colors.fg1, border: `1px solid ${DS.colors.border}`, borderRadius: DS.radius.xl, padding: '24px', width: '560px', maxWidth: '100%', maxHeight: '80vh', overflowY: 'auto' as const, fontFamily: DS.fonts.body };
   readonly overlineStyle   = { fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: DS.colors.cyan, marginBottom: '6px' };
   readonly h1Style         = { fontFamily: DS.fonts.display, fontSize: '1.75rem', fontWeight: '700', letterSpacing: '-0.03em', color: DS.colors.fg1 };
   readonly inputStyle      = { width: '100%', boxSizing: 'border-box' as const, padding: '9px 12px', background: DS.colors.bg, border: `1px solid ${DS.colors.border}`, borderRadius: DS.radius.md, color: DS.colors.fg1, fontFamily: DS.fonts.body, fontSize: '0.875rem', outline: 'none' };

@@ -30,9 +30,10 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'student-dashboard',   label: 'label_dashboard',  route: '/dashboard', icon: 'dashboard', roles: ['Student'] },
   { id: 'student-classes',     label: 'label_my_classes', route: '/classes',   icon: 'book',      roles: ['Student'] },
   { id: 'student-assignments', label: 'label_assignments',route: '/assignment',icon: 'file',      roles: ['Student'] },
-  { id: 'student-evaluations', label: 'label_evaluator_tasks',route: '/evaluation',icon: 'star',      roles: ['Student'] },
-  { id: 'student-progress',    label: 'label_progress1',  route: '/progress',  icon: 'trending',  roles: ['Student'] },
+  { id: 'student-evaluations', label: 'label_evaluator_tasks',route: '/evaluation',icon: 'star',      roles: ['Student', 'Bocal', 'Admin'] },
+  { id: 'student-progress',    label: 'label_my_progress', route: '/progress',  icon: 'trending',  roles: ['Student'] },
   // Bocal navigation
+  { id: 'bocal-dashboard', label: 'label_dashboard', route: '/bocal/dashboard', icon: 'dashboard', roles: ['Bocal', 'Admin'] },
   { id: 'bocal-courses',       label: 'tab_classes',      route: '/bocal/classes',  icon: 'book',    roles: ['Bocal', 'Admin'] },
   { id: 'bocal-assignments',   label: 'label_assignments',route: '/bocal/classes',  icon: 'file',    roles: ['Bocal', 'Admin'], queryParams: { view: 'assignments' } },
   { id: 'bocal-students',      label: 'tab_students',     route: '/bocal/students', icon: 'users',   roles: ['Bocal', 'Admin'] },

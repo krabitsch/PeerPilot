@@ -28,8 +28,8 @@ slice against pre-seeded data; this one creates its own data through the app):
 5. Teacher creates **one group per student** (group size 1).
 6. **Students** each start a submission, upload a file, and close it (→ passkey).
 7. Teacher **generates pairings** → **2 rounds** of evaluations.
-8. Each assigned **evaluator** scores their evaluee, **uploads a recording**, and
-   submits — for every pairing across both rounds.
+8. Each assigned **evaluator** scores their evaluee and submits — for every pairing across both rounds.
+9. Each **evaluee** replies to each evaluation and uploads its recording before passing or requesting a retry.
 
 Uploaded files are throwaway (a tiny PDF buffer, a tiny audio buffer) — we only
 need the features to fire, not real content.
@@ -74,8 +74,7 @@ Confirmed by reading the backend — flagging them because they constrain the da
   students must submit+close before evaluations can run through the UI.
 - **Pairing is staff-triggered**: `POST /api/eval/assignment/:id/generate-simple-pairings`
   (teacher clicks "Generate all pairings" in the eval-assignment list).
-- The eval **submit** requires a recording — the Submit button stays disabled
-  until an audio file is attached (already covered by `evaluation.spec.js`).
+- The evaluee feedback **reply** requires a recording — Reply stays disabled until an audio file is attached (covered by `evaluation.spec.js`).
 
 ### What the 6 pairings look like (3 groups A,B,C; shift = round)
 
@@ -107,7 +106,7 @@ hard-coding who evaluates whom (the generator seeds a shuffle by assignment id).
 | 10 | One group per student | bocal "Manage groups → Add single group" ×3 | `bocal.spec.js` pattern |
 | 11 | Each student submits + closes | per-student fresh login → assignment-detail → start/upload/close → capture passkey | `student.spec.js` pattern |
 | 12 | Generate pairings | teacher → eval-assignment list → "Generate all pairings" | assert 6 rows, rounds {1,2} |
-| 13 | Complete every evaluation (both rounds) | for each pairing: evaluator fresh login → `/evaluation` → evaluee leader email + passkey → score → **upload recording** → submit | assert `evalAssignment.status='Submitted'` and `recordingFileId` set for all 6 |
+| 13 | Complete every evaluation (both rounds) | for each pairing: evaluator fresh login → `/evaluation` → evaluee leader email + passkey → score → submit; evaluee replies with **recording upload** | assert `evalAssignment.status='Submitted'` and `recordingFileId` set for all 6 |
 | 14 | (optional) Verify recording access gate | fetch `/api/eval/responses/:id/recording` as evaluator/staff (ok) vs an outsider (refused) | reuse `evaluation.spec.js` helper |
 
 ---
@@ -138,7 +137,7 @@ hard-coding who evaluates whom (the generator seeds a shuffle by assignment id).
 
 1. Promote-to-Bocal: **admin org-detail UI** (API only as fallback).
 2. Enrolment: **Bocal Students-tab UI**.
-3. Evaluations: **submit all 6** pairings across both rounds, each with a recording.
+3. Evaluations: **submit all 6** pairings across both rounds, then have each evaluee reply with a recording.
 4. Structure: **ordered `describe` steps** sharing state.
 5. No special tag — run standalone by filename (`npx playwright test full-lifecycle`).
 

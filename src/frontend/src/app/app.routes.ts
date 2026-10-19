@@ -98,7 +98,7 @@ export const routes: Routes = [
   },
   {
     path: 'eval-assignments',
-    canActivate: [authGuard],
+    canActivate: [authGuard, bocalGuard],
     loadComponent: () => import('./eval-assignment-list/eval-assignment-list.component').then(m => m.EvalAssignmentListComponent),
   },
   {
@@ -116,7 +116,8 @@ export const routes: Routes = [
     canActivate: [authGuard, bocalGuard],
     loadComponent: () => import('./bocal-panel/bocal-panel.component').then(m => m.BocalPanelComponent),
     children: [
-      { path: '', redirectTo: 'classes', pathMatch: 'full' },
+      { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
+      { path: 'dashboard', loadComponent: () => import('./bocal-panel/dashboard/bocal-dashboard.component').then(m => m.BocalDashboardComponent) },
       {
         path: 'classes',
         loadComponent: () => import('./bocal-panel/classes/bocal-classes.component').then(m => m.BocalClassesComponent),

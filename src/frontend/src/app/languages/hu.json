@@ -145,7 +145,7 @@
     "eval_score_max_bonus": "max 100 + 20 bónusz",
     "eval_written_feedback": "Írásos visszajelzés",
     "eval_feedback_placeholder": "Írd le, mi sikerült jól és min lehetne javítani...",
-    "eval_feedback_min_length": "A visszajelzésnek legalább 20 karakter hosszúnak kell lennie.",
+    "eval_feedback_min_length": "A visszajelzésnek legalább 100 karakter hosszúnak kell lennie.",
     "eval_review_title": "Értékelésed áttekintése",
     "eval_final_score": "végső pontszám",
     "eval_progress_summary": "{{total}} értékelésből megkaptad",
