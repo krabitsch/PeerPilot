@@ -16,7 +16,7 @@ function harness(){
   vm.runInNewContext(fs.readFileSync(__dirname+'/service.js','utf8'),{module,Date,require:name=>{
     if(name==='@transcendence/database')return {prisma:db}
     if(name==='@transcendence/errors')return require('../../../../packages/errors')
-    if(name==='@transcendence/filemanager')return {createStorage:()=>({})}
+    if(name==='@transcendence/filemanager')return {createStorage:()=>({getStream:async key=>require('node:stream').Readable.from([Buffer.from('content:'+key)])})}
     if(name==='@transcendence/utils')return {getSubmissionsBy:async()=>[{id:3,groupId:4,group,createdAt:new Date(),file:{id:1,name:'answer.pdf',url:'original'},
       fileVersions:[{id:3,createdAt:new Date(2026,0,3),file:{name:'answer.pdf',url:'retry2'}},{id:2,createdAt:new Date(2026,0,2),file:{name:'answer.pdf',url:'retry1'}}]}]}
     return require(name)
@@ -40,3 +40,5 @@ test('bulk plan contains chronological original and revisions and unique histori
   assert.equal(without.recordingEntries.length,0)
   assert(without.manifest.includes('recordings excluded by request'))
 })
+
+module.exports={harness}

@@ -32,10 +32,7 @@ interface PairingInfo {
   evaluatorUserId: number;
 }
 
-// 'complete'/'pending' are used by the "As evaluator" column (did the student
-// do their evaluation task). The "As evaluee" column uses the submission-aware
-// states: 'evaluated' (round's evaluation done), 'submitted' (work handed in,
-// evaluation still pending) and 'notSubmitted' (no closed submission yet).
+// Evaluee cells show academic outcomes; evaluator cells show task completion.
 interface ProgressCell {
   label: string;
   kind: 'passed' | 'failed' | 'pending' | 'none' | 'cancelled';
@@ -412,8 +409,10 @@ export class AnalyticsAssignmentComponent implements OnInit {
   }
 
   private progressCell(pairings:PairingInfo[], groups:GroupInfo[]):ProgressCell[] {
-    return pairings.length ? pairings.map(p=>this.attemptCell(p,
-      `Evaluates ${groups.find(g=>g.id===p.evalueeGroupId)?.name ?? 'group '+p.evalueeGroupId} — task ${p.id}`)) : [this.emptyCell()];
+    return pairings.length ? pairings.map(p => ({
+      label: `Evaluates ${groups.find(g=>g.id===p.evalueeGroupId)?.name ?? 'group '+p.evalueeGroupId} — task ${p.id} — ${p.status === 'Submitted' ? 'Completed' : p.status}`,
+      kind: p.status === 'Submitted' ? 'passed' as const : p.status === 'Cancelled' ? 'cancelled' as const : 'pending' as const
+    })) : [this.emptyCell()];
   }
 
   onAssignmentChanged(value: string): void {
@@ -462,9 +461,9 @@ export class AnalyticsAssignmentComponent implements OnInit {
       .downloadAssignmentArchive(assId, { recordings: this.includeRecordings() })
       .subscribe({
         next: () => this.downloading.set(null),
-        error: () => {
+        error: err => {
           this.downloading.set(null);
-          this.downloadError.set('Could not download the assignment archive.');
+          this.downloadError.set(err?.message ?? 'Could not download the assignment archive.');
         }
       });
   }

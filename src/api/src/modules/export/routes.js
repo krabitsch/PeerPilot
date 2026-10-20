@@ -30,7 +30,7 @@ route.get('/assignment/:id/archive', requireStaff, async (req, res, next) => {
     try {
         const includeRecordings = req.query.recordings !== '0'
         const plan = await service.planArchive(req.params.id, { includeRecordings })
-        const root = service.sanitize(plan.filenameBase)
+        const root = `peerofessor-${service.sanitize(plan.filenameBase).replace(/\s+/g, '-')}`
 
         res.setHeader('Content-Type', 'application/zip')
         res.setHeader('Content-Disposition', `attachment; filename="${root}.zip"`)
@@ -72,6 +72,16 @@ route.get('/assignment/:id/archive', requireStaff, async (req, res, next) => {
             next(err)
         }
     }
+})
+
+// Export failures must remain errors, never downloadable JSON attachments.
+route.use((err, req, res, next) => {
+    if (res.headersSent) return next(err)
+    res.removeHeader('Content-Disposition')
+    const status = err.status || 500
+    if (status >= 500) logger.error('export', 'Export request failed', { message: err.message })
+    res.status(status).json({ ok: false, code: status,
+        error: status >= 500 && process.env.NODE_ENV === 'production' ? 'Could not generate the export.' : err.message })
 })
 
 module.exports = route

@@ -313,15 +313,13 @@
                   <td>
 
                     @if (
-                      row.status === 'Passed'
+                      row.status === 'Submitted'
                     ) {
 
                       <span class="status-complete">
-                        ✓ Passed
+                        ✓ Completed
                       </span>
 
-                    } @else if(row.status==='Failed') {
-                      <span class="status-failed">× Failed</span>
                     } @else if(row.status==='Cancelled') {
                       <span class="status-none">— Cancelled</span>
                     } @else {

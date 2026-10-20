@@ -152,7 +152,7 @@ export class AnalyticsStudentComponent implements OnInit {
 
   evaluatorCompletedCount = computed(() =>
     this.evaluatorRows()
-      .filter(row => (row.status === 'Passed' || row.status === 'Failed'))
+      .filter(row => row.status === 'Submitted')
       .length
   );
 
@@ -575,7 +575,7 @@ export class AnalyticsStudentComponent implements OnInit {
 
               attempt:pairings.filter(other=>other.evalueeGroupId===p.evalueeGroupId && other.round===p.round).findIndex(other=>other.id===p.id)+1,
               status:
-                p.status === 'Cancelled' ? 'Cancelled' : p.outcome ?? 'Pending'
+                p.status
 
             }))
 
