@@ -28,6 +28,8 @@ export class EvalAssignmentListComponent implements OnInit {
   modal=signal<'generate'|'single'|'counts'|'queue'|null>(null);
   groupIds=signal<number[]>([]);pool=signal<EvaluatorParticipant[]>([]);slotKey=signal('');evaluatorId=signal<number|null>(null);
   selectedRound=signal(1);
+  includedSlots=signal<string[]>([]);
+  toggleSlot(s:PairingSlot,use:boolean){this.includedSlots.update(keys=>use?[...keys,this.key(s)]:keys.filter(k=>k!==this.key(s)));}
   workloadSort=signal<'course'|'assignment'|'username'>('course');
   readonly card:ContainerConfig={variant:'flat',height:'auto',scrollable:false};
   rounds=computed(()=>[...new Set((this.data()?.pairings??[]).map(p=>p.round))].sort((a,b)=>a-b));
@@ -54,7 +56,8 @@ export class EvalAssignmentListComponent implements OnInit {
   slotLabel(s:PairingSlot){return `Round ${s.round} — ${s.kind==='RetryRequired'?'Retry required':'Initial pairing missing'}`;}
   open(modal:'generate'|'single'|'counts'|'queue'){
     this.notice.set(null);this.load(()=>{
-      this.groupIds.set(this.data()!.groups.filter(g=>g.eligible).map(g=>g.id));
+      this.groupIds.set([...new Set(this.data()!.slots.map(s=>s.groupId))]);
+      this.includedSlots.set(this.data()!.slots.map(s=>this.key(s)));
       this.pool.set(this.data()!.participants.map(p=>({...p})));
       this.slotKey.set(this.data()!.slots[0]?this.key(this.data()!.slots[0]):'');this.chooseSlot();this.modal.set(modal);
     });
@@ -63,7 +66,7 @@ export class EvalAssignmentListComponent implements OnInit {
   toggleGroup(id:number,use:boolean){this.groupIds.update(ids=>use?[...ids,id]:ids.filter(i=>i!==id));}
   toggleEvaluator(id:number,use:boolean){this.pool.update(ps=>ps.map(p=>p.id===id?{...p,evaluatorEligible:use}:p));}
   generate(){this.loading.set(true);this.error.set(null);this.workflow.generate(this.assignmentId(),this.groupIds(),
-    this.pool().map(p=>({userId:p.id,evaluatorEligible:p.evaluatorEligible}))).subscribe({
+    this.pool().map(p=>({userId:p.id,evaluatorEligible:p.evaluatorEligible})), this.data()!.slots.filter(s=>this.includedSlots().includes(this.key(s)))).subscribe({
       next:r=>{this.modal.set(null);this.notice.set(r.message);this.load();},error:e=>this.failed(e)
     });}
   create(){const slot=this.selectedSlot(),id=this.evaluatorId();if(!slot||!id)return;

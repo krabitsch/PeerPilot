@@ -121,7 +121,7 @@
           </div>
 
           <div class="summary-number">
-            {{ evaluatorCompletedCount() }} / {{ requiredRounds() }}
+            {{ evaluatorCompletedCount() }} / {{ evaluatorAssignedCount() }}
           </div>
 
         </div>
@@ -183,7 +183,7 @@
               <tr>
 
                 <td>
-                  Round {{ row.round }}
+                  Round {{ row.round }} @if(row.attempt){ · Attempt {{row.attempt}} }
                 </td>
 
                 <td>
@@ -197,13 +197,15 @@
                 <td>
 
                   @if (
-                    row.status === 'Submitted'
+                    row.status === 'Passed'
                   ) {
 
                     <span class="status-complete">
-                      ✓ Completed
+                      ✓ Passed
                     </span>
 
+                  } @else if(row.status === 'Failed') {
+                    <span class="status-failed">× Failed</span>
                   } @else if (
                     row.status === 'Pending'
                   ) {
@@ -301,7 +303,7 @@
                 <tr>
 
                   <td>
-                    Round {{ row.round }}
+                    Round {{ row.round }} @if(row.attempt){ · Attempt {{row.attempt}} }
                   </td>
 
                   <td>
@@ -318,6 +320,8 @@
                         ✓ Completed
                       </span>
 
+                    } @else if(row.status==='Cancelled') {
+                      <span class="status-none">— Cancelled</span>
                     } @else {
 
                       <span class="status-pending">

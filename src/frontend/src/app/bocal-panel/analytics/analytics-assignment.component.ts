@@ -1,3 +1,4 @@
+import { AssignmentWorkflowService } from '../../core/services/assignment-workflow.service';
 import {
   Component, OnInit, computed, inject, signal
 } from '@angular/core';
@@ -24,19 +25,17 @@ interface GroupInfo {
 }
 
 interface PairingInfo {
+  id:number; createdAt:string; outcome?:string; evaluatorName?:string;
   round: number;
   status: string;
   evalueeGroupId: number;
   evaluatorUserId: number;
 }
 
-// 'complete'/'pending' are used by the "As evaluator" column (did the student
-// do their evaluation task). The "As evaluee" column uses the submission-aware
-// states: 'evaluated' (round's evaluation done), 'submitted' (work handed in,
-// evaluation still pending) and 'notSubmitted' (no closed submission yet).
+// Evaluee cells show academic outcomes; evaluator cells show task completion.
 interface ProgressCell {
   label: string;
-  kind: 'complete' | 'pending' | 'none' | 'evaluated' | 'submitted' | 'notSubmitted';
+  kind: 'passed' | 'failed' | 'pending' | 'none' | 'cancelled';
 }
 
 interface StudentProgress {
@@ -44,8 +43,9 @@ interface StudentProgress {
   name: string;
   groupName: string;
   groupId: number | null;
-  received: ProgressCell[];
-  evaluator: ProgressCell[];
+  evalueeEligible:boolean;
+  received: ProgressCell[][];
+  evaluator: ProgressCell[][];
   incomplete: boolean;
 }
 
@@ -80,6 +80,7 @@ export class AnalyticsAssignmentComponent implements OnInit {
   private evalService = inject(EvalService);
   private submissionService = inject(SubmissionService);
   private exportService = inject(ExportService);
+  private workflow = inject(AssignmentWorkflowService);
 
 
   classId = signal<number | null>(null);
@@ -119,7 +120,7 @@ export class AnalyticsAssignmentComponent implements OnInit {
         return rows.filter(s => s.incomplete);
 
       case 'Unallocated':
-        return rows.filter(s => s.groupId === null);
+        return rows.filter(s => s.evalueeEligible && s.groupId === null);
 
       default:
         return rows;
@@ -215,7 +216,7 @@ export class AnalyticsAssignmentComponent implements OnInit {
 
     forkJoin({
 
-      students: this.courseService.getClassStudents(classId),
+      management: this.workflow.summary(assignment.id),
 
       groups:
         this.groupService.getGroupsForAssignment(assignment.id),
@@ -232,9 +233,9 @@ export class AnalyticsAssignmentComponent implements OnInit {
 
         if (version !== this.requestVersion) return;
 
-        const enrolled = data.students.filter(
-          s => !s.role || s.role === 'Student'
-        );
+        const enrolled = data.management.participants.filter(p => p.role === 'Student' ||
+          p.evalueeEligible || p.evaluatorEligible || data.pairings.some(task=>task.evaluatorUserId===p.id));
+        const eligibleEvaluees = new Set(data.management.participants.filter(p=>p.evalueeEligible).map(p=>p.id));
 
         const groups: GroupInfo[] = data.groups.map((g: any) => ({
           id: Number(g.id),
@@ -244,23 +245,16 @@ export class AnalyticsAssignmentComponent implements OnInit {
           }))
         }));
 
-        // Cancelled pairings do not constitute active tasks.
+        // Preserve historical attempts; exclude cancellations only from active counts.
         const pairings: PairingInfo[] = data.pairings
-          .filter(p => p.status !== 'Cancelled')
+          .sort((a,b)=>new Date(a.createdAt).getTime()-new Date(b.createdAt).getTime()||a.id-b.id)
           .map(p => ({
+            id:p.id, createdAt:p.createdAt, outcome:p.outcome, evaluatorName:p.evaluatorUser?.username,
             round: Number(p.round),
             status: p.status,
             evalueeGroupId: Number(p.evalueeGroupId),
             evaluatorUserId: Number(p.evaluatorUserId)
           }));
-
-        // Groups that have handed in work (a closed submission). Submission is
-        // per group, so it gates every round of that group's "As evaluee" cells.
-        const submittedGroupIds = new Set<number>(
-          (data.submissions ?? [])
-            .filter((s: any) => s.status === 'Close')
-            .map((s: any) => Number(s.groupId))
-        );
 
         const requiredRounds = Math.max(
           0,
@@ -295,36 +289,17 @@ export class AnalyticsAssignmentComponent implements OnInit {
 
         // Count groups missing at least one required
         // incoming evaluation round.
-        const missingGroups = groups.filter(group => {
-
-          for (
-            let round = 1;
-            round <= requiredRounds;
-            round++
-          ) {
-
-            const hasPairing = pairings.some(p =>
-              p.evalueeGroupId === group.id &&
-              p.round === round
-            );
-
-            if (!hasPairing) return true;
-          }
-
-          return false;
-
-        }).length;
-
+        const missingGroups = new Set(data.management.slots.map(slot=>slot.groupId)).size;
 
         const unallocatedStudents = enrolled.filter(
-          student => !groupByStudent.has(student.id)
+          student => eligibleEvaluees.has(student.id) && !groupByStudent.has(student.id)
         ).length;
 
 
         this.stats.set({
           students: enrolled.length,
           groups: groups.length,
-          pairings: pairings.length,
+          pairings: pairings.filter(p=>p.status!=='Cancelled').length,
           groupsMissingPairings: missingGroups,
           unallocatedStudents
         });
@@ -339,14 +314,13 @@ export class AnalyticsAssignmentComponent implements OnInit {
 
             const received = rounds.map(round => {
 
-              if (!group) return this.emptyCell();
+              if (!group) return [this.emptyCell()];
 
               return this.evalueeCell(
                 pairings.filter(p =>
                   p.evalueeGroupId === group.id &&
                   p.round === round
-                ),
-                submittedGroupIds.has(group.id)
+                )
               );
             });
 
@@ -357,7 +331,7 @@ export class AnalyticsAssignmentComponent implements OnInit {
                 pairings.filter(p =>
                   p.evaluatorUserId === student.id &&
                   p.round === round
-                )
+                ), groups
               )
 
             );
@@ -368,18 +342,18 @@ export class AnalyticsAssignmentComponent implements OnInit {
             // No evaluator assignment is not automatically
             // an incomplete task.
             const incomplete =
-              group === null ||
-              received
+              (eligibleEvaluees.has(student.id) && (group === null || received
                 .slice(0, requiredRounds)
-                .some(c => c.kind !== 'evaluated') ||
-              evaluator.some(c => c.kind === 'pending');
+                .some(cells => !cells.some(c => c.kind === 'passed')))) ||
+              evaluator.some(cells => cells.some(c => c.kind === 'pending'));
 
 
             return {
               id: student.id,
               name: student.username,
-              groupName: group?.name ?? 'Unallocated',
+              groupName: group?.name ?? (eligibleEvaluees.has(student.id) ? 'Unallocated' : 'Not an evaluee'),
               groupId: group?.id ?? null,
+              evalueeEligible:eligibleEvaluees.has(student.id),
               received,
               evaluator,
               incomplete
@@ -418,69 +392,28 @@ export class AnalyticsAssignmentComponent implements OnInit {
   private emptyCell(): ProgressCell {
 
     return {
-      label: '—',
+      label: 'Not assigned',
       kind: 'none'
     };
   }
 
 
-  // "As evaluee" cell: reflects the group's submission + this round's evaluation.
-  //   no pairing          → none ("—", not assigned)
-  //   round fully evaluated → evaluated ("✓")
-  //   work submitted, eval pending → submitted ("●")
-  //   no closed submission yet     → notSubmitted ("○")
-  private evalueeCell(
-    pairings: PairingInfo[],
-    submitted: boolean
-  ): ProgressCell {
-
-    if (pairings.length === 0) {
-      return this.emptyCell();
-    }
-
-    const completed = pairings.filter(
-      p => p.status === 'Submitted'
-    ).length;
-
-    if (completed === pairings.length) {
-      return { label: '✓', kind: 'evaluated' };
-    }
-
-    if (submitted) {
-      return { label: '●', kind: 'submitted' };
-    }
-
-    return { label: '○', kind: 'notSubmitted' };
+  private attemptCell(p:PairingInfo, detail:string):ProgressCell {
+    const outcome = p.status === 'Cancelled' ? 'Cancelled' : p.outcome ?? 'Pending';
+    return {label:`${detail} — ${outcome}`,kind:outcome==='Passed'?'passed':outcome==='Failed'?'failed':outcome==='Cancelled'?'cancelled':'pending'};
   }
 
-
-  private progressCell(
-    pairings: PairingInfo[]
-  ): ProgressCell {
-
-    const total = pairings.length;
-
-    if (total === 0) {
-      return this.emptyCell();
-    }
-
-    const completed = pairings.filter(
-      p => p.status === 'Submitted'
-    ).length;
-
-    if (completed === total) {
-      return {
-        label: '✓',
-        kind: 'complete'
-      };
-    }
-
-    return {
-      label: `${completed}/${total}`,
-      kind: 'pending'
-    };
+  private evalueeCell(pairings:PairingInfo[]):ProgressCell[] {
+    return pairings.length ? pairings.map((p,i)=>this.attemptCell(p,
+      `Attempt ${i+1} — evaluated by ${p.evaluatorName ?? 'user '+p.evaluatorUserId}`)) : [this.emptyCell()];
   }
 
+  private progressCell(pairings:PairingInfo[], groups:GroupInfo[]):ProgressCell[] {
+    return pairings.length ? pairings.map(p => ({
+      label: `Evaluates ${groups.find(g=>g.id===p.evalueeGroupId)?.name ?? 'group '+p.evalueeGroupId} — task ${p.id} — ${p.status === 'Submitted' ? 'Completed' : p.status}`,
+      kind: p.status === 'Submitted' ? 'passed' as const : p.status === 'Cancelled' ? 'cancelled' as const : 'pending' as const
+    })) : [this.emptyCell()];
+  }
 
   onAssignmentChanged(value: string): void {
 
@@ -528,9 +461,9 @@ export class AnalyticsAssignmentComponent implements OnInit {
       .downloadAssignmentArchive(assId, { recordings: this.includeRecordings() })
       .subscribe({
         next: () => this.downloading.set(null),
-        error: () => {
+        error: err => {
           this.downloading.set(null);
-          this.downloadError.set('Could not download the assignment archive.');
+          this.downloadError.set(err?.message ?? 'Could not download the assignment archive.');
         }
       });
   }

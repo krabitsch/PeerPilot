@@ -1,3 +1,4 @@
+import { AssignmentWorkflowService } from '../../core/services/assignment-workflow.service';
 import {
   Component,
   OnInit,
@@ -56,6 +57,7 @@ interface GroupInfo {
 
 
 interface PairingInfo {
+  outcome?:string; createdAt:string; evaluatorName?:string;
   id: number;
 
   round: number;
@@ -71,6 +73,7 @@ interface PairingInfo {
 
 
 interface EvalueeRoundRow {
+  attempt?:number;
   round: number;
 
   evaluatorName: string;
@@ -82,6 +85,7 @@ interface EvalueeRoundRow {
 
 
 interface EvaluatorRoundRow {
+  attempt?:number;
   round: number;
 
   evalueeGroupName: string;
@@ -110,6 +114,7 @@ export class AnalyticsStudentComponent implements OnInit {
   private assignmentService = inject(AssignmentService);
   private groupService = inject(GroupService);
   private evalService = inject(EvalService);
+  private workflow = inject(AssignmentWorkflowService);
 
 
   classId = signal<number | null>(null);
@@ -141,11 +146,8 @@ export class AnalyticsStudentComponent implements OnInit {
   error = signal<string | null>(null);
 
 
-  groupCompletedCount = computed(() =>
-    this.evalueeRows()
-      .filter(row => row.status === 'Submitted')
-      .length
-  );
+  groupCompletedCount = computed(() => new Set(this.evalueeRows()
+    .filter(row => row.status === 'Passed' || row.status === 'Failed').map(row=>row.round)).size);
 
 
   evaluatorCompletedCount = computed(() =>
@@ -156,7 +158,7 @@ export class AnalyticsStudentComponent implements OnInit {
 
 
   evaluatorAssignedCount = computed(() =>
-    this.evaluatorRows().length
+    this.evaluatorRows().filter(row=>row.status !== 'Cancelled').length
   );
 
 
@@ -231,7 +233,7 @@ export class AnalyticsStudentComponent implements OnInit {
         this.assignmentService.getAssignments(classId),
 
       students:
-        this.courseService.getClassStudents(classId),
+        this.workflow.summary(assId),
 
       groups:
         this.groupService.getGroupsForAssignment(assId),
@@ -298,7 +300,7 @@ export class AnalyticsStudentComponent implements OnInit {
          */
 
         const student =
-          data.students.find(
+          data.students.participants.find(
             s => s.id === studentId
           );
 
@@ -308,7 +310,7 @@ export class AnalyticsStudentComponent implements OnInit {
           this.loading.set(false);
 
           this.error.set(
-            'This student is not enrolled in the selected course.'
+            'This participant is not in the selected course.'
           );
 
           return;
@@ -367,21 +369,15 @@ export class AnalyticsStudentComponent implements OnInit {
         );
 
 
-        /*
-         * Normalize active pairings.
-         *
-         * Cancelled pairings are ignored here.
-         */
+        // Historical analytics includes all attempts, including cancellations.
 
         const pairings: PairingInfo[] =
           data.pairings
 
-            .filter(
-              p => p.status !== 'Cancelled'
-            )
 
             .map(p => ({
 
+              outcome:p.outcome, createdAt:p.createdAt, evaluatorName:p.evaluatorUser?.username,
               id:
                 Number(p.id),
 
@@ -402,7 +398,7 @@ export class AnalyticsStudentComponent implements OnInit {
                   ? null
                   : Number(p.evaluatorGroupId)
 
-            }));
+            })).sort((a,b)=>a.round-b.round || new Date(a.createdAt).getTime()-new Date(b.createdAt).getTime() || a.id-b.id);
 
 
         /*
@@ -487,7 +483,7 @@ export class AnalyticsStudentComponent implements OnInit {
             }
 
 
-            for (const row of rows) {
+            for (const [index,row] of rows.entries()) {
 
               const evaluatorGroup =
                 row.evaluatorGroupId
@@ -501,8 +497,9 @@ export class AnalyticsStudentComponent implements OnInit {
 
                 round,
 
+                attempt:index+1,
                 evaluatorName:
-                  studentNameById.get(
+                  row.evaluatorName ?? studentNameById.get(
                     row.evaluatorUserId
                   )
                   ?? `student #${row.evaluatorUserId}`,
@@ -511,7 +508,7 @@ export class AnalyticsStudentComponent implements OnInit {
                   evaluatorGroup?.name ?? '—',
 
                 status:
-                  row.status
+                  row.status === 'Cancelled' ? 'Cancelled' : row.outcome ?? 'Pending'
 
               });
 
@@ -576,6 +573,7 @@ export class AnalyticsStudentComponent implements OnInit {
                 )?.name
                 ?? `Group #${p.evalueeGroupId}`,
 
+              attempt:pairings.filter(other=>other.evalueeGroupId===p.evalueeGroupId && other.round===p.round).findIndex(other=>other.id===p.id)+1,
               status:
                 p.status
 

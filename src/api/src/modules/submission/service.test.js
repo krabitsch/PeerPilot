@@ -19,7 +19,7 @@ const harness = () => {
       update:async({data})=>{Object.assign(submission,data);return include()},
     },
     file:{create:async({data})=>{const file={id:++fileSequence,...data};files.push(file);return file},delete:async({where})=>{const i=files.findIndex(f=>f.id===where.id);return files.splice(i,1)[0]}},
-    submissionFileVersion:{create:async({data})=>{const v={id:submission.fileVersions.length+1,...data};submission.fileVersions.push(v);return v}},
+    submissionFileVersion:{create:async({data})=>{const v={id:submission.fileVersions.length+1,createdAt:new Date(),...data};submission.fileVersions.push(v);return v}},
     evalResponse:{findMany:async()=>[]},
     $queryRaw:async()=>{locks++;return []},
   }
@@ -46,7 +46,7 @@ const harness = () => {
   const service=module.exports
   const start=userId=>service.createSubmission({groupId:2,userId,type:'FILE'})
   const file={originalname:'answers.pdf',mimetype:'application/pdf',size:10,buffer:Buffer.from('answers')}
-  const retry=()=>group.evalAssignmentsAsEvaluee.push({id:8,round:1,assignmentId:1,evalueeGroupId:2,evaluatorUserId:9,submissionId:3,evalResponseId:10,status:'Submitted',retryRequested:true,passKey:'987654',createdAt:new Date(),evalResponse:{id:10,userId:9,subId:3,givenMarks:10,reply:'Thanks',recordingFileId:2}})
+  const retry=()=>group.evalAssignmentsAsEvaluee.push({id:8,round:1,assignmentId:1,evalueeGroupId:2,evaluatorUserId:9,submissionId:3,evalResponseId:10,status:'Submitted',retryRequested:true,retryRequestedAt:new Date(Date.now()-1000),passKey:'987654',createdAt:new Date(),evalResponse:{id:10,userId:9,subId:3,givenMarks:10,reply:'Thanks',recordingFileId:2}})
   return {service,db,group,start,file,retry,files,uploaded,deleted,get submission(){return submission},get locks(){return locks}}
 }
 test('all three members start/access one shared submission, including after close',async()=>{
@@ -96,8 +96,9 @@ test('retry files append history, preserve original/passkeys/status, and are dow
   assert.equal((await h.service.getDownloadUrl(2,{userId:6,fileId:original})).url,revised.files[0].url)
   assert.equal((await h.service.getDownloadUrl(2,{userId:6})).url,revised.files[1].url)
   await assert.rejects(h.service.getDownloadUrl(2,{userId:6,fileId:999}),/File not found/)
-  const again=await h.service.uploadRetryFile(2,6,{...h.file,originalname:'revised-again.pdf'})
-  assert.equal(again.files.length,3)
+  assert.equal(revised.canUploadRetryFile,false)
+  await assert.rejects(h.service.uploadRetryFile(2,6,{...h.file,originalname:'revised-again.pdf'}),/one updated file per unresolved retry/)
+  assert.equal(h.submission.fileVersions.length,1)
 })
 test('retry upload is refused for open, pending, passed, and failure without retry request',async()=>{
   const h=harness();await h.start(5)
@@ -128,4 +129,20 @@ test('only open draft files are replaced/removed; closed originals stay immutabl
   assert.equal(h.files.length,1);assert.equal(h.deleted.length,1)
   await h.service.removeFile(2,6)
   assert.equal(h.submission.fileId,null);assert.equal(h.files.length,0);assert.equal(h.deleted.length,2)
+})
+
+test('a subsequent failed replacement and new retry allow exactly one more version',async()=>{
+  const h=harness();await h.start(5);await h.service.uploadFile(2,5,h.file)
+  await h.service.closeSubmission(2,{userId:5});h.retry()
+  await h.service.uploadRetryFile(2,5,h.file)
+  h.submission.fileVersions[0].createdAt=new Date(Date.now()-5000)
+  const old=h.group.evalAssignmentsAsEvaluee[0]
+  h.group.evalAssignmentsAsEvaluee.push({...old,id:9,evaluatorUserId:10,evalResponseId:11,
+    retryRequestedAt:new Date(Date.now()-1000),createdAt:new Date(),
+    evalResponse:{...old.evalResponse,id:11,userId:10}})
+  const revised=await h.service.uploadRetryFile(2,6,h.file)
+  assert.equal(revised.files.length,3)
+  assert.equal(revised.canUploadRetryFile,false)
+  await assert.rejects(h.service.uploadRetryFile(2,5,h.file),/one updated file per unresolved retry/)
+  assert.equal(h.submission.fileVersions.length,2)
 })
