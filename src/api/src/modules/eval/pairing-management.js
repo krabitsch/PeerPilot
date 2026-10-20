@@ -76,7 +76,7 @@ const createPairing = (payload,actor) => participation.withAssignment(payload.as
   const slot=summary.slots.find(s=>s.groupId===participation.positiveId(payload.evalueeGroupId)&&s.round===Number(payload.round))
   return newPairing(db,a,summary,slot,participation.positiveId(payload.evaluatorUserId))
 })
-const generateMissing = (id,{groupIds,participants}={},actor) => participation.withAssignment(id,actor,async(db,a)=>{
+const generateMissing = (id,{groupIds,participants,slots:selectedSlots}={},actor) => participation.withAssignment(id,actor,async(db,a)=>{
   if (participants!==undefined) await participation.saveOverrides(db,a,participants)
   let summary=await loadSummary(db,a)
   if (groupIds!==undefined && (!Array.isArray(groupIds)||groupIds.some(id=>!summary.groups.some(g=>g.id===id&&g.eligible))))
@@ -86,7 +86,11 @@ const generateMissing = (id,{groupIds,participants}={},actor) => participation.w
   // Rebuild counts in memory after each allocation; one initial batch of DB reads.
   const rawPairings=await db.evalAssignment.findMany({where:{assignmentId:a.id},include:{evalResponse:{select:responseSelect},evaluatorUser:{select:{id:true,username:true}}}})
   const workloads=await db.evalAssignment.findMany({where:{assignment:{classid:a.classid},status:{not:'Cancelled'}},select:{assignmentId:true,evaluatorUserId:true,status:true}})
-  const slots=summary.slots.filter(s=>included.has(s.groupId))
+  if (selectedSlots !== undefined && (!Array.isArray(selectedSlots) || selectedSlots.some(s =>
+    !summary.slots.some(valid => valid.groupId === s.groupId && valid.round === s.round))))
+    throw new ValidationError('Select currently missing or retry pairing slots')
+  const slots=summary.slots.filter(s=>included.has(s.groupId) && (selectedSlots === undefined ||
+    selectedSlots.some(selected => selected.groupId === s.groupId && selected.round === s.round)))
   for (const initial of slots) {
     summary=buildSummary(a,summary.participants,summary.groups,rawPairings,workloads)
     const slot=summary.slots.find(s=>s.groupId===initial.groupId&&s.round===initial.round)

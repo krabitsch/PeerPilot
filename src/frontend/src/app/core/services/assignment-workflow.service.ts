@@ -30,8 +30,8 @@ export class AssignmentWorkflowService {
     return this.http.put<{participants:Participant[]}>(`${this.base}/${id}/participation`,{participants});
   }
   summary(id:number){return this.http.get<PairingManagement>(`${this.base}/${id}/management`);}
-  generate(id:number,groupIds:number[],participants:{userId:number;evaluatorEligible:boolean}[]){
-    return this.http.post<{count:number;message:string;unfilled:PairingSlot[]}>(`${this.base}/${id}/generate-simple-pairings`,{groupIds,participants});
+  generate(id:number,groupIds:number[],participants:{userId:number;evaluatorEligible:boolean}[], slots?:PairingSlot[]){
+    return this.http.post<{count:number;message:string;unfilled:PairingSlot[]}>(`${this.base}/${id}/generate-simple-pairings`,{groupIds,participants,slots:slots?.map(({groupId,round})=>({groupId,round}))});
   }
   create(id:number,slot:PairingSlot,userId:number){return this.http.post('/api/eval/eval-assignments',{
     assignmentId:id,evalueeGroupId:slot.groupId,round:slot.round,evaluatorUserId:userId});}

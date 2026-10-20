@@ -4,7 +4,7 @@ const utils = require('@transcendence/utils')
 const { createStorage } = require('@transcendence/filemanager')
 const logger = require('@transcendence/logger')
 const { submissionOutcome, summarizeEvaluationRounds, evaluationOutcome, responseSelect } = require('../eval/outcome')
-const { fileVersionInclude, submissionFiles } = require('./files')
+const { fileVersionInclude, submissionFiles, latestSubmissionFile } = require('./files')
 const { randomUUID } = require('crypto')
 const storage = createStorage('submissions')
 
@@ -88,14 +88,19 @@ const retryFileAllowed = async (db, submission) => {
     }})
     const pairings = group.evalAssignmentsAsEvaluee.filter(p => !p.submissionId || p.submissionId === submission.id)
     const summary = summarizeEvaluationRounds(group.assignment, pairings)
-    return summary.evaluationRounds.some(round => {
-        if (round.waitingForRematch) return true
-        // A replacement may receive revised material until it starts (links the submission).
+    const availableRequests = summary.evaluationRounds.flatMap(round => {
         const current = pairings.find(p => p.id === round.evalAssignmentId)
-        return round.displayOutcome === 'Pending' && current?.status === 'Pending' && !current.submissionId &&
-            pairings.some(p => p.round === round.round && p.retryRequested &&
-                evaluationOutcome(p, group.assignment) === 'Failed')
-    })
+        const awaiting = round.waitingForRematch || (round.displayOutcome === 'Pending' &&
+            current?.status === 'Pending' && !current.submissionId)
+        if (!awaiting) return []
+        // Each failed attempt opens a new window. A version consumes the window
+        // even while its replacement is still waiting to start.
+        return pairings.filter(p => p.round === round.round && p.retryRequested &&
+            p.retryRequestedAt && evaluationOutcome(p, group.assignment) === 'Failed')
+    }).sort((a,b) => new Date(b.retryRequestedAt)-new Date(a.retryRequestedAt) || b.id-a.id)
+    const request = availableRequests[0]
+    return !!request && !(submission.fileVersions ?? []).some(v =>
+        new Date(v.createdAt).getTime() >= new Date(request.retryRequestedAt).getTime())
 }
 const decorateSubmission = async (db, submission) => ({
     ...await submissionOutcome(db, submission),
@@ -135,10 +140,10 @@ const saveFile = async (groupId, userId, reqFile, revised = false) => {
         result = await prisma.$transaction(async tx => {
             const existing = await lockSubmission(tx, groupId)
             if (revised ? !await retryFileAllowed(tx, existing) : existing.status !== 'Open')
-                throw new ValidationError(revised ? 'Updated files are only allowed while an unresolved retry is awaiting evaluation.' : 'Submission is already closed')
+                throw new ValidationError(revised ? 'Only one updated file per unresolved retry is allowed, before its evaluation starts.' : 'Submission is already closed')
             const file = await tx.file.create({data:{name:reqFile.originalname, size:reqFile.size,
                 mimiType:reqFile.mimetype, url:fileName, uploadedBy:Number(userId)}})
-            if (revised) await tx.submissionFileVersion.create({data:{submissionId:existing.id,fileId:file.id}})
+            if (revised) await tx.submissionFileVersion.create({data:{submissionId:existing.id,fileId:file.id,createdAt:new Date()}})
             else {
                 await tx.submission.update({where:{id:existing.id},data:{fileId:file.id}})
                 if (existing.file) {
@@ -170,7 +175,7 @@ const getDownloadUrl = async(groupId, { userId, isStaff, fileId } = {})=>{
     const existingSub = await utils.getLastSubmission(groupId, {file: true, fileVersions:fileVersionInclude})
     if(!existingSub) throw new NotFoundError('Submission not found')
     const files = submissionFiles(existingSub)
-    const file = fileId ? files.find(f => f.id === Number(fileId)) : files.at(-1)
+    const file = fileId ? files.find(f => f.id === Number(fileId)) : latestSubmissionFile(existingSub)
     if (!file) throw new NotFoundError('File not found')
     const url = await storage.getUrl(file.url, file.name)
     return {url, expiresIn: '10 minutes' }

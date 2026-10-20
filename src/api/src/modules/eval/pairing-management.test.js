@@ -185,3 +185,12 @@ test('group deletion refuses submission/evaluation history instead of cascading 
   await assert.rejects(h.groups.deleteGroup(1,staff),/history.*cannot be deleted/)
   assert.equal(h.state.groups.length,2)
 })
+
+test('generation honors selected round slots and never fills an unchecked round',async()=>{
+  const h=harness()
+  const result=await h.management.generateMissing(1,{slots:[{groupId:1,round:2}]},staff)
+  assert.equal(result.count,1)
+  assert.equal(h.state.pairings.length,1)
+  assert.equal(h.state.pairings[0].evalueeGroupId,1)
+  assert.equal(h.state.pairings[0].round,2)
+})

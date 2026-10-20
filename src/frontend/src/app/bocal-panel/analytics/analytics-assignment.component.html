@@ -315,59 +315,21 @@
                 </td>
 
 
-                <!-- Evaluations received by their group -->
-
-                @for (cell of student.received; track $index) {
-
-                  <td class="progress-cell">
-
-                    @if (cell.kind === 'evaluated') {
-                      <span class="complete" title="Evaluated">
-                        ✓
+                @for (cells of [student.received,student.evaluator]; track $index) {
+                  @for (attempts of cells; track $index) {
+                    <td class="progress-cell">
+                      <span class="attempt-icons">
+                      @for (attempt of attempts; track $index) {
+                        <span [class]="'attempt-status '+attempt.kind" [title]="attempt.label" [attr.aria-label]="attempt.label" role="img">
+                          @if(attempt.kind==='passed'){✓}
+                          @else if(attempt.kind==='failed'){×}
+                          @else if(attempt.kind==='pending'){<span class="status-clock"></span>}
+                          @else {—}
+                        </span>
+                      }
                       </span>
-                    } @else if (cell.kind === 'submitted') {
-                      <span class="submitted" title="Submitted — awaiting evaluation">
-                        ●
-                      </span>
-                    } @else if (cell.kind === 'notSubmitted') {
-                      <span class="not-submitted" title="Not submitted yet">
-                        ○
-                      </span>
-                    } @else {
-                      <span class="not-assigned" title="Not assigned">
-                        —
-                      </span>
-                    }
-
-                  </td>
-
-                }
-
-
-                <!-- Evaluations performed by this student -->
-
-                @for (cell of student.evaluator; track $index) {
-
-                  <td class="progress-cell">
-
-                    @if (cell.kind === 'complete') {
-                      <span class="complete" title="Completed">
-                        ✓
-                      </span>
-                    } @else if (cell.kind === 'pending') {
-                      <span
-                        class="status-clock"
-                        title="Pending"
-                        aria-label="Pending">
-                      </span>
-                    } @else {
-                      <span class="not-assigned" title="Not assigned">
-                        —
-                      </span>
-                    }
-
-                  </td>
-
+                    </td>
+                  }
                 }
 
               </tr>
@@ -396,36 +358,11 @@
 
 
       <div class="table-legend">
-
-        <span class="legend-title">As evaluee:</span>
-
-        <span class="complete">✓</span>
-        Evaluated
-
-        <span class="submitted">●</span>
-        Submitted
-
-        <span class="not-submitted">○</span>
-        Not submitted yet
-
-        <span class="not-assigned">—</span>
-        Not assigned
-
-      </div>
-
-      <div class="table-legend">
-
-        <span class="legend-title">As evaluator:</span>
-
-        <span class="complete">✓</span>
-        Completed
-
-        <span class="status-clock"></span>
-        Pending
-
-        <span class="not-assigned">—</span>
-        Not assigned
-
+        <span class="legend-title">Each icon is one evaluation attempt:</span>
+        <span class="attempt-status passed">✓</span> Passed
+        <span class="attempt-status failed">×</span> Failed
+        <span class="status-clock"></span> Pending
+        <span class="attempt-status cancelled">—</span> Cancelled / not assigned
       </div>
 
     </section>

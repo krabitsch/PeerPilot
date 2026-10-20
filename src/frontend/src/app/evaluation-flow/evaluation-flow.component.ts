@@ -1,3 +1,4 @@
+import { scoreColor as outcomeScoreColor } from '../shared/score-color';
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { NgStyle } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -142,6 +143,7 @@ export class EvaluationFlowComponent implements OnInit {
   tasks = signal<EvaluatorTask[]>([]);
   courseId = signal<number | null>(null);
   assignmentId = signal<number | null>(null);
+  readonly outcomeScoreColor = outcomeScoreColor;
   selectedTask = signal<EvaluatorTask | null>(null);
   tasksLoading = signal(false);
   tasksError = signal<string | null>(null);
@@ -232,11 +234,8 @@ export class EvaluationFlowComponent implements OnInit {
   commentOk  = computed(() => this.comment().trim().length >= 100);
   canSubmit  = computed(() => this.allScored() && this.commentOk());
 
-  scoreColor = computed(() => {
-    const max = this.maxScore();
-    const pct = max > 0 ? (this.totalScore() / max) * 100 : 0;
-    return pct >= 80 ? DS.colors.green : pct >= 50 ? DS.colors.amber : DS.colors.red;
-  });
+  scoreColor = computed(() => outcomeScoreColor(this.totalScore(), this.maxScore(),
+    this.session()?.assignment.pass_threshold ?? 50));
 
   // Start only the selected, evaluator-owned pairing.
   startEvaluation() {

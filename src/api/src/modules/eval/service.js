@@ -267,7 +267,7 @@ const getMyEvaluatorTasks = async (userId, role = 'Student') => {
         { assignmentId: 'asc' }, { round: 'asc' }, { id: 'asc' }],
       select: {
         id: true, assignmentId: true, evalueeGroupId: true, round: true, status: true,
-        assignment: { select: { id: true, name: true, created_at: true, classid: true, evaluationDurationMinutes:true } },
+        assignment: { select: { id: true, name: true, created_at: true, classid: true, max_score:true, pass_threshold:true, evaluationDurationMinutes:true } },
         evalueeGroup: {
           select: { id: true, name: true, members: {
             orderBy: { userId: 'asc' }, select: { user: { select: { id: true, username: true, email:true } } }
@@ -324,7 +324,7 @@ const startEvaluation = async ({ evalAssignmentId, evaluatorUserId, passkey }) =
     const files = submissionFiles(submission).map(file => ({...file, url: storage.getPublicUrl(file.url)}))
     return {
       evalAssignmentId: pairing.id,
-      assignment: { id: assignment.id, name: assignment.name, description: assignment.description, max_score: assignment.max_score, evaluationDurationMinutes:assignment.evaluationDurationMinutes },
+      assignment: { id: assignment.id, name: assignment.name, description: assignment.description, max_score: assignment.max_score, pass_threshold:assignment.pass_threshold, evaluationDurationMinutes:assignment.evaluationDurationMinutes },
       group: { id: submission.group.id, name: submission.group.name },
       submission: { id: submission.id, file: files.at(-1) ?? null, files },
       evalSheet: assignment.evalSheet

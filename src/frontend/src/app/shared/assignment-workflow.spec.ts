@@ -30,9 +30,9 @@ describe('assignment participation and pairing management',()=>{
   });
   it('generation opens configuration without mutations, defaults staff off and persists pool selections',()=>{
     const f=page(),c=f.componentInstance;c.open('generate');http().expectOne('/api/eval/assignment/1/management').flush(summary());f.detectChanges();
-    expect(f.nativeElement.textContent).toContain('Evaluee groups');expect(f.nativeElement.textContent).toContain('Evaluator pool');
+    expect(f.nativeElement.textContent).toContain('Pairings required');expect(f.nativeElement.textContent).toContain('Evaluator pool');
     expect(c.pool().find(p=>p.id===20)?.evaluatorEligible).toBe(false);c.toggleEvaluator(20,true);c.generate();
-    const req=http().expectOne('/api/eval/assignment/1/generate-simple-pairings');expect(req.request.body).toEqual({groupIds:[2],participants:[{userId:1,evaluatorEligible:true},{userId:20,evaluatorEligible:true}]});
+    const req=http().expectOne('/api/eval/assignment/1/generate-simple-pairings');expect(req.request.body).toEqual({groupIds:[2],slots:[{groupId:2,round:2}],participants:[{userId:1,evaluatorEligible:true},{userId:20,evaluatorEligible:true}]});
     req.flush({count:1,message:'Created 1 missing pairing',unfilled:[]});http().expectOne('/api/eval/assignment/1/management').flush(summary());f.detectChanges();
     expect(f.nativeElement.textContent).toContain('Created 1 missing pairing');
   });
@@ -52,4 +52,19 @@ describe('assignment participation and pairing management',()=>{
     const f=page(),r=summary();r.pairings=[{id:1,evalueeGroupId:2,evaluatorUserId:3,evaluatorGroupId:null,round:1,status:'Submitted',outcome:'Failed',evalResponseId:null,evaluatorName:'previous',retryRequested:true}];
     f.componentInstance.data.set(r);f.detectChanges();expect(f.nativeElement.textContent).not.toContain('Cancel pending pairing');expect(f.nativeElement.textContent).not.toContain('Delete');
   });
+  it('generation lists only required slots and submits exact round selections',()=>{
+    const f=page(),c=f.componentInstance,r=summary();
+    r.groups.push({...r.groups[0],id:99,name:'Satisfied group'});
+    r.slots.push({...r.slots[0],round:1,kind:'InitialMissing',previousEvaluators:[]});
+    c.open('generate');http().expectOne('/api/eval/assignment/1/management').flush(r);f.detectChanges();
+    expect(f.nativeElement.textContent).not.toContain('Satisfied group');
+    expect(f.nativeElement.textContent).toContain('Initial pairing missing');
+    expect(f.nativeElement.textContent).toContain('Retry required');
+    c.toggleSlot(r.slots[1],false);c.generate();
+    const req=http().expectOne('/api/eval/assignment/1/generate-simple-pairings');
+    expect(req.request.body.slots).toEqual([{groupId:2,round:2}]);
+    req.flush({count:1,message:'Created',unfilled:[]});
+    http().expectOne('/api/eval/assignment/1/management').flush(summary());
+  });
+
 });

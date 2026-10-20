@@ -116,6 +116,7 @@ export class AssignmentService {
         )
         .subscribe({
           next: (data) => {
+            data = [...data].sort((a,b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime() || a.id - b.id);
             this.assignments.set(data);
             this.setLoading(false);
             this.error.set(null);

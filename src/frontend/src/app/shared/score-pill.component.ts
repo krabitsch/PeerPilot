@@ -1,6 +1,7 @@
 import { Component, input, computed } from '@angular/core';
 import { NgStyle } from '@angular/common';
 import { DS } from '../tokens';
+import { scoreTone } from './score-color';
 
 @Component({
   selector: 'app-score-pill',
@@ -15,13 +16,10 @@ import { DS } from '../tokens';
 export class ScorePillComponent {
   score = input<number>(0);
   max   = input<number>(100);
+  passThreshold = input<number>(50);
 
   styles = computed(() => {
-    const pct = this.score() / this.max();
-    return pct >= 1
-      ? { background: DS.colors.violetSubtle, color: DS.colors.violet }
-      : pct >= 0.6
-      ? { background: DS.colors.greenSubtle,  color: DS.colors.green }
-      : { background: DS.colors.redSubtle,    color: DS.colors.red };
+    const tone = scoreTone(this.score(), this.max(), this.passThreshold());
+    return { background: DS.colors[`${tone}Subtle`], color: DS.colors[tone] };
   });
 }

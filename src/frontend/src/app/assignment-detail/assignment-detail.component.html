@@ -269,7 +269,7 @@
           <div class="grade-head">
             <div class="card-title">{{ 'label_grade_feedback' | translate }}</div>
             @if (mySubmission()?.finalScore != null) {
-              <app-score-pill [score]="mySubmission()!.finalScore!" [max]="assignment()!.max_score"/>
+              <app-score-pill [score]="mySubmission()!.finalScore!" [max]="assignment()!.max_score" [passThreshold]="assignment()!.pass_threshold ?? 50"/>
             } @else {
               <span class="hint-text">{{ 'grade_pending_hint' | translate }}</span>
             }
@@ -377,7 +377,7 @@
           </div>
           <div class="sub-row-right">
             @if (sub.finalScore != null) {
-              <app-score-pill [score]="sub.finalScore" [max]="assignment()!.max_score"/>
+              <app-score-pill [score]="sub.finalScore" [max]="assignment()!.max_score" [passThreshold]="assignment()!.pass_threshold ?? 50"/>
             }
             <app-badge [variant]="subStatusVariant(sub.status)"/>
           </div>

@@ -32,7 +32,7 @@ const getClassByOrgId = async(idOrg, select = null, include = null)=>{
 const getAssignments = async(classId, select = null)=>{
     if (!classId || isNaN(classId))
         throw new Error('Invalid class ID');
-    const options = {where:{classid: parseInt(classId)}}
+    const options = {where:{classid: parseInt(classId)}, orderBy:[{created_at:"asc"},{id:"asc"}]}
     if(select)
         options.select = select
     return await prisma.assignment.findMany(options)

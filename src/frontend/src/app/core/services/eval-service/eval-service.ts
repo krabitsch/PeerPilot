@@ -57,7 +57,7 @@ export interface EvaluatorTask {
   evalueeGroupId: number;
   round: number;
   status: EvalAssignmentStatus;
-  assignment: { id: number; name: string; created_at: string; classid: number; evaluationDurationMinutes?: number };
+  assignment: { id: number; name: string; created_at: string; classid: number; max_score?:number; pass_threshold?:number; evaluationDurationMinutes?: number };
   evalueeGroup: { id: number; name: string; members: { user: { id: number; username: string; email?: string } }[] };
   evalResponse: {
     id: number; givenMarks: number; comment: string; reply: string | null;
@@ -123,6 +123,7 @@ export interface StartEvaluationResponse {
     name: string;
     description: string;
     max_score: number;
+    pass_threshold?: number;
     evaluationDurationMinutes?: number;
   };
 

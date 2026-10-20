@@ -366,3 +366,8 @@
   outline: 2px solid #b986fa;
   outline-offset: 2px;
 }
+.attempt-icons { display:inline-flex; gap:7px; flex-wrap:wrap; align-items:center; justify-content:center; }
+.attempt-status.passed { color:#4ade80; }
+.attempt-status.failed { color:#f87171; }
+.attempt-status.pending { color:#fb923c; }
+.attempt-status.cancelled,.attempt-status.none { color:#9ca3af; }

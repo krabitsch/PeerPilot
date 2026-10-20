@@ -28,10 +28,14 @@
     <div class="muted">{{data()?.assignment?.name}} · {{data()?.assignment?.courseName}}</div>
     @if(error()){<p class="error" role="alert">{{error()}}</p>}
     @if(modal()==='generate'){
-      <div class="section-label">Evaluee groups</div>
-      <p class="muted">Include groups for this generation. Excluding a group leaves its allocation and evaluation history unchanged.</p>
-      @for(g of data()?.groups;track g.id){<label class="row"><span>{{groupName(g.id)}} @if(!g.eligible){<small>Contains participants currently ineligible as evaluees; existing group preserved.</small>}</span>
-        <input type="checkbox" [disabled]="!g.eligible || loading()" [checked]="groupIds().includes(g.id)" (change)="toggleGroup(g.id,$any($event.target).checked)" [attr.aria-label]="'Include '+g.name"></label>}
+      <div class="section-label">Pairings required</div>
+      <p class="muted">Select missing rounds or retry slots to fill. Existing attempts remain unchanged.</p>
+      @for(s of data()?.slots;track key(s)){
+        <label class="row"><span><span class="section-label">{{s.kind==='RetryRequired'?'Retry required':'Initial pairing missing'}}</span>
+          <strong>{{groupName(s.groupId)}}</strong><small>{{data()?.assignment?.name}} · Round {{s.round}}</small>
+          @if(s.previousEvaluators.length){<small>Previous evaluator(s): {{s.previousEvaluators.join(', ')}} · Previous result: Failed</small>}
+        </span><input type="checkbox" [disabled]="loading()" [checked]="includedSlots().includes(key(s))" (change)="toggleSlot(s,$any($event.target).checked)" [attr.aria-label]="'Include '+groupName(s.groupId)+' round '+s.round"></label>
+      } @empty {<p class="muted">No missing pairings or retries.</p>}
       <div class="section-label">Evaluator pool</div>
       <p class="muted">Evaluators perform peer evaluations and do not need a submission group. These selections are saved as assignment participation settings when you generate.</p>
       <div class="table-scroll"><table><thead><tr><th>Use</th><th>Participant</th><th>This assignment</th><th>Course total</th></tr></thead><tbody>
