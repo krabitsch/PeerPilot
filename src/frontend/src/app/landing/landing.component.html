@@ -5,11 +5,11 @@
     <app-logo [size]="28"/>
   </a>
   <div class="nav-right">
-    <a href="#how" class="nav-link">{{ 'nav_how_it_works' | translate }}</a>
-    <a href="#features" class="nav-link">{{ 'nav_features' | translate }}</a>
-    <a href="#institutes" class="nav-link">{{ 'nav_for_institutes' | translate }}</a>
-    <a routerLink="/login" class="btn btn-ghost">{{ 'nav_sign_in' | translate }}</a>
-    <a routerLink="/login" class="btn btn-primary">{{ 'nav_get_started' | translate }}</a>
+    <a href="#how" class="nav-link">How it works</a>
+    <a href="#students" class="nav-link">For students</a>
+    <a href="#institutes" class="nav-link">For educators</a>
+    <a routerLink="/login" class="btn btn-ghost">Sign in</a>
+    <a routerLink="/login" class="btn btn-primary">Get started</a>
   </div>
 </nav>
 
@@ -19,78 +19,81 @@
   <div class="hero-grid"></div>
 
   <div class="hero-orbit">
-    <div class="float-card fc-1"><span class="dot" style="background:oklch(68% 0.18 145)"></span>{{ 'badge_validated' | translate }} 91/100</div>
-    <div class="float-card fc-2"><span class="dot" style="background:oklch(75% 0.18 80)"></span>{{ 'badge_under_review' | translate }}</div>
-    <div class="float-card fc-3"><span class="dot" style="background:oklch(62% 0.20 270)"></span>{{ 'badge_submitted' | translate }}</div>
-    <div class="float-card fc-4"><span class="dot" style="background:oklch(68% 0.18 145)"></span>{{ 'landing_peer_eval_demo' | translate }}</div>
+    <div class="float-card fc-1"><span class="dot" style="background:oklch(68% 0.18 145)"></span>Peer evaluation</div>
+    <div class="float-card fc-2"><span class="dot" style="background:oklch(75% 0.18 80)"></span>Structured feedback</div>
+    <div class="float-card fc-3"><span class="dot" style="background:oklch(62% 0.20 270)"></span>Submissions</div>
+    <div class="float-card fc-4"><span class="dot" style="background:oklch(68% 0.18 145)"></span>Evaluation rounds</div>
   </div>
 
   <div class="hero-content">
     <div class="hero-tag">
       <span class="pulse"></span>
-      <span>{{ 'hero_tag' | translate }}</span>
+      <span>Project-based learning</span>
     </div>
 
-    <h1 class="hero-title" id="title"></h1>
+    <h1 class="hero-title" id="title">You don’t pass.<br>Your peers <span class="gradient">pass you.</span></h1>
 
-    <p class="hero-sub">{{ 'hero_sub' | translate }}</p>
+    <p class="hero-sub">Submit your work. Evaluate your peers. Advance when others validate your learning.</p>
+
+    <div class="hero-audiences">
+      <div>
+        <h2>For students</h2>
+        <p>Submit work, review your peers’ projects, and receive structured feedback.</p>
+      </div>
+      <div>
+        <h2>For educators</h2>
+        <p>Organize classes, assignments, groups, and peer-evaluation rounds in one place.</p>
+      </div>
+    </div>
 
     <div class="hero-actions">
-      <a routerLink="/login" class="btn btn-primary btn-lg">{{ 'hero_btn_start' | translate }}</a>
-      <a href="#how" class="btn btn-ghost btn-lg">{{ 'hero_btn_how' | translate }}</a>
+      <a routerLink="/login" class="btn btn-primary btn-lg">Get started</a>
+      <a href="#how" class="btn btn-ghost btn-lg">How it works</a>
     </div>
   </div>
 
   <div class="scroll-hint">
-    <span>{{ 'hero_scroll_hint' | translate }}</span>
+    <span>Explore</span>
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
   </div>
 </section>
 
-<!-- ─── MARQUEE ─── -->
-<div class="marquee-wrap">
-  <div class="marquee">
-    <div class="marquee-item">{{ 'marquee_architecture' | translate }}</div>
-    <div class="marquee-item">{{ 'marquee_medicine' | translate }}</div>
-    <div class="marquee-item">{{ 'marquee_literature' | translate }}</div>
-    <div class="marquee-item">{{ 'marquee_economics' | translate }}</div>
-    <div class="marquee-item">{{ 'marquee_software' | translate }}</div>
-    <div class="marquee-item">{{ 'marquee_fine_arts' | translate }}</div>
-    <div class="marquee-item">{{ 'marquee_law' | translate }}</div>
-    <div class="marquee-item">{{ 'marquee_biology' | translate }}</div>
-    <div class="marquee-item">{{ 'marquee_product_design' | translate }}</div>
-    <div class="marquee-item">{{ 'marquee_psychology' | translate }}</div>
-    <div class="marquee-item">{{ 'marquee_mathematics' | translate }}</div>
-    <div class="marquee-item">{{ 'marquee_philosophy' | translate }}</div>
-    <div class="marquee-item">{{ 'marquee_architecture' | translate }}</div>
-    <div class="marquee-item">{{ 'marquee_medicine' | translate }}</div>
-    <div class="marquee-item">{{ 'marquee_literature' | translate }}</div>
-    <div class="marquee-item">{{ 'marquee_economics' | translate }}</div>
-    <div class="marquee-item">{{ 'marquee_software' | translate }}</div>
-    <div class="marquee-item">{{ 'marquee_fine_arts' | translate }}</div>
-    <div class="marquee-item">{{ 'marquee_law' | translate }}</div>
-    <div class="marquee-item">{{ 'marquee_biology' | translate }}</div>
-    <div class="marquee-item">{{ 'marquee_product_design' | translate }}</div>
-    <div class="marquee-item">{{ 'marquee_psychology' | translate }}</div>
-    <div class="marquee-item">{{ 'marquee_mathematics' | translate }}</div>
-    <div class="marquee-item">{{ 'marquee_philosophy' | translate }}</div>
-  </div>
-</div>
-
-<!-- ─── PEER NETWORK ─── -->
 <section id="how">
+  <div class="container">
+    <h2 class="section-title reveal">How it works</h2>
+    <div class="features-grid" style="margin-top:48px">
+      <div class="feature-card reveal reveal-d1">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        </div>
+        <div class="feature-title">Submit</div>
+        <div class="feature-desc">Students submit their work individually or as part of a group.</div>
+      </div>
+      <div class="feature-card reveal reveal-d2">
+        <div class="feature-icon cyan">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        </div>
+        <div class="feature-title">Review</div>
+        <div class="feature-desc">Peerofessor assigns students or groups to review one another’s work using the evaluation criteria provided for the assignment.</div>
+      </div>
+      <div class="feature-card reveal reveal-d3">
+        <div class="feature-icon green">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+        </div>
+        <div class="feature-title">Receive feedback</div>
+        <div class="feature-desc">Students receive scores and written feedback from their peers and can follow their progress across assignments.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="students">
   <div class="container">
     <div class="peer-section">
       <div>
-        <div class="overline reveal">{{ 'how_overline' | translate }}</div>
-        <h2 class="section-title reveal reveal-d1">{{ 'how_title_line1' | translate }}<br>{{ 'how_title_line2' | translate }}</h2>
-        <p class="section-sub reveal reveal-d2">{{ 'how_sub' | translate }}</p>
-
-        <div class="reveal reveal-d3" style="display:flex;gap:24px;margin-top:32px;font-family:var(--font-mono);font-size:0.8125rem">
-          <div><div style="color:var(--fg3);margin-bottom:4px">{{ 'how_stat_submit_label' | translate }}</div><div style="color:var(--violet-bright)">{{ 'how_stat_submit_value' | translate }}</div></div>
-          <div><div style="color:var(--fg3);margin-bottom:4px">{{ 'how_stat_eval_label' | translate }}</div><div style="color:var(--cyan)">{{ 'how_stat_eval_value' | translate }}</div></div>
-          <div><div style="color:var(--fg3);margin-bottom:4px">{{ 'how_stat_pass_label' | translate }}</div><div style="color:var(--green)">{{ 'how_stat_pass_value' | translate }}</div></div>
-        </div>
+        <div class="overline reveal">For students</div>
+        <h2 class="section-title reveal reveal-d1">Learn by reviewing,<br>not only by submitting</h2>
+        <p class="section-sub reveal reveal-d2">Peerofessor makes peer evaluation part of the learning process. Students see how others approach the same task, assess work using shared criteria, and receive feedback on their own submissions.</p>
       </div>
 
       <div class="peer-graph reveal reveal-d1">
@@ -128,144 +131,15 @@
   </div>
 </section>
 
-<!-- ─── EVAL DEMO ─── -->
-<section style="padding-top:0">
-  <div class="container">
-    <div class="overline reveal">{{ 'eval_overline' | translate }}</div>
-    <h2 class="section-title reveal reveal-d1">{{ 'eval_title_line1' | translate }} {{ 'eval_title_line2' | translate }}</h2>
-    <p class="section-sub reveal reveal-d2">{{ 'eval_sub' | translate }}</p>
-
-    <div class="eval-demo">
-      <div class="eval-card d1" style="--w:88%">
-        <div class="eval-card-header">
-          <div class="eval-avatar a">SR</div>
-          <div>
-            <div class="eval-name">Sofia Reyes</div>
-            <div class="eval-meta">{{ 'eval_field' | translate }} · 2026-04-19</div>
-          </div>
-        </div>
-        <div class="score-num">88<small>/100</small></div>
-        <div class="score-bar"><div class="score-bar-fill"></div></div>
-        <p class="eval-feedback">{{ 'eval_feedback_1' | translate }}</p>
-      </div>
-
-      <div class="eval-card d2" style="--w:91%">
-        <div class="eval-card-header">
-          <div class="eval-avatar b">MK</div>
-          <div>
-            <div class="eval-name">Marcus K.</div>
-            <div class="eval-meta">{{ 'eval_field' | translate }} · 2026-04-20</div>
-          </div>
-        </div>
-        <div class="score-num">91<small>/100</small></div>
-        <div class="score-bar"><div class="score-bar-fill"></div></div>
-        <p class="eval-feedback">{{ 'eval_feedback_2' | translate }}</p>
-      </div>
-
-      <div class="eval-card d3" style="--w:85%">
-        <div class="eval-card-header">
-          <div class="eval-avatar c">JL</div>
-          <div>
-            <div class="eval-name">Jordan Lee</div>
-            <div class="eval-meta">{{ 'eval_field' | translate }} · 2026-04-21</div>
-          </div>
-        </div>
-        <div class="score-num">85<small>/100</small></div>
-        <div class="score-bar"><div class="score-bar-fill"></div></div>
-        <p class="eval-feedback">{{ 'eval_feedback_3' | translate }}</p>
-      </div>
-    </div>
-
-    <div class="reveal reveal-d3" style="margin-top:32px;display:flex;align-items:center;justify-content:center;gap:14px;font-family:var(--font-mono);font-size:0.875rem;color:var(--fg2)">
-      <span>{{ 'eval_avg_label' | translate }}</span>
-      <span style="font-family:var(--font-display);font-size:1.5rem;font-weight:700;color:var(--green)">88</span>
-      <span>→</span>
-      <span style="background:oklch(18% 0.06 145);color:var(--green);border:1px solid oklch(36% 0.10 145);padding:3px 10px;border-radius:9999px;font-size:0.6875rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase">{{ 'badge_validated' | translate }}</span>
-    </div>
-  </div>
-</section>
-
-<!-- ─── FEATURES ─── -->
-<section id="features">
-  <div class="container">
-    <div class="overline reveal">{{ 'features_overline' | translate }}</div>
-    <h2 class="section-title reveal reveal-d1">{{ 'features_title_line1' | translate }}<br>{{ 'features_title_line2' | translate }}</h2>
-
-    <div class="features-grid" style="margin-top:48px">
-      <div class="feature-card reveal reveal-d1">
-        <div class="feature-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-        </div>
-        <div class="feature-title">{{ 'feature_1_title' | translate }}</div>
-        <div class="feature-desc">{{ 'feature_1_desc' | translate }}</div>
-      </div>
-      <div class="feature-card reveal reveal-d2">
-        <div class="feature-icon cyan">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-        </div>
-        <div class="feature-title">{{ 'feature_2_title' | translate }}</div>
-        <div class="feature-desc">{{ 'feature_2_desc' | translate }}</div>
-      </div>
-      <div class="feature-card reveal reveal-d3">
-        <div class="feature-icon green">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
-        </div>
-        <div class="feature-title">{{ 'feature_3_title' | translate }}</div>
-        <div class="feature-desc">{{ 'feature_3_desc' | translate }}</div>
-      </div>
-      <div class="feature-card reveal reveal-d1">
-        <div class="feature-icon cyan">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        </div>
-        <div class="feature-title">{{ 'feature_4_title' | translate }}</div>
-        <div class="feature-desc">{{ 'feature_4_desc' | translate }}</div>
-      </div>
-      <div class="feature-card reveal reveal-d2">
-        <div class="feature-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/></svg>
-        </div>
-        <div class="feature-title">{{ 'feature_5_title' | translate }}</div>
-        <div class="feature-desc">{{ 'feature_5_desc' | translate }}</div>
-      </div>
-      <div class="feature-card reveal reveal-d3">
-        <div class="feature-icon green">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="20 6 9 17 4 12"/></svg>
-        </div>
-        <div class="feature-title">{{ 'feature_6_title' | translate }}</div>
-        <div class="feature-desc">{{ 'feature_6_desc' | translate }}</div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ─── FOR INSTITUTES ─── -->
 <section id="institutes">
   <div class="container">
     <div class="peer-section">
       <div>
-        <div class="overline reveal">{{ 'institutes_overline' | translate }}</div>
-        <h2 class="section-title reveal reveal-d1">{{ 'institutes_title_line1' | translate }}<br>{{ 'institutes_title_line2' | translate }}</h2>
-        <p class="section-sub reveal reveal-d2">{{ 'institutes_sub' | translate }}</p>
+        <div class="overline reveal">For educators</div>
+        <h2 class="section-title reveal reveal-d1">Organize peer evaluation<br>without managing every pairing by hand</h2>
+        <p class="section-sub reveal reveal-d2">Create classes and assignments, organize students into groups, define evaluation rounds and criteria, and keep an overview of submissions and evaluations.</p>
 
-        <div class="reveal reveal-d3" style="display:flex;flex-direction:column;gap:16px;margin-top:32px;font-size:0.9375rem;color:var(--fg2);line-height:1.6">
-          <div style="display:flex;gap:12px;align-items:flex-start">
-            <span style="color:var(--violet);font-family:var(--font-mono);font-size:0.75rem;padding-top:3px">01</span>
-            <span>{{ 'institutes_step_1' | translate }}</span>
-          </div>
-          <div style="display:flex;gap:12px;align-items:flex-start">
-            <span style="color:var(--violet);font-family:var(--font-mono);font-size:0.75rem;padding-top:3px">02</span>
-            <span>{{ 'institutes_step_2' | translate }}</span>
-          </div>
-          <div style="display:flex;gap:12px;align-items:flex-start">
-            <span style="color:var(--violet);font-family:var(--font-mono);font-size:0.75rem;padding-top:3px">03</span>
-            <span>{{ 'institutes_step_3' | translate }}</span>
-          </div>
-        </div>
-
-        <div class="reveal reveal-d3" style="margin-top:36px;display:flex;gap:12px">
-          <a href="#" class="btn btn-primary">{{ 'institutes_btn_demo' | translate }}</a>
-          <a href="#" class="btn btn-ghost">{{ 'institutes_btn_docs' | translate }}</a>
-        </div>
+        <p class="section-sub reveal reveal-d3" style="margin-top:24px">Peerofessor handles the assignment of peer reviews while educators retain control over the course setup.</p>
       </div>
 
       <div class="peer-graph reveal reveal-d1">
@@ -279,23 +153,23 @@
           <!-- Cohort rings -->
           <circle cx="200" cy="200" r="140" fill="none" stroke="oklch(27% 0.03 272)" stroke-width="1" stroke-dasharray="3 5"/>
           <circle cx="200" cy="200" r="90"  fill="none" stroke="oklch(27% 0.03 272)" stroke-width="1" stroke-dasharray="3 5"/>
-          <!-- Institute hub -->
+          <!-- Course hub -->
           <circle cx="200" cy="200" r="28" fill="url(#inst-grad)" stroke="var(--violet)" stroke-width="1.5"
             filter="drop-shadow(0 0 16px oklch(64% 0.28 296 / 0.5))"/>
-          <text x="200" y="197" text-anchor="middle" font-family="'Space Grotesk',sans-serif" font-size="8" font-weight="700" fill="oklch(72% 0.28 296)">INST.</text>
-          <text x="200" y="208" text-anchor="middle" font-family="'Space Grotesk',sans-serif" font-size="7" fill="oklch(68% 0.01 272)">PANEL</text>
-          <!-- Inner ring: programme nodes -->
+          <text x="200" y="197" text-anchor="middle" font-family="'Space Grotesk',sans-serif" font-size="8" font-weight="700" fill="oklch(72% 0.28 296)">COURSE</text>
+          <text x="200" y="208" text-anchor="middle" font-family="'Space Grotesk',sans-serif" font-size="7" fill="oklch(68% 0.01 272)">SETUP</text>
+          <!-- Inner ring: group nodes -->
           <g id="prog-nodes">
             <circle cx="200" cy="110" r="16" fill="oklch(22% 0.08 296)" stroke="oklch(40% 0.16 296)" stroke-width="1"/>
-            <text x="200" y="113" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="7.5" fill="oklch(72% 0.28 296)">LAW</text>
+            <text x="200" y="113" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="7.5" fill="oklch(72% 0.28 296)">GROUP 1</text>
             <circle cx="280" cy="155" r="16" fill="oklch(20% 0.05 200)" stroke="oklch(38% 0.09 200)" stroke-width="1"/>
-            <text x="280" y="158" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="7.5" fill="oklch(72% 0.15 200)">ENG</text>
+            <text x="280" y="158" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="7.5" fill="oklch(72% 0.15 200)">GROUP 2</text>
             <circle cx="258" cy="258" r="16" fill="oklch(18% 0.06 145)" stroke="oklch(36% 0.10 145)" stroke-width="1"/>
-            <text x="258" y="261" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="7.5" fill="oklch(68% 0.18 145)">MED</text>
+            <text x="258" y="261" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="7.5" fill="oklch(68% 0.18 145)">GROUP 3</text>
             <circle cx="142" cy="258" r="16" fill="oklch(20% 0.06 80)"  stroke="oklch(38% 0.10 80)"  stroke-width="1"/>
-            <text x="142" y="261" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="7.5" fill="oklch(75% 0.18 80)">ART</text>
+            <text x="142" y="261" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="7.5" fill="oklch(75% 0.18 80)">GROUP 4</text>
             <circle cx="120" cy="155" r="16" fill="oklch(22% 0.08 296)" stroke="oklch(40% 0.16 296)" stroke-width="1"/>
-            <text x="120" y="158" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="7.5" fill="oklch(72% 0.28 296)">PHIL</text>
+            <text x="120" y="158" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-size="7.5" fill="oklch(72% 0.28 296)">GROUP 5</text>
           </g>
           <!-- Spokes -->
           <line x1="200" y1="172" x2="200" y2="126" stroke="oklch(40% 0.16 296 / 0.6)" stroke-width="1" stroke-dasharray="3 3"/>
@@ -317,49 +191,25 @@
   </div>
 </section>
 
-<!-- ─── STATS ─── -->
-<section id="stats" class="stats-section">
-  <div class="container">
-    <div class="stats-grid">
-      <div class="stat-block reveal">
-        <div class="stat-num" data-target="4200">0</div>
-        <div class="stat-label">{{ 'stats_active_learners' | translate }}</div>
-      </div>
-      <div class="stat-block reveal reveal-d1">
-        <div class="stat-num" data-target="89">0</div>
-        <div class="stat-label">{{ 'stats_avg_score' | translate }}</div>
-      </div>
-      <div class="stat-block reveal reveal-d2">
-        <div class="stat-num" data-target="34">0</div>
-        <div class="stat-label">{{ 'stats_institutions' | translate }}</div>
-      </div>
-      <div class="stat-block reveal reveal-d3">
-        <div class="stat-num" data-target="61000">0</div>
-        <div class="stat-label">{{ 'stats_evaluations' | translate }}</div>
-      </div>
-    </div>
-  </div>
-</section>
-
 <!-- ─── CTA ─── -->
 <section class="cta-section">
   <div class="cta-bg"></div>
-  <div class="overline reveal">{{ 'cta_overline' | translate }}</div>
+  <div class="overline reveal">Peerofessor</div>
   <h2 class="cta-title reveal reveal-d1">
-    {{ 'cta_title_line1' | translate }}<br><span class="gradient">{{ 'cta_title_line2' | translate }}</span>
+    A simple platform for<br><span class="gradient">structured peer review</span>
   </h2>
-  <p class="cta-sub reveal reveal-d2">{{ 'cta_sub' | translate }}</p>
+  <p class="cta-sub reveal reveal-d2">Peerofessor is being developed as a tool for courses and projects in which students learn both by producing their own work and by evaluating the work of others.</p>
   <div class="cta-actions reveal reveal-d3">
-    <a routerLink="/login" class="btn btn-primary btn-lg">{{ 'cta_btn_join' | translate }}</a>
-    <a href="#institutes" class="btn btn-ghost btn-lg">{{ 'cta_btn_institutions' | translate }}</a>
+    <a routerLink="/login" class="btn btn-primary btn-lg">Get started</a>
+    <a href="#institutes" class="btn btn-ghost btn-lg">For educators</a>
   </div>
 </section>
 
 <!-- ─── FOOTER ─── -->
 <footer>
-  <div>Peerofessor · {{ 'footer_tagline' | translate }} · v0.1</div>
+  <div>Peerofessor · Peer evaluation for project-based learning</div>
   <div class="links">
-    <a routerLink="/privacy-policy">{{ 'legal_footer_privacy' | translate }}</a>
-    <a routerLink="/terms-of-service">{{ 'legal_footer_terms' | translate }}</a>
+    <a routerLink="/privacy-policy">Privacy policy</a>
+    <a routerLink="/terms-of-service">Terms of service</a>
   </div>
 </footer>

@@ -1,6 +1,5 @@
 import {
   Component,
-  OnInit,
   AfterViewInit,
   OnDestroy,
   HostBinding,
@@ -8,27 +7,22 @@ import {
   NgZone,
   inject,
 } from '@angular/core';
-import { RouterLink, ActivatedRoute } from '@angular/router';
-import { TranslateModule, TranslateService } from '@ngx-translate/core';
-import type { Subscription } from 'rxjs';
+import { RouterLink } from '@angular/router';
 import { LogoComponent } from '../shared/logo.component';
-import { isSupportedLang, setLanguage } from '../languages/language.service';
 
 @Component({
   selector: 'app-landing',
   standalone: true,
-  imports: [RouterLink, LogoComponent, TranslateModule],
+  imports: [RouterLink, LogoComponent],
   templateUrl: './landing.component.html',
   styleUrl: './landing.component.css',
   encapsulation: ViewEncapsulation.None,
 })
-export class LandingComponent implements OnInit, AfterViewInit, OnDestroy {
+export class LandingComponent implements AfterViewInit, OnDestroy {
+  @HostBinding('attr.lang') readonly language = 'en';
+  @HostBinding('attr.dir') readonly direction = 'ltr';
   @HostBinding('style.display') readonly display = 'block';
   @HostBinding('style.overflowX') readonly overflowX = 'hidden';
-
-  private route = inject(ActivatedRoute);
-  private translate = inject(TranslateService);
-  private langChangeSub?: Subscription;
 
   // ─── Inject NgZone so we can run all DOM/animation work OUTSIDE it ───────
   // Angular Material imports BrowserAnimationsModule, which makes zone.js
@@ -44,27 +38,14 @@ export class LandingComponent implements OnInit, AfterViewInit, OnDestroy {
   private observers: IntersectionObserver[] = [];
   private rafId = 0;
 
-  ngOnInit(): void {
-    // /:lang (e.g. /en, /de, /ar, /hu) pins the active language before the
-    // page renders. Bare "/" leaves whatever language is already active.
-    const lang = this.route.snapshot.paramMap.get('lang');
-    if (isSupportedLang(lang)) {
-      setLanguage(this.translate, lang);
-    }
-  }
-
   ngAfterViewInit(): void {
     this.zone.runOutsideAngular(() => {
-      // Title and float-cards can start immediately – they use CSS keyframes,
-      // not transitions, so they're safe before the first paint.
       this.buildHeroTitle();
-      this.langChangeSub = this.translate.onLangChange.subscribe(() => this.buildHeroTitle());
       this.initCursorGlow();
       this.initNavScroll();
 
-      // Everything that relies on CSS *transitions* (reveal, score bars,
-      // counters) needs the browser to have painted the initial state first
-      // (opacity:0, transform:translateY(30px), width:0).
+      // Scroll reveals need the browser to have painted the initial state
+      // first (opacity:0, transform:translateY(30px)).
       //
       // ngAfterViewInit runs synchronously before the browser's first paint.
       // If we start observing right away, the IntersectionObserver fires
@@ -80,7 +61,6 @@ export class LandingComponent implements OnInit, AfterViewInit, OnDestroy {
         requestAnimationFrame(() =>
           setTimeout(() => {
             this.initScrollReveal();
-            this.initCounters();
             this.initFloatCards();
             this.initPeerGraph();
           }, 60)
@@ -94,7 +74,6 @@ export class LandingComponent implements OnInit, AfterViewInit, OnDestroy {
     this.intervals.forEach(clearInterval);
     this.observers.forEach(o => o.disconnect());
     cancelAnimationFrame(this.rafId);
-    this.langChangeSub?.unsubscribe();
   }
 
   // ─── Helper: register a listener so it's cleaned up on destroy ───────────
@@ -108,47 +87,13 @@ export class LandingComponent implements OnInit, AfterViewInit, OnDestroy {
     this.listeners.push({ target, type, fn });
   }
 
-  // ─── Title: character-by-character reveal via CSS keyframes ──────────────
-  // The title is built from translation keys rather than a static string, so
-  // it must be rebuilt whenever the active language changes (see the
-  // onLangChange subscription in ngAfterViewInit).
+  // Keep the last committed character reveal and animated letter gradients,
+  // with fixed English copy independent of the application's language.
   private buildHeroTitle(): void {
-    this.translate.get([
-      'hero_title_line1',
-      'hero_title_line2_pre',
-      'hero_title_line2_gradient',
-      'hero_title_line2_post',
-    ]).subscribe(t => {
-      const PARTS = [
-        t['hero_title_line1'], '\n',
-        t['hero_title_line2_pre'], t['hero_title_line2_gradient'], t['hero_title_line2_post'],
-      ];
-      // Line 1: plain text. Line 2: plain prefix + gradient phrase + plain suffix.
-      this.renderTitleChars(PARTS, 3);
-    });
-  }
-
-  private renderTitleChars(parts: string[], gradientPartIdx: number): void {
     const titleEl = document.getElementById('title');
     if (!titleEl) return;
-
-    // Arabic letters join with their neighbours to form connected script —
-    // splitting them into one span per character (as the Latin char-reveal
-    // does below) breaks that shaping entirely. Reveal whole words instead.
-    if (this.translate.currentLang === 'ar') {
-      let html = '';
-      let delay = 0;
-      for (let partIdx = 0; partIdx < parts.length; partIdx++) {
-        const part = parts[partIdx];
-        if (part === '\n') { html += '<br>'; continue; }
-        const cls = partIdx === gradientPartIdx ? 'word gradient' : 'word';
-        html += `<span class="${cls}" style="animation-delay:${delay}ms">${part}</span>`;
-        delay += 120;
-      }
-      titleEl.innerHTML = html;
-      return;
-    }
-
+    const parts = ['You don’t pass.', '\n', 'Your peers ', 'pass you.'];
+    const gradientPartIdx = 3;
     let html = '';
     let delay = 0;
     for (let partIdx = 0; partIdx < parts.length; partIdx++) {
@@ -205,39 +150,6 @@ export class LandingComponent implements OnInit, AfterViewInit, OnDestroy {
     );
 
     document.querySelectorAll<HTMLElement>('.reveal, .eval-card').forEach(el =>
-      io.observe(el)
-    );
-    this.observers.push(io);
-  }
-
-  // ─── Counters: count-up animation driven by rAF ───────────────────────────
-  private initCounters(): void {
-    const io = new IntersectionObserver(
-      entries => {
-        for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
-          const el = entry.target as HTMLElement;
-          const target = +(el.dataset['target'] ?? 0);
-          const duration = 1800;
-          const start = performance.now();
-          const isLarge = target >= 1000;
-
-          const tick = (now: number) => {
-            const t = Math.min(1, (now - start) / duration);
-            const eased = 1 - Math.pow(1 - t, 3);
-            el.textContent = isLarge
-              ? Math.round(target * eased).toLocaleString()
-              : String(Math.round(target * eased));
-            if (t < 1) requestAnimationFrame(tick);
-          };
-          requestAnimationFrame(tick);
-          io.unobserve(el);
-        }
-      },
-      { threshold: 0.5 }
-    );
-
-    document.querySelectorAll<HTMLElement>('[data-target]').forEach(el =>
       io.observe(el)
     );
     this.observers.push(io);
