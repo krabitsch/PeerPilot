@@ -67,4 +67,16 @@ describe('assignment participation and pairing management',()=>{
     http().expectOne('/api/eval/assignment/1/management').flush(summary());
   });
 
+  it('generation shows the domain-level impossible-allocation error and keeps the modal open',()=>{
+    const f=page(),c=f.componentInstance;
+    c.open('generate');http().expectOne('/api/eval/assignment/1/management').flush(summary());
+    c.generate();
+    const message='Unable to generate all evaluation pairings without repeating evaluator/evaluee encounters. Reduce the number of required evaluation rounds or add more participating groups.';
+    http().expectOne('/api/eval/assignment/1/generate-simple-pairings').flush({error:message},{status:400,statusText:'Bad Request'});
+    f.detectChanges();
+    expect(c.modal()).toBe('generate');
+    expect(c.loading()).toBe(false);
+    expect(f.nativeElement.textContent).toContain(message);
+  });
+
 });

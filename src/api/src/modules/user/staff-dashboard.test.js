@@ -58,6 +58,7 @@ test('staff route rejects students and scopes queries to the authenticated organ
   vm.runInNewContext(fs.readFileSync(__dirname+'/routes.js','utf8'),{
     module:{exports:{}},require:name=>{
       if(name==='express')return {Router:()=>router}
+      if(name==='@transcendence/errors')return require('../../../../packages/errors')
       if(name==='./service')return {}
       if(name==='../../middleware/authenticate')return {requireStaff:staff,requireRole:()=>()=>{},requireSelfOrStaff:()=>()=>{}}
       if(name==='@transcendence/filemanager')return {uploader:{single:()=>()=>{}}}

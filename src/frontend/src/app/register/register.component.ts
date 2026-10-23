@@ -109,7 +109,8 @@ export class RegisterComponent {
     }
 
     this.submitting.set(true);
-    this.auth.register(this.email(), this.password()).subscribe({
+    const submittedPassword = this.password();
+    this.auth.register(this.email(), submittedPassword).subscribe({
       next: () => {
         this.submitting.set(false);
         this.success.set(true);
@@ -121,9 +122,16 @@ export class RegisterComponent {
           this.errorMsg.set(this.translate.instant('error_email_not_invited'));
         } else if (err.status === 409) {
           this.errorMsg.set(this.translate.instant('error_account_exists'));
-        } else if (err.status === 400 && body?.suggestions?.length) {
+        } else if (err.status === 400 && Array.isArray(body?.suggestions)) {
           this.errorMsg.set(this.translate.instant('error_password_weak'));
-          this.suggestions.set(body.suggestions);
+          // Presentation only: zxcvbn on the server remains the authority.
+          // Length chooses the most useful hint; it adds no acceptance rule.
+          this.suggestions.set([
+            submittedPassword.length < 12
+              ? 'Use a longer password or passphrase.'
+              : 'Avoid common passwords and predictable patterns.',
+            'Try combining several unrelated words, numbers, or symbols.',
+          ]);
         } else {
           this.errorMsg.set(body?.error || this.translate.instant('error_registration_failed'));
         }

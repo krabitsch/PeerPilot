@@ -22,8 +22,8 @@ export class UserService {
         return this.http.get<any>(`${this.base}/${id}/profile`)
     }
 
-    updateProfile(id: number, bio: string) {
-        return this.http.patch(`${this.base}/${id}/profile`, { bio })
+    updateProfile(id: number, changes: { bio?: string; username?: string }) {
+        return this.http.patch(`${this.base}/${id}/profile`, changes)
     }
 
     uploadAvatar(id: number, file: File) {

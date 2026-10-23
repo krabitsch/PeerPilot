@@ -133,7 +133,7 @@ export class UserProfileComponent implements OnInit {
             icon:      'person',
             label:     'label_username',
             value:     this.user()?.username,
-            allowEdit: false,
+            allowEdit: true,
             required:  true,
         },
         {
@@ -202,6 +202,12 @@ export class UserProfileComponent implements OnInit {
         }
 
         const bioChange     = this.changes.get('label_bio');
+        const usernameChange = this.changes.get('label_username');
+        const username = usernameChange === undefined ? undefined : String(usernameChange.value ?? '').trim();
+        if (username === '') {
+            this.errorMsg.set('Username must not be empty.');
+            return;
+        }
         const avatarFile    = this.files.get('label_avatar');
         // Local base64 preview (set by FieldComponent via FileReader) — render
         // this immediately instead of the freshly-uploaded remote URL, which
@@ -209,8 +215,11 @@ export class UserProfileComponent implements OnInit {
         const avatarPreview = this.changes.get('label_avatar')?.value as string | undefined;
 
         const calls: Record<string, any> = {};
-        if (bioChange !== undefined) {
-            calls['bio'] = this.userService.updateProfile(userId, bioChange.value as string ?? '');
+        const profileChanges: { bio?: string; username?: string } = {};
+        if (bioChange !== undefined) profileChanges.bio = bioChange.value as string ?? '';
+        if (username !== undefined && username !== this.user()?.username) profileChanges.username = username;
+        if (Object.keys(profileChanges).length) {
+            calls['profile'] = this.userService.updateProfile(userId, profileChanges);
         }
         if (avatarFile) {
             calls['avatar'] = this.userService.uploadAvatar(userId, avatarFile);
@@ -225,16 +234,16 @@ export class UserProfileComponent implements OnInit {
         this.loading.show();
         forkJoin(calls).subscribe({
             next: (results: Record<string, any>) => {
-                // Both endpoints return the upserted userProfile row (bio, avatar,
-                // last_update) — merge whichever ones ran into the cached user.
+                // Merge profile fields and publish the saved username to all consumers.
+                const { username: savedUsername, ...savedProfile } = results['profile'] ?? {};
                 const profilePatch: Record<string, unknown> = {
-                    ...results['bio'],
+                    ...savedProfile,
                     ...results['avatar'],
                 };
                 // Swap in the local preview so the new avatar renders instantly;
                 // the real persisted URL will load next time /me is fetched.
                 if (avatarPreview) profilePatch['avatar'] = avatarPreview;
-                this.userAuth.updateUser({ profile: profilePatch as any });
+                this.userAuth.updateUser({ username: savedUsername, profile: profilePatch as any });
                 this.loading.hide();
                 this.changes.clear();
                 this.files.clear();

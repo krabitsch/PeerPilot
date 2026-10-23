@@ -1,6 +1,7 @@
 const crypto = require('crypto')
 const { prisma } = require('@transcendence/database')
 const { ValidationError, ConflictError, NotFoundError } = require('@transcendence/errors')
+const encounters = require('./encounters')
 const participation = require('../participation/service')
 const { summarizeEvaluationRounds, evaluationOutcome, responseSelect } = require('./outcome')
 
@@ -13,6 +14,7 @@ const buildSummary = (assignment,participants,groups,pairings,workloads) => {
   const people=participants.map(p=>({...p,...counts.get(p.id)}))
   const eligibleIds=new Set(people.filter(p=>p.evalueeEligible).map(p=>p.id))
   const evalueeGroups=groups.map(g=>({...g,eligible:g.members.length>0 && g.members.every(m=>eligibleIds.has(m.userId))}))
+  const used=encounters.usedEncounters(pairings,groups)
   const slots=[]
   for (const group of evalueeGroups.filter(g=>g.eligible)) {
     const attempts=pairings.filter(p=>p.evalueeGroupId===group.id)
@@ -27,7 +29,8 @@ const buildSummary = (assignment,participants,groups,pairings,workloads) => {
         ...failed.map(p=>p.evaluatorUserId)
       ])
       const previousEvaluatorIds=failed.map(p=>p.evaluatorUserId)
-      const candidates=people.filter(p=>p.evaluatorEligible&&!excluded.has(p.id))
+      const candidates=people.filter(p=>p.evaluatorEligible&&!excluded.has(p.id)&&
+          encounters.available({groupId:group.id},p.id,groups,used))
         .map(p=>({...p,alreadyEvaluated:attempts.some(a=>a.evaluatorUserId===p.id&&a.status!=='Cancelled')}))
         .sort((a,b)=>a.courseCount-b.courseCount||a.assignmentCount-b.assignmentCount||
           Number(a.alreadyEvaluated)-Number(b.alreadyEvaluated)||a.id-b.id)
@@ -60,6 +63,9 @@ const loadSummary = async (db,assignment) => {
 }
 const getSummary = async (id,actor) => loadSummary(prisma,await participation.assignmentForStaff(prisma,id,actor))
 const newPairing = async (db,assignment,summary,slot,userId) => {
+  if (slot && encounters.usedEncounters(summary.pairings,summary.groups).has(
+    encounters.keyFor({evaluatorUserId:userId,evalueeGroupId:slot.groupId},summary.groups)))
+    throw new ConflictError(encounters.DUPLICATE)
   if (!slot?.candidateIds.includes(userId)) throw new ValidationError('Select an eligible evaluator for a currently missing or retry slot')
   let passKey
   for (let attempt=0;attempt<20;attempt++) {
@@ -82,23 +88,20 @@ const generateMissing = (id,{groupIds,participants,slots:selectedSlots}={},actor
   if (groupIds!==undefined && (!Array.isArray(groupIds)||groupIds.some(id=>!summary.groups.some(g=>g.id===id&&g.eligible))))
     throw new ValidationError('Select valid evaluee groups')
   const included=new Set(groupIds??summary.groups.filter(g=>g.eligible).map(g=>g.id))
-  const created=[],unfilled=[]
-  // Rebuild counts in memory after each allocation; one initial batch of DB reads.
-  const rawPairings=await db.evalAssignment.findMany({where:{assignmentId:a.id},include:{evalResponse:{select:responseSelect},evaluatorUser:{select:{id:true,username:true}}}})
-  const workloads=await db.evalAssignment.findMany({where:{assignment:{classid:a.classid},status:{not:'Cancelled'}},select:{assignmentId:true,evaluatorUserId:true,status:true}})
   if (selectedSlots !== undefined && (!Array.isArray(selectedSlots) || selectedSlots.some(s =>
     !summary.slots.some(valid => valid.groupId === s.groupId && valid.round === s.round))))
     throw new ValidationError('Select currently missing or retry pairing slots')
   const slots=summary.slots.filter(s=>included.has(s.groupId) && (selectedSlots === undefined ||
     selectedSlots.some(selected => selected.groupId === s.groupId && selected.round === s.round)))
-  for (const initial of slots) {
-    summary=buildSummary(a,summary.participants,summary.groups,rawPairings,workloads)
-    const slot=summary.slots.find(s=>s.groupId===initial.groupId&&s.round===initial.round)
-    if (!slot?.candidateIds.length) {unfilled.push(initial);continue}
-    const row=await newPairing(db,a,summary,slot,slot.candidateIds[0])
-    created.push(row);rawPairings.push(row);workloads.push(row)
+  const plan=encounters.planPairings(a,summary,slots)
+  // Search and full-set validation finish before the first insert. The existing
+  // course lock and transaction cover manual generation, retries and overrides.
+  const created=[]
+  for (const row of plan) {
+    const slot=slots.find(s=>s.groupId===row.evalueeGroupId&&s.round===row.round)
+    created.push(await newPairing(db,a,summary,slot,row.evaluatorUserId))
   }
-  return {count:created.length,unfilled, message:`Created ${created.length} missing pairings; ${unfilled.length} slots still need an eligible evaluator.`}
+  return {count:created.length,unfilled:[],message:`Created ${created.length} missing pairings without repeated encounters.`}
 })
 // Cancelling pending work retains history and never deletes a submitted response.
 const cancelPairing = async (id,actor) => {

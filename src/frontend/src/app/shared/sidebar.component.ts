@@ -17,6 +17,7 @@ interface NavItem {
   icon: string;
   roles: string[];
   badge?: number;
+  separateBefore?: boolean;
   queryParams?: Record<string, string>;
 }
 
@@ -81,6 +82,9 @@ const NAV_ITEMS: NavItem[] = [
       <!-- Nav items -->
       <div style="flex:1;padding:12px 8px;display:flex;flex-direction:column;gap:2px;overflow-y:auto">
         @for (item of visibleItems(); track item.id) {
+          @if (item.separateBefore) {
+            <div class="nav-divider" role="separator"></div>
+          }
           <a [routerLink]="item.route"
              [queryParams]="item.queryParams ?? null"
              [ngStyle]="navItemStyle(item)"
@@ -107,6 +111,7 @@ const NAV_ITEMS: NavItem[] = [
   `,
   styles: [`
     a { text-decoration: none; }
+    .nav-divider { border-top: 1px solid ${DS.colors.borderSubtle}; margin: 12px 8px; }
 
     .sidebar-nav {
       width: 240px;
@@ -172,7 +177,10 @@ export class SidebarComponent {
 
   visibleItems = computed(() => {
     const role = this.user()?.role ?? 'Student';
-    return NAV_ITEMS.filter(i => i.roles.includes(role));
+    const items = NAV_ITEMS.filter(i => i.roles.includes(role));
+    if (role !== 'Bocal') return items;
+    const evaluator = items.find(i => i.id === 'student-evaluations')!;
+    return [...items.filter(i => i !== evaluator), { ...evaluator, separateBefore: true }];
   });
 
   logout() { this.auth.logout(); }

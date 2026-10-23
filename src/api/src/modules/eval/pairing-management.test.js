@@ -42,7 +42,7 @@ function harness(){
   }
   db.$transaction=async fn=>{const saved=structuredClone(state);try{return await fn(db)}catch(e){Object.assign(state,saved);throw e}}
   const participation=load(path.join(__dirname,'../participation/service.js'),db)
-  const management=load(path.join(__dirname,'pairing-management.js'),db,{'../participation/service':participation,'./outcome':outcome})
+  const management=load(path.join(__dirname,'pairing-management.js'),db,{'../participation/service':participation,'./outcome':outcome,'./encounters':load(path.join(__dirname,'encounters.js'),db)})
   const groups=load(path.join(__dirname,'../group/service.js'),db,{'../participation/service':participation,'@transcendence/utils':{}})
   return {state,db,participation,management,groups}
 }
@@ -87,7 +87,7 @@ test('H/I/J: workload includes retries, excludes cancellation, and course total 
   assert.equal(r.participants.find(p=>p.id===4).courseCount,1)
   assert.equal(r.participants.find(p=>p.id===4).assignmentCount,1)
   const slot=r.slots.find(s=>s.groupId===2&&s.round===1)
-  // User 1 has zero course workload and is valid for group 2.
+  // User 1 has zero course workload and has not encountered group 2.
   assert.equal(slot.candidateIds[0],1)
   h.state.groups=[group(1,[1,2])];h.state.pairings=[{id:10,assignmentId:2,evaluatorUserId:3,status:'Pending'},{id:11,assignmentId:2,evaluatorUserId:3,status:'Submitted'}]
   await h.management.generateMissing(1,{},staff)
@@ -95,7 +95,7 @@ test('H/I/J: workload includes retries, excludes cancellation, and course total 
 })
 test('K/U: manual creation rejects self-evaluation and ineligible evaluators',async()=>{
   const h=harness()
-  await assert.rejects(h.management.createPairing({assignmentId:1,evalueeGroupId:1,round:1,evaluatorUserId:1},staff),/eligible evaluator/)
+  await assert.rejects(h.management.createPairing({assignmentId:1,evalueeGroupId:1,round:1,evaluatorUserId:1},staff),/cannot evaluate itself/)
   await assert.rejects(h.management.createPairing({assignmentId:1,evalueeGroupId:1,round:1,evaluatorUserId:20},staff),/eligible evaluator/)
   await assert.rejects(h.management.createPairing({assignmentId:1,evalueeGroupId:1,round:99,evaluatorUserId:3},staff),/eligible evaluator/)
 })
@@ -145,15 +145,15 @@ test('feedback awaiting response/recording and unrequested failures stay outside
     assert(!r.slots.some(s=>s.groupId===1&&s.round===1))
   }
 })
-test('group exclusions apply only to this generation; empty capacity leaves slots queued',async()=>{
-  const h=harness();h.state.users=[user(1),user(2)]
+test('group exclusions apply only to this generation; impossible selections roll back',async()=>{
+  const h=harness();h.state.users=[user(1),user(2),user(3)]
   const r=await h.management.generateMissing(1,{groupIds:[1]},staff)
   assert.equal(r.count,2);assert.equal(r.unfilled.length,0)
   assert(h.state.pairings.every(p=>p.evalueeGroupId===1))
   assert.equal(h.state.groups.length,2)
   h.state.users=[user(1)];h.state.pairings=[]
-  const empty=await h.management.generateMissing(1,{groupIds:[1]},staff)
-  assert.equal(empty.count,0);assert.equal(empty.unfilled.length,2)
+  await assert.rejects(h.management.generateMissing(1,{groupIds:[1]},staff),/Unable to generate all/)
+  assert.equal(h.state.pairings.length,0)
 })
 test('W: service refuses students and other organisations',async()=>{
   const h=harness()
@@ -193,4 +193,126 @@ test('generation honors selected round slots and never fills an unchecked round'
   assert.equal(h.state.pairings.length,1)
   assert.equal(h.state.pairings[0].evalueeGroupId,1)
   assert.equal(h.state.pairings[0].round,2)
+})
+
+function soloCohort(n, rounds=2) {
+  const h=harness()
+  h.state.users=Array.from({length:n},(_,i)=>user(i+1))
+  h.state.groups=h.state.users.map(p=>group(p.id,[p.id]))
+  h.db.assignment.findUnique=async()=>({...assignment,req_eval:rounds,groupSize:1})
+  return h
+}
+function assertUnique(rows) {
+  const keys=new Set()
+  for(const p of rows.filter(p=>p.status!=='Cancelled')) {
+    assert.notEqual(p.evaluatorGroupId,p.evalueeGroupId)
+    const key=[p.evaluatorGroupId,p.evalueeGroupId].sort((a,b)=>a-b).join(':')
+    assert(!keys.has(key),`Repeated encounter ${key}`);keys.add(key)
+  }
+}
+test('regression A/B/C/D: same-round reverse, later reverse, same-direction repeat and self are rejected manually',async()=>{
+  for(const round of [1,2]) {
+    const h=soloCohort(6)
+    await h.management.createPairing({assignmentId:1,evalueeGroupId:2,evaluatorUserId:1,round:1},staff)
+    for(const [target,evaluator] of [[1,2],[2,1]]) {
+      await assert.rejects(h.management.createPairing({assignmentId:1,evalueeGroupId:target,evaluatorUserId:evaluator,round},staff),/already meet|eligible evaluator/)
+    }
+    await assert.rejects(h.management.createPairing({assignmentId:1,evalueeGroupId:3,evaluatorUserId:3,round},staff),/cannot evaluate itself/)
+    assert.equal(h.state.pairings.length,1)
+  }
+})
+test('regression E: seeded rotation fills all 5, 6 and 108 solo participants, with balanced rounds and unique encounters',async()=>{
+  for(const n of [5,6,108]) {
+    const h=soloCohort(n)
+    const result=await h.management.generateMissing(1,{},staff)
+    assert.equal(result.count,n*2)
+    assertUnique(h.state.pairings)
+    for(const round of [1,2]) {
+      const rows=h.state.pairings.filter(p=>p.round===round)
+      assert.equal(rows.length,n)
+      assert.equal(new Set(rows.map(p=>p.evalueeGroupId)).size,n)
+      assert.equal(new Set(rows.map(p=>p.evaluatorUserId)).size,n)
+    }
+  }
+})
+test('regression F: impossible cohort rolls back batch and participation changes, without saving a partial result',async()=>{
+  const h=soloCohort(4)
+  await assert.rejects(h.management.generateMissing(1,{participants:[{userId:4,evaluatorEligible:false}]},staff),/Unable to generate all/)
+  assert.equal(h.state.pairings.length,0);assert.equal(h.state.overrides.length,0)
+})
+test('history across generation batches and inferred legacy evaluator groups prevents reverse/repeated encounters',async()=>{
+  const h=soloCohort(6)
+  const first=await h.management.generateMissing(1,{slots:h.state.groups.map(g=>({groupId:g.id,round:1}))},staff)
+  assert.equal(first.count,6)
+  // Simulate legacy rows whose group column was not filled.
+  for(const p of h.state.pairings)p.evaluatorGroupId=null
+  const result=await h.management.generateMissing(1,{},staff)
+  assert.equal(result.count,6)
+  const rows=h.state.pairings.map(p=>({...p,evaluatorGroupId:p.evaluatorGroupId??p.evaluatorUserId}))
+  assertUnique(rows)
+})
+test('two members of the same evaluator group cannot reuse an encounter, including retries',async()=>{
+  const h=soloCohort(6)
+  h.state.groups[1].members.push({userId:7,user:user(7)})
+  h.state.users.push(user(7))
+  await h.management.createPairing({assignmentId:1,evalueeGroupId:1,evaluatorUserId:2,round:1},staff)
+  await assert.rejects(h.management.createPairing({assignmentId:1,evalueeGroupId:1,evaluatorUserId:7,round:2},staff),/already meet/)
+  Object.assign(h.state.pairings[0],failure(1,2),{evaluatorGroupId:2})
+  const summary=await h.management.getSummary(1,staff)
+  const retry=summary.slots.find(s=>s.groupId===1&&s.round===1)
+  assert(!retry.candidateIds.includes(7))
+  await h.management.generateMissing(1,{slots:[{groupId:1,round:1}]},staff)
+  assertUnique(h.state.pairings)
+})
+test('cancelled unperformed encounters release capacity, while cancelled rows with feedback retain it',async()=>{
+  const h=soloCohort(6)
+  const row=await h.management.createPairing({assignmentId:1,evalueeGroupId:1,evaluatorUserId:2,round:1},staff)
+  await h.management.cancelPairing(row.id,staff)
+  await h.management.createPairing({assignmentId:1,evalueeGroupId:2,evaluatorUserId:1,round:2},staff)
+  row.evalResponseId=77
+  await assert.rejects(h.management.createPairing({assignmentId:1,evalueeGroupId:1,evaluatorUserId:2,round:2},staff),/already meet/)
+})
+test('legacy conflicting pending batch is detected, preserved, and not expanded',async()=>{
+  const h=soloCohort(6)
+  h.state.pairings=[
+    {id:1,assignmentId:1,evalueeGroupId:1,evaluatorGroupId:2,evaluatorUserId:2,round:1,status:'Pending'},
+    {id:2,assignmentId:1,evalueeGroupId:2,evaluatorGroupId:1,evaluatorUserId:1,round:2,status:'Pending'}]
+  await assert.rejects(h.management.generateMissing(1,{},staff),/Existing evaluation pairings repeat encounters/)
+  assert.equal(h.state.pairings.length,2)
+})
+test('write failure rolls back every pairing inserted earlier in the batch',async()=>{
+  const h=soloCohort(6),create=h.db.evalAssignment.create
+  let attempts=0
+  h.db.evalAssignment.create=async args=>{if(++attempts===3)throw new Error('simulated failure');return create(args)}
+  await assert.rejects(h.management.generateMissing(1,{},staff),/simulated failure/)
+  assert.equal(h.state.pairings.length,0)
+})
+
+test('constrained matching agrees with exhaustive feasibility across every four-group one-round candidate graph',()=>{
+  const h=soloCohort(4)
+  const encounters=load(path.join(__dirname,'encounters.js'),h.db)
+  const participants=h.state.users.map(p=>({...p,evaluatorEligible:true,courseCount:0,assignmentCount:0}))
+  const groups=h.state.groups.map(g=>({...g,eligible:true}))
+  const summary={participants,groups,pairings:[]}
+  // Choose any nonempty subset of the three other evaluators for each slot.
+  // This includes Hall bottlenecks where a greedy choice must be reassigned.
+  for(let graph=0;graph<7**4;graph++) {
+    let mask=graph
+    const slots=groups.map(g=>{
+      const subset=mask%7+1;mask=Math.floor(mask/7)
+      return {groupId:g.id,round:1,candidateIds:participants.filter(p=>p.id!==g.id).filter((_,i)=>subset&(1<<i)).map(p=>p.id)}
+    })
+    const brute=(i,used)=>{
+      if(i===slots.length)return true
+      return slots[i].candidateIds.some(id=>{
+        const key=[slots[i].groupId,id].sort().join(':')
+        return !used.has(key)&&brute(i+1,new Set([...used,key]))
+      })
+    }
+    const possible=brute(0,new Set())
+    if(possible) {
+      const plan=encounters.planPairings({...assignment,req_eval:2},summary,slots)
+      assert.equal(plan.length,4);assertUnique(plan)
+    } else assert.throws(()=>encounters.planPairings({...assignment,req_eval:2},summary,slots),/Unable to generate all/)
+  }
 })

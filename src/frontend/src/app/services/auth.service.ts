@@ -93,11 +93,12 @@ export class AuthService {
   isLoggedIn(): boolean { return !!this.accessToken(); }
   getRole(): string | null { return this.user()?.role ?? null; }
 
-  updateUser(partial: { profile?: Partial<UserProfile> }): void {
+  updateUser(partial: { username?: string; profile?: Partial<UserProfile> }): void {
     this.userSignal.update(u => {
       if (!u) return u;
       return {
         ...u,
+        ...(partial.username !== undefined ? { username: partial.username } : {}),
         profile: u.profile
           ? { ...u.profile, ...partial.profile }
           : partial.profile as UserProfile,

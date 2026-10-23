@@ -3,6 +3,7 @@ const userService = require('./service')
 const { requireStaff, requireRole, requireSelfOrStaff } = require('../../middleware/authenticate')
 
 const router = express.Router()
+const { ForbiddenError } = require('@transcendence/errors')
 const {uploader} = require('@transcendence/filemanager')
 
 router.get('/me/staff-dashboard', requireStaff, async (req, res, next) => {
@@ -54,7 +55,11 @@ router.get('/:id/profile', async (req, res, next)=>{
 
 router.patch('/:id/profile', requireSelfOrStaff('id'), async (req, res, next)=>{
   try{
-    res.json(await userService.updateProfile(req.params.id, req.body.bio));
+    // Staff may retain existing bio editing, but account renaming is self-only.
+    if (req.body.username !== undefined && Number(req.params.id) !== req.user.userId) {
+      throw new ForbiddenError('You can only change your own username')
+    }
+    res.json(await userService.updateProfile(req.params.id, req.body.bio, req.body.username));
   }catch(err){
     next(err)
   }

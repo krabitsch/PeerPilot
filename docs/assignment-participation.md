@@ -34,20 +34,34 @@ group, and every evaluator already attempted in that same round. In particular,
 failed evaluators are never reused for their failed round. The existing unique
 pairing identity also prevents reusing a cancelled evaluator/group/round tuple;
 cancellation therefore requires choosing a different evaluator for that slot.
-Reusing an evaluator in a *different* round is permitted when necessary.
+Unordered group encounters are unique across the entire assignment, including
+submitted failed attempts and retries. A reverse-direction pairing is the same
+encounter. Legacy rows without an evaluator group derive it from membership;
+evaluator-only participants without a group use a distinct user identity.
+Cancelled, unperformed attempts release the encounter, but their historical
+same-round database tuple remains unavailable.
 
-Allocation preference is lexicographic: lowest course workload, lowest assignment
-workload, not previously assigned to this group, then user ID. Workload includes
+For irregular pools, free encounters are preferred before rerouting earlier
+choices; evaluator choices prefer lowest course workload, lowest assignment
+workload, then user ID. Workload includes
 Pending and Submitted attempts, including retries, and excludes Cancelled work.
-Counts are incremented after each allocation within a generation run. Participation,
-group creation/addition and pairing generation lock the course row to serialize
+Complete fresh cohorts reuse seeded circular offsets, limited to
+`floor((groupCount - 1) / 2)` rounds to avoid reverse encounters. Each group
+reviews one other group per round; eligible members are chosen by workload.
+Irregular pools and missing/retry batches use augmenting-path matching between
+required slots and unordered encounter resources. Evaluator-only users retain
+support for multiple tasks; no new per-user hard quota is imposed. A previous
+choice can be reassigned to find a complete result. Full slot counts, eligibility,
+self-pairing and assignment-wide encounter uniqueness are verified before inserts.
+Participation, group creation/addition and pairing generation lock the course row to serialize
 these operations and balance against current course counts.
 
 **Generate missing pairings** opens a preview/configuration modal. Group exclusions
 apply to that run only. Evaluator-pool changes persist to the same participation
-overrides in the generation transaction. Slots without candidates remain queued
-and the result reports their number; valid slots can still be filled. **Create
-single pairing** uses the same slot/candidate validation and workload counts.
+overrides in the generation transaction. Every selected slot must be filled, or
+generation fails with an actionable domain error and rolls back the entire batch,
+including pool changes. No partial batch is saved. **Create single pairing** uses
+the same slot/candidate validation and workload counts.
 
 Every replacement is a new `EvalAssignment` in the same required round with a new
 unique six-digit passkey. Previous attempts, keys, feedback and submission files
@@ -55,6 +69,18 @@ are unchanged. A uniqueness collision aborts safely; the operation can be retrie
 Repeated generation preserves valid Pending/Submitted pairings. Submitted attempts
 cannot be edited/deleted through management. Pending pairings may be cancelled,
 retaining their history. Bulk deletion and in-place identity edits are rejected.
+
+### Repairing a legacy conflicting schedule
+
+Generation fills missing slots; it does **not** rebuild existing pending work.
+After deploying the encounter fix, use **Cancel pending pairing** on each pending
+attempt that should be reallocated (cancel all pending attempts to rebuild the
+pending schedule), then **Generate missing pairings**. Pending cancellations
+retain history and release encounter capacity. Submitted feedback remains in
+place and continues reserving its encounter. Existing duplicate submitted
+encounters require a separate reviewed data-repair decision, never automatic
+response deletion. Generation reports conflicts rather than expanding an invalid
+existing schedule. No schema migration or automatic data repair is part of this fix.
 
 ## API and permissions
 

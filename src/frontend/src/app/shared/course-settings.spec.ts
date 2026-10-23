@@ -25,6 +25,18 @@ describe('Bocal course metadata and assignment duration',()=>{
       ],
     }).compileComponents();
   });
+  it('assignment card opens assignment analytics with the selected assignment and course IDs',()=>{
+    const router=TestBed.inject(Router);
+    const tree={} as any;
+    router.createUrlTree=vi.fn(()=>tree);
+    router.serializeUrl=vi.fn(()=>'/bocal/analytics/assignment?classId=2&assId=17');
+    const open=vi.spyOn(window,'open').mockReturnValue(null);
+    const c=TestBed.createComponent(BocalClassesComponent).componentInstance;
+    c.viewAssignment({id:17,classid:2} as any);
+    expect(router.createUrlTree).toHaveBeenCalledWith(['/bocal/analytics/assignment'],{queryParams:{classId:2,assId:17}});
+    expect(open).toHaveBeenCalledWith('/bocal/analytics/assignment?classId=2&assId=17','_blank','noopener');
+    open.mockRestore();
+  });
   it('Create Course saves term and comma-separated official codes',()=>{
     const fixture=TestBed.createComponent(CreateClassPage),c=fixture.componentInstance;
     for(const [label,value] of [['bocal_label_class_name','Course'],['field_description','Description'],['Term','Fall 2027'],['Official course numbers (comma-separated)','1268, 1421']])

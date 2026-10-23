@@ -42,7 +42,7 @@
         @for(p of pool();track p.id){<tr><td><input type="checkbox" [checked]="p.evaluatorEligible" [disabled]="loading()" (change)="toggleEvaluator(p.id,$any($event.target).checked)" [attr.aria-label]="p.username+' evaluator'"></td>
           <td>{{p.username}}<small>{{p.role}} · {{p.email}}</small></td><td>{{p.assignmentCount}}</td><td>{{p.courseCount}}</td></tr>}
       </tbody></table></div>
-      <p class="muted">{{data()?.slots?.length}} missing / retry slots before exclusions. Course-wide workload is balanced first; slots with no valid evaluator remain in the queue.</p>
+      <p class="muted">{{data()?.slots?.length}} missing / retry slots before exclusions. Generation fills every selected slot without repeated encounters, or saves no new pairings. Reduce rounds or expand the eligible pool if no complete allocation is possible.</p>
       <app-btn variant="primary" [disabled]="loading()" (clicked)="generate()">Save pool and generate missing pairings</app-btn>
     }
     @if(modal()==='single'){

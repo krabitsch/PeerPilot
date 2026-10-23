@@ -1,5 +1,5 @@
 const { prisma } = require('@transcendence/database')
-const { NotFoundError, ValidationError } = require('@transcendence/errors')
+const { NotFoundError, ValidationError, ConflictError } = require('@transcendence/errors')
 const utils = require('@transcendence/utils')
 const logger = require('@transcendence/logger')
 const {createStorage} = require('@transcendence/filemanager')
@@ -70,13 +70,36 @@ const getProfile = async (id)=>{
   return profile;
 }
 
-const updateProfile = async (id, bio)=>{
-  const profile = await prisma.userProfile.upsert({
-    where: {userId: parseInt(id)},
-    update: {bio, last_update: new Date()},
-    create: {userId: parseInt(id), bio, last_update: new Date()}
-  })
-  return profile;
+const updateProfile = async (id, bio, username) => {
+  if (username !== undefined && (typeof username !== 'string' || !username.trim())) {
+    throw new ValidationError('Username must not be empty.')
+  }
+  if (bio !== undefined && typeof bio !== 'string') {
+    throw new ValidationError('Bio must be text.')
+  }
+  const userId = Number(id)
+  const trimmedUsername = username?.trim()
+  try {
+    return await prisma.$transaction(async tx => {
+      const user = await tx.user.findUnique({ where: { id: userId }, select: { username: true } })
+      if (!user) throw new NotFoundError('User not found')
+      if (trimmedUsername !== undefined && trimmedUsername !== user.username) {
+        const existing = await tx.user.findUnique({ where: { username: trimmedUsername }, select: { id: true } })
+        if (existing && existing.id !== userId) throw new ConflictError('This username is already taken.')
+        await tx.user.update({ where: { id: userId }, data: { username: trimmedUsername } })
+      }
+      const profile = await tx.userProfile.upsert({
+        where: { userId },
+        update: { ...(bio !== undefined ? { bio } : {}), last_update: new Date() },
+        create: { userId, bio: bio ?? '', last_update: new Date() },
+      })
+      return { ...profile, username: trimmedUsername ?? user.username }
+    })
+  } catch (err) {
+    // Also handle a concurrent rename that wins after the availability check.
+    if (err.code === 'P2002') throw new ConflictError('This username is already taken.')
+    throw err
+  }
 }
 
 const deleteUser = async (id)=>{

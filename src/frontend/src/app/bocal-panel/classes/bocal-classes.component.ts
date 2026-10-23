@@ -241,10 +241,10 @@ export class BocalClassesComponent implements OnInit {
   }  
 
   // ── Assignment viewing ─────────────────────────────────────
-  /** Opens the (student-facing) assignment-detail page in a new tab so the bocal panel stays put. */
+  /** Opens analytics for this assignment while keeping the assignment list open. */
   viewAssignment(a: AssignmentResponse) {
     const url = this.router.serializeUrl(
-      this.router.createUrlTree(['/assignment-detail'], { queryParams: { assId: a.id } })
+      this.router.createUrlTree(['/bocal/analytics/assignment'], { queryParams: { classId: a.classid, assId: a.id } })
     );
     window.open(url, '_blank', 'noopener');
   }
