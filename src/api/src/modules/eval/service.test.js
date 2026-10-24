@@ -9,6 +9,7 @@ const assignment = { id: 1, req_eval: 3, max_score: 100, pass_threshold: 50,
   evalSheet: { sections: [{ id: 1, marks: 100, name: 'Score', sectionType: 'Slider' }] } }
 
 const harness = (marks = 20) => {
+  const sheetQueries = []
   const record = { id: 1, round: 1, assignmentId: 1, evalueeGroupId: 2, evaluatorUserId: 4, evaluatorUser:{id:4,username:'student4',email:'student4@example.com'},
     submissionId: 3, evalResponseId: marks == null ? null : 10, createdAt: new Date(),
     status: marks == null ? 'Pending' : 'Submitted', assignment, passKey: '482913',
@@ -55,7 +56,7 @@ const harness = (marks = 20) => {
     module, Date, require: name => {
       if (name === '@transcendence/database') return { prisma: db }
       if (name === '@transcendence/errors') return errors
-      if (name === '@transcendence/utils') return { getEvalAssignments: async () => [record], getEvalAssignmentById: async () => record, getAssignmentById: async () => assignment }
+      if (name === '@transcendence/utils') return { getEvalAssignments: async () => [record], getEvalAssignmentById: async () => record, getAssignmentById: async (id, select, include) => { sheetQueries.push(include); return assignment }, getEvalSheetById: async (id, select, include) => { sheetQueries.push(include); return assignment.evalSheet } }
       if (name === '@transcendence/filemanager') return { recordingUploader: { single: () => () => {} }, createStorage: () => ({ ensureBucket: async () => {}, upload: async () => {}, getPublicUrl: key => key }) }
       if (name === '@transcendence/logger') return { error() {} }
       if (name === '../submission/files') return require('../submission/files')
@@ -64,7 +65,7 @@ const harness = (marks = 20) => {
       throw new Error('Unexpected import: ' + name)
     },
   })
-  return { service: module.exports, record, responses, saved, files }
+  return { service: module.exports, record, responses, saved, files, sheetQueries }
 }
 
 test('E/F: member requests retry; repeated requests preserve timestamp and failed response', async () => {
@@ -318,4 +319,25 @@ test('replacement evaluator receives the newest revised file and original histor
   assert.equal(result.submission.file.id,2)
   assert.equal(result.submission.files[0].id,1)
   assert.equal(h.record.passKey,'482913')
+})
+
+test('submission stores core and bonus separately and permits displayed totals above maximum',async()=>{
+ const h=harness(null)
+ const original=assignment.evalSheet.sections
+ assignment.evalSheet.sections=[{id:1,marks:100,name:'Core',sectionType:'Slider',isBonus:false},
+   {id:2,marks:15,name:'Bonus',sectionType:'Slider',isBonus:true}]
+ try {
+  const result=await h.service.submitEvaluation({evalAssignmentId:1,evaluatorUserId:4,comment:'Constructive feedback. '.repeat(6),scores:[{sectionId:1,score:93},{sectionId:2,score:15}]})
+  assert.equal(result.coreScore,93);assert.equal(result.bonusScore,15);assert.equal(result.givenMarks,108)
+  assert.equal(h.saved.finalScore,108)
+ } finally {assignment.evalSheet.sections=original}
+})
+
+test('both eval-sheet read APIs request authoritative ordering rather than creation order',async()=>{
+ const h=harness()
+ await h.service.getEvalSheetById(1)
+ await h.service.getEvalSheetByAssId(1)
+ const expected=[{sortOrder:'asc'},{id:'asc'}]
+ assert.deepEqual(JSON.parse(JSON.stringify(h.sheetQueries[0].sections.orderBy)),expected)
+ assert.deepEqual(JSON.parse(JSON.stringify(h.sheetQueries[1].evalSheet.include.sections.orderBy)),expected)
 })

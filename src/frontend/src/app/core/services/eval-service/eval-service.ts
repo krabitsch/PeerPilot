@@ -38,7 +38,7 @@ export interface EvalAssignment {
   retryRequestedAt: string | null;
   outcome?: EvaluationOutcome;
   studentOutcome?: EvaluationOutcome;
-  evalResponse?: { id: number; givenMarks: number; subId: number; userId: number; isStaffReview: boolean; reply: string | null } | null;
+  evalResponse?: { id: number; givenMarks: number; coreScore?: number | null; bonusScore?: number; subId: number; userId: number; isStaffReview: boolean; reply: string | null } | null;
 
   // Returned directly by the Eval API so student-facing pages
   // do not need another User API request just to display the
@@ -60,8 +60,8 @@ export interface EvaluatorTask {
   assignment: { id: number; name: string; created_at: string; classid: number; max_score?:number; pass_threshold?:number; evaluationDurationMinutes?: number };
   evalueeGroup: { id: number; name: string; members: { user: { id: number; username: string; email?: string } }[] };
   evalResponse: {
-    id: number; givenMarks: number; comment: string; reply: string | null;
-    scores: { sectionId: number; score: number; section: { name: string; marks: number } }[];
+    id: number; givenMarks: number; coreScore?: number | null; bonusScore?: number; comment: string; reply: string | null;
+    scores: { sectionId: number; score: number; section: { name: string; marks: number; isBonus?: boolean; sortOrder?: number } }[];
   } | null;
 }
 
@@ -187,6 +187,8 @@ export interface EvalSection {
   marks: number;
 
   sectionType: EvalSectionType;
+  sortOrder?: number;
+  isBonus?: boolean;
 
   evalSheetId: number;
 }
@@ -267,6 +269,8 @@ export class EvalService {
       description: string;
       marks: number;
       sectionType: EvalSectionType;
+      sortOrder?: number;
+      isBonus?: boolean;
     }
   ) {
     return this.http.post<EvalSection>(
@@ -284,6 +288,8 @@ export class EvalService {
       description?: string;
       marks?: number;
       sectionType?: EvalSectionType;
+      sortOrder?: number;
+      isBonus?: boolean;
     }
   ) {
     return this.http.patch<EvalSection>(
@@ -292,6 +298,10 @@ export class EvalService {
     );
   }
 
+
+  saveSections(sheetId: number, sections: { id?: number; name: string; description: string; marks: number; sectionType: EvalSectionType; isBonus?: boolean }[]) {
+    return this.http.patch<EvalSheet>(`${this.base}/sheet/${sheetId}/section`, { sections });
+  }
 
   removeSection(
     sheetId: number,

@@ -298,6 +298,8 @@ model EvalSection {
   description String
   marks       Int
   sectionType EvalSectionType    @default(Toggle)
+  sortOrder   Int                @default(0)
+  isBonus     Boolean            @default(false)
   evalSheetId Int
   evalSheet   EvalSheet          @relation(fields: [evalSheetId], references: [id], onDelete: Cascade)
   scores      EvalSectionScore[]
@@ -329,6 +331,8 @@ model EvalResponse {
   user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   givenMarks Int
+  coreScore  Int?
+  bonusScore Int @default(0)
 
   comment String
   reply   String?

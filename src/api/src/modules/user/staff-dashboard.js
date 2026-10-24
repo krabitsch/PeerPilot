@@ -23,7 +23,7 @@ const buildStaffDashboard = courses => {
         add('sheet', `Create the evaluation sheet for ${assignment.name}.`, '/bocal/assignment-create', { assId: assignment.id })
       else if (!sections.length)
         add('sheet', `Finish the evaluation sheet for ${assignment.name}: add evaluation sections.`, '/bocal/assignment-create', { assId: assignment.id })
-      else if (sections.reduce((n, s) => n + s.marks, 0) !== assignment.max_score)
+      else if (sections.filter(s=>!s.isBonus).reduce((n, s) => n + s.marks, 0) !== assignment.max_score)
         add('sheet', `Finish the evaluation sheet for ${assignment.name}: section marks do not total ${assignment.max_score}.`, '/bocal/assignment-create', { assId: assignment.id })
       const grouped = new Set(assignment.groups.flatMap(g => g.members.map(m => m.user.id)))
       const missingStudents = [...students].filter(id => !grouped.has(id)).length
@@ -69,7 +69,7 @@ const getStaffDashboard = async orgId => {
       assignments: { select: {
         id: true, name: true, created_at: true, description: true, fileId: true, req_eval: true, max_score: true, pass_threshold: true,
         participations: { select: { userId:true,evalueeEligible:true,evaluatorEligible:true } },
-        evalSheet: { select: { sections: { select: { marks: true } } } },
+        evalSheet: { select: { sections: { select: { marks: true, isBonus: true } } } },
         groups: { select: { id: true, members: { orderBy: { userId: 'asc' }, select: { user: { select: { id: true, username: true } } } } } },
         evalAssignments: { select: {
           id: true, assignmentId: true, evalueeGroupId: true, evaluatorUserId: true, round: true,

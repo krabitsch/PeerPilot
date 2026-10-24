@@ -19,7 +19,7 @@ const getAssignmentForExport = async (assId) => {
         where: { id: assignmentId },
         include: {
             class: { select: { name: true } },
-            evalSheet: { include: { sections: { orderBy: { id: 'asc' } } } },
+            evalSheet: { include: { sections: { orderBy: [{sortOrder:'asc'},{id:'asc'}] } } },
         },
     })
     if (!assignment) throw new NotFoundError('Assignment not found')
@@ -34,7 +34,7 @@ const getResponsesForAssignment = async (assignmentId, { onlyWithRecording = fal
     return await prisma.evalResponse.findMany({
         where,
         select: {
-            id: true, isStaffReview: true, givenMarks: true, comment: true, reply: true,
+            id: true, isStaffReview: true, givenMarks: true, coreScore: true, bonusScore: true, comment: true, reply: true,
             user: { select: { username: true, email: true } },
             submission: { select: { group: { select: { id: true, name: true } } } },
             scores: { select: { sectionId: true, score: true } },
@@ -91,7 +91,7 @@ const buildEvaluationsCsv = async (assId) => {
             r?.givenMarks ?? '', assignment.max_score, r?.comment ?? '', r?.reply ?? '',
             r?.reply ? 'yes' : 'no', r?.recordingFile?.name ?? '',
             p?.id ?? '', attempt ?? '', p?.status ?? 'Submitted',
-            p ? evaluationOutcome(p,assignment) : (r?.givenMarks / assignment.max_score * 100 >= assignment.pass_threshold ? 'Passed' : 'Failed'),
+            p ? evaluationOutcome(p,assignment) : ((r?.coreScore ?? r?.givenMarks) / assignment.max_score * 100 >= assignment.pass_threshold ? 'Passed' : 'Failed'),
             p?.createdAt?.toISOString?.() ?? p?.createdAt ?? '',
             p?.retryRequestedAt?.toISOString?.() ?? p?.retryRequestedAt ?? '', r?.id ?? '',
         ]))

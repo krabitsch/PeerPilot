@@ -6,7 +6,7 @@ const evaluationOutcome = (pairing, assignment) => {
       response.isStaffReview || response.userId !== pairing.evaluatorUserId ||
       response.subId !== pairing.submissionId) return 'Pending'
   if (!Number.isFinite(response.givenMarks) || !(assignment.max_score > 0)) return 'Pending'
-  return response.givenMarks / assignment.max_score * 100 >= assignment.pass_threshold ? 'Passed' : 'Failed'
+  return (response.coreScore ?? response.givenMarks) / assignment.max_score * 100 >= assignment.pass_threshold ? 'Passed' : 'Failed'
 }
 
 const evaluationDisplayOutcome = (pairing, assignment) => {
@@ -42,7 +42,7 @@ const summarizeEvaluationRounds = (assignment, pairings) => {
   return { passed: workflowStatus === 'FeedbackRequired' && passed === true ? null : passed, workflowStatus, evaluationRounds: rounds }
 }
 
-const responseSelect = { id: true, givenMarks: true, subId: true, userId: true, isStaffReview: true, reply: true, recordingFileId: true }
+const responseSelect = { id: true, givenMarks: true, coreScore: true, bonusScore: true, subId: true, userId: true, isStaffReview: true, reply: true, recordingFileId: true }
 
 // Read-time derivation prevents old cached Submission.passed values from leaking
 // into either student page after pairing/threshold changes.

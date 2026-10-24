@@ -138,11 +138,13 @@
           <div>
             <div [ngStyle]="fieldLabelStyle">{{ 'label_eval_sheet_score' | translate }}</div>
             <div [ngStyle]="{fontFamily:'JetBrains Mono, monospace', fontSize:'1.25rem', fontWeight:'700', color: scoreColor()}">
-              {{ totalMarks() }}<span style="font-size:0.8125rem;color:oklch(48% 0.01 272)">{{ 'pts_out_of' | translate:{value: maxScore() ?? 0} }}</span>
+              {{ totalMarks() }}<span style="font-size:0.8125rem;color:oklch(48% 0.01 272)"> / {{ maxScore() ?? 0 }} core pts</span>
             </div>
           </div>
-          <div style="font-size:0.8125rem;color:oklch(48% 0.01 272)">{{ 'label_pts_remaining' | translate:{value: remainingMarks()} }}</div>
+          <div style="font-size:0.8125rem;color:oklch(48% 0.01 272)">{{ remainingMarks() }} core pts remaining</div>
         </div>
+
+        <div [ngStyle]="subStyle">+{{ bonusMarks() }} bonus pts possible</div>
 
         <!-- Sections list -->
         @if (pendingSections().length === 0) {
@@ -154,10 +156,13 @@
                 <div style="display:flex;align-items:center;gap:8px;min-width:0">
                   <span style="font-size:0.7rem;color:oklch(48% 0.01 272);flex-shrink:0">{{ expandedIndex() === i ? '▾' : '▸' }}</span>
                   <span style="font-weight:600;color:oklch(94% 0.005 272)">{{ s.name }}</span>
+                  @if (s.isBonus) { <small style="color:oklch(75% 0.18 80)">★ Bonus</small> }
                 </div>
                 <span style="display:flex;align-items:center;gap:10px;flex-shrink:0" (click)="$event.stopPropagation()">
-                  <span style="font-family:'JetBrains Mono',monospace;font-size:0.875rem;color:oklch(94% 0.005 272)">{{ 'assignment_pts' | translate:{value: s.marks} }}</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:0.875rem;color:oklch(94% 0.005 272)">{{ s.isBonus ? '+' : '' }}{{ 'assignment_pts' | translate:{value: s.marks} }}</span>
                   <span style="font-size:0.75rem;padding:3px 8px;border-radius:999px;background:oklch(22% 0.08 296);color:oklch(64% 0.28 296)">{{ s.sectionType }}</span>
+                  <app-btn variant="ghost" size="sm" [disabled]="i === 0" (clicked)="moveSection(i, -1)">↑</app-btn>
+                  <app-btn variant="ghost" size="sm" [disabled]="i === pendingSections().length - 1" (clicked)="moveSection(i, 1)">↓</app-btn>
                   <app-btn variant="ghost" size="sm" (clicked)="startEdit(i)">{{ 'btn_edit' | translate }}</app-btn>
                   <app-btn variant="ghost" size="sm" (clicked)="removeSection(i)">{{ 'btn_remove' | translate }}</app-btn>
                 </span>
@@ -190,8 +195,9 @@
                     </div>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
                       <div>
-                        <label [ngStyle]="fieldLabelStyle">{{ 'label_marks_max' | translate:{max: editRemainingMarks()} }}</label>
-                        <input [ngStyle]="inputStyle" type="number" min="1" [max]="editRemainingMarks()" [value]="editMarks()" (input)="editMarks.set(+$any($event.target).value)" />
+                        <label [ngStyle]="fieldLabelStyle">{{ (editBonus() ? 'label_marks' : 'label_marks_max') | translate:{max: editRemainingMarks()} }}</label>
+                        <input [ngStyle]="inputStyle" type="number" min="1" [max]="editBonus() ? null : editRemainingMarks()" [value]="editMarks()" (input)="editMarks.set(+$any($event.target).value)" />
+              <label style="display:block;margin-top:8px;font-size:0.8125rem"><input type="checkbox" [checked]="editBonus()" (change)="editBonus.set($any($event.target).checked)" /> Bonus / optional section</label>
                       </div>
                       <div>
                         <label [ngStyle]="fieldLabelStyle">{{ 'label_type' | translate }}</label>
@@ -247,7 +253,8 @@
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
             <div>
               <label [ngStyle]="fieldLabelStyle">{{ 'label_marks' | translate }}</label>
-              <input [ngStyle]="inputStyle" type="number" min="1" [max]="remainingMarks()" [value]="sectionMarks()" (input)="sectionMarks.set(+$any($event.target).value)" />
+              <input [ngStyle]="inputStyle" type="number" min="1" [max]="sectionBonus() ? null : remainingMarks()" [value]="sectionMarks()" (input)="sectionMarks.set(+$any($event.target).value)" />
+              <label style="display:block;margin-top:8px;font-size:0.8125rem"><input type="checkbox" [checked]="sectionBonus()" (change)="sectionBonus.set($any($event.target).checked)" /> Bonus / optional section</label>
             </div>
             <div>
               <label [ngStyle]="fieldLabelStyle">{{ 'label_type' | translate }}</label>
@@ -258,7 +265,7 @@
             </div>
           </div>
           <div style="display:flex;justify-content:flex-end">
-            <app-btn variant="secondary" size="sm" [disabled]="remainingMarks() <= 0" (clicked)="addSection()">{{ 'btn_add_section' | translate }}</app-btn>
+            <app-btn variant="secondary" size="sm" [disabled]="!sectionBonus() && remainingMarks() <= 0" (clicked)="addSection()">{{ 'btn_add_section' | translate }}</app-btn>
           </div>
         </div>
       </div>

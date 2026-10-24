@@ -46,24 +46,12 @@ const validateSectionType = (type)=>{
     return(type.length > 0 &&(type === 'Toggle' || type === 'Slider'))
 }
 
-const createEvalSection = async(sheetId, 
-    {name, description, marks, sectionType})=>{
-    if(!sheetId || !validateString(name) || !validateString(description) || 
-        !marks || parseInt(marks) <= 0 || !validateSectionType(sectionType))
-        throw new ValidationError('invalide request')
-    const sheet = await utils.getEvalSheetById(sheetId)
-    if(!sheet)
-        throw new NotFoundError('EvalSheet not found')
-    return await prisma.evalSection.create({
-        data:{name, description, sectionType, 
-            marks: parseInt(marks), evalSheetId: parseInt(sheetId)}
-    })
-}
+const createEvalSection = (sheetId, data) => require('./sheet-sections').createSection(sheetId, data)
 
 const getEvalSheetById = async (id)=>{
     if(!id)
         throw new ValidationError('invalid request')
-    const sheet =  await utils.getEvalSheetById(id, null, {sections:true})
+    const sheet =  await utils.getEvalSheetById(id, null, {sections:{orderBy:[{sortOrder:'asc'},{id:'asc'}]}})
     if(!sheet)
         throw new NotFoundError('EvalSheet not found')
     return sheet
@@ -72,7 +60,7 @@ const getEvalSheetById = async (id)=>{
 const getEvalSheetByAssId = async (assId)=>{
     if(!assId)
         throw new ValidationError('invalid request')
-    const ass = await utils.getAssignmentById(assId, null, {evalSheet: {include:{sections:true}}})
+    const ass = await utils.getAssignmentById(assId, null, {evalSheet: {include:{sections:{orderBy:[{sortOrder:'asc'},{id:'asc'}]}}}})
     if(!ass)
         throw new NotFoundError('Assignment not found')
     if(!ass.evalSheet)
@@ -80,43 +68,8 @@ const getEvalSheetByAssId = async (assId)=>{
     return ass.evalSheet
 }
 
-const updateEvalSheetSection = async (sheetId, {secId, name, description, marks, sectionType})=>{
-    if(!sheetId || !secId)
-        throw new ValidationError('invalid request')
-    const sheet =  await utils.getEvalSheetById(sheetId, null, {sections:true})
-    if(!sheet)
-        throw new NotFoundError('Evalsheet not found')
-    const existSection = sheet.sections.some(sec => sec.id === parseInt(secId))
-    if(!existSection)
-        throw new NotFoundError('Section not found')
-
-    const newName = (name.length > 0) ? name: existSection.name
-    const newDesc = (description.length > 0) ? description: existSection.description
-    const newMarks = (parseInt(marks) > 0) ? parseInt(marks) : parseInt(existSection.marks)
-    const newtype = (validateSectionType(sectionType))? sectionType: existSection.sectionType
-     
-    return await prisma.evalSection.update({
-        where:{id: parseInt(secId)},
-        data:{name: newName, description: newDesc, marks: newMarks, sectionType: newtype}
-    })
-}
-
-const removeSection = async (sheetId, {secId})=>{
-    if(!sheetId || !secId)
-        throw new ValidationError('invalid request')
-    //console.log('HI')
-    const sheet =  await utils.getEvalSheetById(sheetId, null, {sections:true})
-    if(!sheet)
-        throw new NotFoundError('Evalsheet not found')
-    const existSection = sheet.sections.some(sec => sec.id === parseInt(secId))
-    if(!existSection)
-        throw new NotFoundError('Section not found')
-    await prisma.evalSection.delete({where: {id: parseInt(secId)}})
-    return{
-        message: 'Section deleted successfully',
-        id: parseInt(secId)
-    }
-}
+const updateEvalSheetSection = (sheetId, data) => require('./sheet-sections').updateSection(sheetId, data)
+const removeSection = (sheetId, data) => require('./sheet-sections').removeSection(sheetId, data)
 
 // methods pertaining to EvalAssignment model/table:
 
@@ -236,7 +189,7 @@ const generateSimpleEvalAssignmentPairings = (assignmentId, options, actor) =>
   require('./pairing-management').generateMissing(assignmentId, options, actor)
 
 const getAssignmentWithSheet = async (assignmentId)=>{
-    return await utils.getAssignmentById(assignmentId, null, {evalSheet: {include: {sections: true}}})
+    return await utils.getAssignmentById(assignmentId, null, {evalSheet: {include: {sections: {orderBy:[{sortOrder:'asc'},{id:'asc'}]}}}})
 }
 
 // One request supplies the course filters and evaluator-owned task display data.
@@ -274,9 +227,9 @@ const getMyEvaluatorTasks = async (userId, role = 'Student') => {
           } }
         },
         evalResponse: { select: {
-          id: true, givenMarks: true, comment: true, reply: true,
-          scores: { orderBy: { sectionId: 'asc' }, select: {
-            sectionId: true, score: true, section: { select: { name: true, marks: true } }
+          id: true, givenMarks: true, coreScore: true, bonusScore: true, comment: true, reply: true,
+          scores: { orderBy: [{section:{sortOrder:'asc'}},{sectionId:'asc'}], select: {
+            sectionId: true, score: true, section: { select: { name: true, marks: true, isBonus: true, sortOrder: true } }
           } }
         } }
       }
@@ -356,6 +309,8 @@ const submitEvaluation = async ({evalAssignmentId, evaluatorUserId, comment, sco
     if(sections.length === 0)
         throw new NotFoundError('This assignment has no eval sheet')
 
+    if (sections.filter(s=>!s.isBonus).reduce((n,s)=>n+s.marks,0) !== assignment.max_score)
+        throw new ValidationError('Core section marks must sum exactly to the assignment maximum.')
     const sectionsById = new Map(sections.map(s => [s.id, s]))
     if(scores.length !== sections.length)
         throw new ValidationError('Every section must be scored exactly once')
@@ -376,7 +331,9 @@ const submitEvaluation = async ({evalAssignmentId, evaluatorUserId, comment, sco
             throw new ValidationError(`"${section.name}" is a yes/no section — score must be 0 or ${section.marks}`)
     }
 
-    const givenMarks = scores.reduce((sum, s) => sum + parseInt(s.score), 0)
+    const coreScore = scores.filter(s => !sectionsById.get(Number(s.sectionId)).isBonus).reduce((n,s) => n + parseInt(s.score), 0)
+    const bonusScore = scores.filter(s => sectionsById.get(Number(s.sectionId)).isBonus).reduce((n,s) => n + parseInt(s.score), 0)
+    const givenMarks = coreScore + bonusScore
 
     const response = await prisma.$transaction(async (tx) => {
         // Serialize outcome recomputation for concurrent evaluations of one submission.
@@ -391,7 +348,7 @@ const submitEvaluation = async ({evalAssignmentId, evaluatorUserId, comment, sco
             data: {
                 subId: evalAssignment.submissionId,
                 userId: evaluatorUserIdInt,
-                givenMarks,
+                givenMarks, coreScore, bonusScore,
                 comment,
                 scores: { create: scores.map(s => ({ sectionId: parseInt(s.sectionId), score: parseInt(s.score) })) }
             },
@@ -419,11 +376,11 @@ const getEvalResponsesForSubmission = async (subId) => {
     return await prisma.evalResponse.findMany({
         where: { subId: subIdInt },
         select: {
-            id: true, isStaffReview: true, givenMarks: true, comment: true, reply: true, rating: true, userId: true,
+            id: true, isStaffReview: true, givenMarks: true, coreScore: true, bonusScore: true, comment: true, reply: true, rating: true, userId: true,
             user: { select: { id: true, username: true } },
             recordingFile: { select: { id: true, name: true } },
-            scores: { select: { id: true, sectionId: true, score: true,
-                       section: { select: { id: true, name: true, description: true, marks: true, sectionType: true } } } }
+            scores: { orderBy: [{section:{sortOrder:'asc'}},{sectionId:'asc'}], select: { id: true, sectionId: true, score: true,
+                       section: { select: { id: true, name: true, description: true, marks: true, sectionType: true, sortOrder: true, isBonus: true } } } }
         },
         orderBy: { id: 'asc' }
     })
@@ -458,30 +415,6 @@ const getRecordingUrl = async (responseId, requester) => {
 
     const url = await recordingStorage.getUrl(response.recordingFile.url, response.recordingFile.name)
     return { url }
-}
-
-// recomputes a submission's finalScore/passed from the avg of givenMarks across replied-to EvalResponses
-const recomputeFinalScore = async (subId) => {
-    const replied = await prisma.evalResponse.findMany({
-        where: { subId, reply: { not: null } },
-        select: { givenMarks: true }
-    })
-
-    if(replied.length === 0){
-        await prisma.submission.update({ where: { id: subId }, data: { finalScore: null, passed: null } })
-        return
-    }
-
-    const avg = replied.reduce((sum, r) => sum + r.givenMarks, 0) / replied.length
-
-    const submission = await prisma.submission.findUnique({
-        where: { id: subId },
-        include: { group: { include: { assignment: true } } }
-    })
-    const assignment = submission.group.assignment
-    const passed = assignment.max_score > 0 && (avg / assignment.max_score) * 100 >= assignment.pass_threshold
-
-    await prisma.submission.update({ where: { id: subId }, data: { finalScore: avg, passed } })
 }
 
 const requestEvaluationRetry = async (evalAssignmentId, userId) => {

@@ -292,6 +292,9 @@
                   <span class="feedback-evaluator">{{ r.user?.username ?? ('label_evaluator_fallback' | translate) }}</span>
                   <span class="feedback-marks">{{ r.givenMarks }} / {{ assignment()!.max_score }}</span>
                 </div>
+                @if (r.bonusScore) {
+                  <div class="feedback-comment">Core: {{ r.coreScore ?? r.givenMarks }} / {{ assignment()!.max_score }} · Bonus: +{{ r.bonusScore }}</div>
+                }
                 <p class="feedback-comment">{{ r.comment }}</p>
 
                 @if (r.recordingFile) {

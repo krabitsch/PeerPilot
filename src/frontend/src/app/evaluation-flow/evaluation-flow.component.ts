@@ -227,14 +227,16 @@ export class EvaluationFlowComponent implements OnInit {
   comment  = signal('');
   submitError = signal<string | null>(null);
 
-  sections   = computed(() => this.session()?.evalSheet.sections ?? []);
+  sections   = computed(() => [...(this.session()?.evalSheet.sections ?? [])].sort((a,b)=>(a.sortOrder??a.id)-(b.sortOrder??b.id)||a.id-b.id));
   maxScore   = computed(() => this.session()?.assignment.max_score ?? 0);
+  coreScore = computed(() => this.sections().filter(s=>!s.isBonus).reduce((n,s)=>n+(this.sectionScores().get(s.id)??0),0));
+  bonusScore = computed(() => this.sections().filter(s=>s.isBonus).reduce((n,s)=>n+(this.sectionScores().get(s.id)??0),0));
   allScored  = computed(() => this.sections().every(s => this.sectionScores().get(s.id) != null));
   totalScore = computed(() => [...this.sectionScores().values()].reduce((sum: number, v) => sum + (v ?? 0), 0));
   commentOk  = computed(() => this.comment().trim().length >= 100);
   canSubmit  = computed(() => this.allScored() && this.commentOk());
 
-  scoreColor = computed(() => outcomeScoreColor(this.totalScore(), this.maxScore(),
+  scoreColor = computed(() => outcomeScoreColor(this.coreScore(), this.maxScore(),
     this.session()?.assignment.pass_threshold ?? 50));
 
   // Start only the selected, evaluator-owned pairing.
@@ -252,7 +254,7 @@ export class EvaluationFlowComponent implements OnInit {
       next: res => {
         this.session.set(res);
         const initial = new Map<number, number | null>();
-        for (const s of res.evalSheet.sections) initial.set(s.id, s.sectionType === 'Slider' ? 0 : null);
+        for (const s of res.evalSheet.sections) initial.set(s.id, s.isBonus || s.sectionType === 'Slider' ? 0 : null);
         this.sectionScores.set(initial);
         this.comment.set('');
         this.submitError.set(null);

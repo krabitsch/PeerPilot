@@ -337,6 +337,8 @@ export interface EvalResponse {
   userId: number;
   user?: Partial<User>;
   givenMarks: number;
+  coreScore?: number | null;
+  bonusScore?: number;
   comment: string;
   reply?: string | null;
   rating?: number | null;

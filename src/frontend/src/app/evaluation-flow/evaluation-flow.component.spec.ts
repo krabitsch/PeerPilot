@@ -145,4 +145,19 @@ describe('evaluator task overview', () => {
     tasks[0].assignment.created_at = '2026-09-01T09:00:00Z';
     expect(evaluatorTasksFor(tasks, 1, null)[0].id).toBe(8);
   });
+  it('uses Bocal section order and displays bonus totals without letting bonus change score tone',()=>{
+    component.session.set({assignment:{max_score:100,pass_threshold:60},group:{name:'Group'},submission:{file:null},evalSheet:{sections:[
+      {id:1,name:'Question 1',description:'Core',marks:100,sortOrder:1,isBonus:false,sectionType:'Slider'},
+      {id:2,name:'Bonus',description:'Optional',marks:20,sortOrder:0,isBonus:true,sectionType:'Slider'},
+    ]}} as any);
+    component.phase.set('flow');component.sectionScores.set(new Map([[1,50],[2,20]]));
+    fixture.detectChanges();
+    expect(component.sections().map(s=>s.id)).toEqual([2,1]);
+    expect(component.coreScore()).toBe(50);expect(component.bonusScore()).toBe(20);expect(component.totalScore()).toBe(70);
+    expect(component.scoreColor()).toBe(component.outcomeScoreColor(50,100,60));
+    expect(fixture.nativeElement.textContent).toContain('★ Bonus');
+    component.sectionScores.set(new Map([[1,93],[2,15]]));
+    expect(component.totalScore()).toBe(108);
+  });
+
 });

@@ -73,9 +73,10 @@
         <div class="task-meta">Evaluated: {{ taskNames(task) }}</div>
         @if (task.evalResponse; as response) {
           @for (score of response.scores; track score.sectionId) {
-            <div class="score-row task-meta"><span>{{ score.section.name }}</span><strong>{{ score.score }} / {{ score.section.marks }}</strong></div>
+            <div class="score-row task-meta"><span>{{ score.section.isBonus ? "★ Bonus · " : "" }}{{ score.section.name }}</span><strong>{{ score.score }} / {{ score.section.marks }}</strong></div>
           }
-          <div class="task-heading" [ngStyle]="{color:outcomeScoreColor(response.givenMarks, task.assignment.max_score ?? 0, task.assignment.pass_threshold ?? 50)}">Total score: {{ response.givenMarks }}</div>
+          <div class="task-heading" [ngStyle]="{color:outcomeScoreColor(response.coreScore ?? response.givenMarks, task.assignment.max_score ?? 0, task.assignment.pass_threshold ?? 50)}">Total score: {{ response.givenMarks }}</div>
+          @if (response.bonusScore) { <div class="task-meta">Core: {{ response.coreScore ?? response.givenMarks }} · Bonus: +{{ response.bonusScore }}</div> }
           <div class="task-heading">Your feedback</div>
           <p class="feedback-text">{{ response.comment }}</p>
           <div class="task-heading">Response from evaluee</div>
@@ -179,6 +180,7 @@
       @for (s of sections(); track s.id) {
         <div class="section-card">
           <div>
+            @if (s.isBonus) { <div class="task-meta">★ Bonus · +{{ s.marks }} pts</div> }
             <div class="section-title">{{ s.name }}</div>
             <div class="section-desc">
               <app-markdown-math
@@ -207,6 +209,8 @@
           }
         </div>
       }
+
+      <div class="task-meta">Core: {{ coreScore() }} / {{ maxScore() }} · Bonus: +{{ bonusScore() }} · Total: {{ totalScore() }} / {{ maxScore() }}</div>
 
       <!-- Comment -->
       <div [ngStyle]="panelStyle">

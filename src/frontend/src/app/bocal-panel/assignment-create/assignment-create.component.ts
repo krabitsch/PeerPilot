@@ -1,7 +1,6 @@
 import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { NgStyle } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
-import { forkJoin } from 'rxjs';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { DS } from '../../tokens';
 import { BtnComponent } from '../../shared/btn.component';
@@ -20,6 +19,8 @@ interface PendingSection {
   description: string;
   marks: number;
   sectionType: EvalSectionType;
+  sortOrder?: number;
+  isBonus?: boolean;
 }
 
 @Component({
@@ -58,12 +59,12 @@ export class AssignmentCreateComponent implements OnInit {
 
   // ── Eval sheet sections (built locally, persisted on save) ──
   pendingSections = signal<PendingSection[]>([]);
-  /** Section ids that existed on the backend when editing started — diffed against pendingSections on save to know what to delete. */
-  private originalSectionIds = new Set<number>();
+
   sectionName   = signal('');
   sectionDesc   = signal('');
   sectionMarks  = signal<number | null>(null);
   sectionType   = signal<EvalSectionType>('Toggle');
+  sectionBonus = signal(false);
 
   // ── Section preview (expand-to-show-description) + edit state ──
   expandedIndex = signal<number | null>(null);
@@ -72,14 +73,16 @@ export class AssignmentCreateComponent implements OnInit {
   editDesc   = signal('');
   editMarks  = signal<number | null>(null);
   editType   = signal<EvalSectionType>('Toggle');
+  editBonus = signal(false);
 
-  totalMarks     = computed(() => this.pendingSections().reduce((sum, s) => sum + s.marks, 0));
+  totalMarks     = computed(() => this.pendingSections().filter(s=>!s.isBonus).reduce((sum, s) => sum + s.marks, 0));
+  bonusMarks = computed(() => this.pendingSections().filter(s=>s.isBonus).reduce((sum,s)=>sum+s.marks,0));
   remainingMarks = computed(() => (this.maxScore() ?? 0) - this.totalMarks());
   /** Marks available for the section currently being edited (its own current marks don't count against itself). */
   editRemainingMarks = computed(() => {
     const idx = this.editingIndex();
     const current = idx !== null ? this.pendingSections()[idx] : undefined;
-    return this.remainingMarks() + (current?.marks ?? 0);
+    return this.remainingMarks() + (current && !current.isBonus ? current.marks : 0);
   });
   scoreColor     = computed(() => {
     const max = this.maxScore();
@@ -135,11 +138,10 @@ export class AssignmentCreateComponent implements OnInit {
         this.evalService.getEvalSheetByAssignment(assId).subscribe({
           next: (sheet) => {
             this.sheetId = sheet.id;
-            const sections = sheet.sections.map(s => ({
-              id: s.id, name: s.name, description: s.description, marks: s.marks, sectionType: s.sectionType,
+            const sections = [...sheet.sections].sort((a,b)=>(a.sortOrder??a.id)-(b.sortOrder??b.id)||a.id-b.id).map(s => ({
+              id: s.id, name: s.name, description: s.description, marks: s.marks, sectionType: s.sectionType, sortOrder: s.sortOrder, isBonus: s.isBonus ?? false,
             }));
             this.pendingSections.set(sections);
-            this.originalSectionIds = new Set(sections.map(s => s.id));
             this.loading.hide();
           },
           // No eval sheet yet — one will be created on save.
@@ -170,23 +172,35 @@ export class AssignmentCreateComponent implements OnInit {
     if (!name)  { this.error.set(this.translate.instant('error_section_name_required')); return; }
     if (!desc)  { this.error.set(this.translate.instant('error_section_description_required')); return; }
     if (!marks || marks <= 0) { this.error.set(this.translate.instant('error_invalid_marks')); return; }
-    if (marks > this.remainingMarks()) {
+    if (!this.sectionBonus() && marks > this.remainingMarks()) {
       this.error.set(this.translate.instant('error_section_exceeds_max', { total: this.totalMarks() + marks, max: maxScore, remaining: this.remainingMarks() }));
       return;
     }
 
     this.error.set(null);
-    this.pendingSections.update(list => [...list, { name, description: desc, marks, sectionType: this.sectionType() }]);
+    this.pendingSections.update(list => [...list, { name, description: desc, marks, sectionType: this.sectionType(), isBonus: this.sectionBonus(), sortOrder: list.length }]);
     this.sectionName.set('');
     this.sectionDesc.set('');
     this.sectionMarks.set(null);
     this.sectionType.set('Toggle');
+    this.sectionBonus.set(false);
   }
 
   removeSection(index: number) {
-    this.pendingSections.update(list => list.filter((_, i) => i !== index));
+    this.pendingSections.update(list => list.filter((_, i) => i !== index).map((s,sortOrder)=>({...s,sortOrder})));
     this.expandedIndex.set(null);
     this.editingIndex.set(null);
+  }
+
+  moveSection(index: number, direction: number) {
+    const target = index + direction;
+    if (target < 0 || target >= this.pendingSections().length) return;
+    this.pendingSections.update(list => {
+      const rows = [...list];
+      [rows[index], rows[target]] = [rows[target], rows[index]];
+      return rows.map((s,sortOrder)=>({...s,sortOrder}));
+    });
+    this.expandedIndex.set(null); this.editingIndex.set(null);
   }
 
   // ── Preview expand + edit ───────────────────────────────────
@@ -202,6 +216,7 @@ export class AssignmentCreateComponent implements OnInit {
     this.editDesc.set(s.description);
     this.editMarks.set(s.marks);
     this.editType.set(s.sectionType);
+    this.editBonus.set(s.isBonus ?? false);
     this.expandedIndex.set(index);
     this.error.set(null);
   }
@@ -220,14 +235,14 @@ export class AssignmentCreateComponent implements OnInit {
     if (!name) { this.error.set(this.translate.instant('error_section_name_required')); return; }
     if (!desc) { this.error.set(this.translate.instant('error_section_description_required')); return; }
     if (!marks || marks <= 0) { this.error.set(this.translate.instant('error_invalid_marks')); return; }
-    if (marks > this.editRemainingMarks()) {
+    if (!this.editBonus() && marks > this.editRemainingMarks()) {
       this.error.set(this.translate.instant('error_section_exceeds_max_edit', { max: this.maxScore() ?? 0, available: this.editRemainingMarks() }));
       return;
     }
 
     this.error.set(null);
     this.pendingSections.update(list => list.map((s, i) =>
-      i === idx ? { ...s, name, description: desc, marks, sectionType: this.editType() } : s
+      i === idx ? { ...s, name, description: desc, marks, sectionType: this.editType(), isBonus: this.editBonus() } : s
     ));
     this.editingIndex.set(null);
   }
@@ -299,7 +314,7 @@ export class AssignmentCreateComponent implements OnInit {
           this.router.navigate(['/bocal/classes'], { queryParams: { classId } });
           return;
         }
-        forkJoin(sections.map(s => this.evalService.createSection(sheet.id, s))).subscribe({
+        this.evalService.saveSections(sheet.id, sections).subscribe({
           next: () => {
             this.loading.hide();
             this.router.navigate(['/bocal/classes'], { queryParams: { classId } });
@@ -386,20 +401,13 @@ export class AssignmentCreateComponent implements OnInit {
       this.router.navigate(['/bocal/classes'], { queryParams: { classId } });
     };
 
-    const current = this.pendingSections();
-    const currentIds = new Set(current.filter(s => s.id != null).map(s => s.id!));
-    const removedIds = [...this.originalSectionIds].filter(id => !currentIds.has(id));
-
-    const ops = [
-      ...removedIds.map(id => this.evalService.removeSection(sheetId, id)),
-      ...current.filter(s => s.id == null).map(s => this.evalService.createSection(sheetId, s)),
-      ...current.filter(s => s.id != null).map(s => this.evalService.updateSection(sheetId, {
-        secId: s.id!, name: s.name, description: s.description, marks: s.marks, sectionType: s.sectionType,
-      })),
-    ];
-
-    if (ops.length === 0) { finish(); return; }
-    forkJoin(ops).subscribe({ next: finish, error: finish });
+    this.evalService.saveSections(sheetId, this.pendingSections()).subscribe({
+      next: finish,
+      error: err => {
+        this.loading.hide();
+        this.error.set(err?.error?.error ?? 'Could not save evaluation sections.');
+      },
+    });
   }
 
   onCancel() {

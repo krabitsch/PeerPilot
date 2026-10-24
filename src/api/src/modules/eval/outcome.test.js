@@ -130,3 +130,17 @@ test('a reply without a recording blocks passing and retry until both are presen
     assert.equal(summarizeEvaluationRounds(a, [p]).workflowStatus, marks >= 50 ? 'Passed' : 'Failed')
   }
 })
+
+test('bonus never rescues a failing core score, including summaries and threshold percentages',()=>{
+ const p=attempt(1,70)
+ p.evalResponse.coreScore=50;p.evalResponse.bonusScore=20
+ assert.equal(evaluationOutcome(p,{...assignment,pass_threshold:60}),'Failed')
+ assert.equal(summarizeEvaluationRounds({...assignment,req_eval:1,pass_threshold:60},[p]).passed,false)
+ p.evalResponse.coreScore=65;p.evalResponse.givenMarks=65;p.evalResponse.bonusScore=0
+ assert.equal(evaluationOutcome(p,{...assignment,pass_threshold:60}),'Passed')
+ p.evalResponse.coreScore=93;p.evalResponse.bonusScore=15;p.evalResponse.givenMarks=108
+ assert.equal(evaluationOutcome(p,{...assignment,pass_threshold:60}),'Passed')
+ // Non-100 maxima retain the existing percentage threshold semantics.
+ p.evalResponse.coreScore=25;p.evalResponse.givenMarks=45
+ assert.equal(evaluationOutcome(p,{...assignment,max_score:50,pass_threshold:60}),'Failed')
+})
