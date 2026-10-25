@@ -31,6 +31,11 @@ route.get('/my-group', async(req, res, next)=>{
     }catch(err){next(err)}
 })
 
+route.delete('/assignment/:assId', requireStaff, async(req,res,next)=>{
+    try { res.json(await groupService.deleteAllGroups(req.params.assId,req.user)) }
+    catch(err) { next(err) }
+})
+
 // List all groups for an assignment (staff management)
 route.get('/assignment/:assId', requireStaff, async(req, res, next)=>{
     try{

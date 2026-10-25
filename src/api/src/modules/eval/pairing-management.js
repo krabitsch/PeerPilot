@@ -113,4 +113,15 @@ const cancelPairing = async (id,actor) => {
     return {id:row.id,message:'Pending pairing cancelled; history preserved'}
   })
 }
-module.exports={buildSummary,loadSummary,getSummary,createPairing,generateMissing,cancelPairing}
+// Reset only unperformed work. Lock rows against concurrent submission, and
+// retain every completed attempt/response rather than partially resetting a batch.
+const deleteAllPairings = (id,actor) => participation.withAssignment(id,actor,async(db,a)=>{
+  await db.$queryRaw`SELECT id FROM "evalAssignment" WHERE "assignmentId" = ${a.id} ORDER BY id FOR UPDATE`
+  const rows=await db.evalAssignment.findMany({where:{assignmentId:a.id}})
+  if(rows.some(p=>p.status==='Submitted'||p.evalResponseId!=null))
+    throw new ConflictError('This assignment has completed evaluations or evaluation responses. Its pairings cannot be reset; existing academic records must be preserved.')
+  const result=await db.evalAssignment.deleteMany({where:{assignmentId:a.id,status:{in:['Pending','Cancelled']},evalResponseId:null}})
+  if(result.count!==rows.length) throw new ConflictError('Pairings changed while resetting. Please reload and try again.')
+  return {assignmentId:a.id,count:result.count,message:`Deleted ${result.count} evaluation pairings.`}
+})
+module.exports={buildSummary,loadSummary,getSummary,createPairing,generateMissing,cancelPairing,deleteAllPairings}

@@ -57,3 +57,19 @@ test('migration initializes oldest IDs first within each sheet and preserves exi
  assert.match(migration,/"isBonus" BOOLEAN NOT NULL DEFAULT false/)
  assert.match(migration,/SET "coreScore" = "givenMarks"/)
 })
+
+test('zero-point core and bonus sections are valid; negative, fractional and over-100 marks are not',async()=>{
+ const {state,api}=harness()
+ const rows=[{...section(3),id:undefined,marks:0},section(1,20),section(2,30),{...section(4),id:undefined,marks:50},
+  {...section(5),id:undefined,marks:0,isBonus:true}]
+ const saved=await api.updateSection(1,{sections:rows})
+ assert.equal(saved.sections.length,5)
+ assert.equal(saved.sections.filter(s=>!s.isBonus).reduce((n,s)=>n+s.marks,0),100)
+ for(const marks of [-1,101,0.5,null,'']) await assert.rejects(api.createSection(1,{...section(6),marks}),/Invalid evaluation section/)
+ await api.createSection(1,{...section(6),marks:0})
+ const zero=state.rows.at(-1)
+ await api.updateSection(1,{secId:zero.id,marks:0})
+ const before=JSON.stringify(state)
+ await assert.rejects(api.updateSection(1,{sections:[{...section(1),marks:0},section(2,30)]}),/Core section marks must sum exactly/)
+ assert.equal(JSON.stringify(state),before)
+})

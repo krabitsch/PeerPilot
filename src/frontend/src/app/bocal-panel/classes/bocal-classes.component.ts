@@ -92,6 +92,7 @@ export class BocalClassesComponent implements OnInit {
   editClassError   = signal<string | null>(null);
   createGroupError = signal<string | null>(null);
   groupActionError = signal<string | null>(null);
+  groupActionAssignmentId = signal<number | null>(null);
 
   // ── Edit class form state ──────────────────────────────────
   editClassTerm = signal('');
@@ -540,7 +541,7 @@ export class BocalClassesComponent implements OnInit {
   removeGroup(a: AssignmentResponse, g: AssignmentGroup) {
     if (!confirm(this.translate.instant('confirm_remove_group', { name: g.name }))) return;
 
-    this.groupActionError.set(null);
+    this.groupActionError.set(null);this.groupActionAssignmentId.set(null);
     this.loading.show();
     this.groupService.deleteGroup(g.id).subscribe({
       next: () => {
@@ -551,7 +552,7 @@ export class BocalClassesComponent implements OnInit {
         });
         this.loading.hide();
       },
-      error: err => {this.groupActionError.set(err?.error?.error ?? 'Could not remove group.');this.loading.hide();},
+      error: err => {this.groupActionAssignmentId.set(a.id);this.groupActionError.set(err?.error?.error ?? err?.error?.message ?? 'Could not remove group.');this.loading.hide();},
     });
   }
 
@@ -560,9 +561,9 @@ export class BocalClassesComponent implements OnInit {
     if (groups.length === 0) { return; }
     const ok = confirm(this.translate.instant('confirm_delete_all_groups', { name: a.name, count: groups.length }));
     if (!ok) { return; }
-    this.groupActionError.set(null);
+    this.groupActionError.set(null);this.groupActionAssignmentId.set(null);
     this.loading.show();
-    forkJoin(groups.map(group => this.groupService.deleteGroup(group.id))).subscribe({
+    this.groupService.deleteAllGroups(a.id).subscribe({
       next: () => {
         this.assignmentGroups.update(map => {
           const m = new Map(map);
@@ -604,7 +605,7 @@ export class BocalClassesComponent implements OnInit {
     this.createGroupError.set(null);
   }
   onCreateGroup(): void {
-    this.groupActionError.set(null);
+    this.groupActionError.set(null);this.groupActionAssignmentId.set(null);
     const a = this.createGroupAssignment();
     const name = this.createGroupName().trim();
     const studentId = this.createGroupStudentId();
@@ -726,7 +727,7 @@ private nextGroupName(a: AssignmentResponse): string {
   }
 
   generateAllGroups(a: AssignmentResponse): void {
-    this.groupActionError.set(null);this.loading.show();
+    this.groupActionError.set(null);this.groupActionAssignmentId.set(null);this.loading.show();
     this.groupService.generateGroups(a.id).subscribe({
       next:groups=>{this.assignmentGroups.update(map=>new Map(map).set(a.id,groups));this.loading.hide();},
       error:err=>{this.groupActionError.set(err?.error?.error??'Failed to generate groups.');this.loading.hide();}

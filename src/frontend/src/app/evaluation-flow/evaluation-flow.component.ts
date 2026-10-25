@@ -223,6 +223,7 @@ export class EvaluationFlowComponent implements OnInit {
   // ── Phase 2: eval sheet ──────────────────────────────────────
   session   = signal<StartEvaluationResponse | null>(null);
   submitted = signal(false);
+  private zeroPointChoices = signal<Map<number, boolean>>(new Map());
   sectionScores = signal<Map<number, number | null>>(new Map());
   comment  = signal('');
   submitError = signal<string | null>(null);
@@ -256,6 +257,7 @@ export class EvaluationFlowComponent implements OnInit {
         const initial = new Map<number, number | null>();
         for (const s of res.evalSheet.sections) initial.set(s.id, s.isBonus || s.sectionType === 'Slider' ? 0 : null);
         this.sectionScores.set(initial);
+        this.zeroPointChoices.set(new Map(res.evalSheet.sections.filter(s=>s.isBonus && s.marks===0).map(s=>[s.id,false])));
         this.comment.set('');
         this.submitError.set(null);
         this.submitted.set(false);
@@ -271,6 +273,7 @@ export class EvaluationFlowComponent implements OnInit {
 
   // ── Grading ──────────────────────────────────────────────────
   setToggle(section: EvalSection, value: boolean) {
+    if(section.marks===0) this.zeroPointChoices.update(map=>new Map(map).set(section.id,value));
     this.sectionScores.update(map => new Map(map).set(section.id, value ? section.marks : 0));
   }
 
@@ -283,6 +286,7 @@ export class EvaluationFlowComponent implements OnInit {
   }
 
   isToggleSelected(section: EvalSection, value: boolean): boolean {
+    if(section.marks===0) return this.zeroPointChoices().get(section.id)===value;
     const score = this.scoreFor(section.id);
     if (score == null) return false;
     return value ? score === section.marks : score === 0;

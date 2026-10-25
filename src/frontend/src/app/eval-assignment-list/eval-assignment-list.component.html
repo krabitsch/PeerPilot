@@ -6,6 +6,7 @@
     <app-btn variant="secondary" [disabled]="loading() || !data()?.slots?.length" (clicked)="open('single')">Create single pairing</app-btn>
     <app-btn variant="ghost" [disabled]="loading() || !data()" (clicked)="open('counts')">Show evaluator counts</app-btn>
     <app-btn variant="ghost" [disabled]="loading() || !data()" (clicked)="open('queue')">Show unmatched / retry queue</app-btn>
+    <app-btn variant="ghost" [disabled]="loading() || !data()?.pairings?.length" (clicked)="deleteAllPairings()">Delete all pairings</app-btn>
   </div>
   @if(error()){<p class="error" role="alert">{{error()}}</p>}
   @if(notice()){<p class="notice" role="status">{{notice()}}</p>}

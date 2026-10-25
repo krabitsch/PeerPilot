@@ -196,7 +196,7 @@
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
                       <div>
                         <label [ngStyle]="fieldLabelStyle">{{ (editBonus() ? 'label_marks' : 'label_marks_max') | translate:{max: editRemainingMarks()} }}</label>
-                        <input [ngStyle]="inputStyle" type="number" min="1" [max]="editBonus() ? null : editRemainingMarks()" [value]="editMarks()" (input)="editMarks.set(+$any($event.target).value)" />
+                        <input [ngStyle]="inputStyle" type="number" min="0" [max]="editBonus() ? 100 : Math.min(100, editRemainingMarks())" [value]="editMarks()" (input)="editMarks.set(+$any($event.target).value)" />
               <label style="display:block;margin-top:8px;font-size:0.8125rem"><input type="checkbox" [checked]="editBonus()" (change)="editBonus.set($any($event.target).checked)" /> Bonus / optional section</label>
                       </div>
                       <div>
@@ -253,7 +253,7 @@
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
             <div>
               <label [ngStyle]="fieldLabelStyle">{{ 'label_marks' | translate }}</label>
-              <input [ngStyle]="inputStyle" type="number" min="1" [max]="sectionBonus() ? null : remainingMarks()" [value]="sectionMarks()" (input)="sectionMarks.set(+$any($event.target).value)" />
+              <input [ngStyle]="inputStyle" type="number" min="0" [max]="sectionBonus() ? 100 : Math.min(100, remainingMarks())" [value]="sectionMarks()" (input)="sectionMarks.set(+$any($event.target).value)" />
               <label style="display:block;margin-top:8px;font-size:0.8125rem"><input type="checkbox" [checked]="sectionBonus()" (change)="sectionBonus.set($any($event.target).checked)" /> Bonus / optional section</label>
             </div>
             <div>
@@ -265,7 +265,7 @@
             </div>
           </div>
           <div style="display:flex;justify-content:flex-end">
-            <app-btn variant="secondary" size="sm" [disabled]="!sectionBonus() && remainingMarks() <= 0" (clicked)="addSection()">{{ 'btn_add_section' | translate }}</app-btn>
+            <app-btn variant="secondary" size="sm" [disabled]="!sectionBonus() && remainingMarks() < 0" (clicked)="addSection()">{{ 'btn_add_section' | translate }}</app-btn>
           </div>
         </div>
       </div>

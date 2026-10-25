@@ -48,4 +48,15 @@ describe('ordered core and bonus rubric editor',()=>{
   f.detectChanges();expect(f.nativeElement.textContent).toContain('★ Bonus');
   expect(f.nativeElement.textContent).toContain('core pts remaining');
  });
+ it('adds and edits zero-point sections at a full core total, while rejecting invalid point values',()=>{
+  const c=page().componentInstance;
+  c.sectionName.set('Prerequisites');c.sectionDesc.set('Instructions');c.sectionMarks.set(0);c.addSection();
+  expect(c.pendingSections().at(-1)?.marks).toBe(0);expect(c.totalMarks()).toBe(100);
+  c.startEdit(c.pendingSections().length-1);c.editMarks.set(0);c.saveEdit();expect(c.error()).toBeNull();
+  for(const marks of [-1,101,0.5]) {
+    c.sectionName.set('Invalid');c.sectionDesc.set('Description');c.sectionMarks.set(marks);c.addSection();
+    expect(c.error()).toContain('0 to 100');
+  }
+ });
+
 });

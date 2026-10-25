@@ -26,6 +26,10 @@ export class GroupService {
         return this.http.get<any[]>(`${this.base}/assignment/${assId}`)
     }
 
+    deleteAllGroups(assId: number) {
+        return this.http.delete<{assignmentId:number;count:number;message:string}>(`${this.base}/assignment/${assId}`)
+    }
+
     deleteGroup(id: number) {
         return this.http.delete<{ message: string; id: number }>(`${this.base}/${id}/admin`)
     }

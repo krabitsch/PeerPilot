@@ -9,10 +9,12 @@ import {AssignmentCreateComponent} from '../bocal-panel/assignment-create/assign
 import {AuthService} from '../services/auth.service';
 import {CourseService} from '../core/services/course-service/course-service';
 import {AssignmentService} from '../core/services/course-service/Assignment.service';
+import {GroupService} from '../core/services/group-service/group-service';
 import {EvalService} from '../core/services/eval-service/eval-service';
 const course={id:1,org_id:1,name:'Course',description:'Description',term:'Fall 2026',externalCourseCodes:['1268','1269','1421'],pass_threshold:75,created_at:'2026-10-01',assignmentCount:1,studentCount:3};
 describe('Bocal course metadata and assignment duration',()=>{
   const courses={createClass:vi.fn(()=>of(course)),updateClass:vi.fn(()=>of(course)),getClassByOrgId:()=>of([])};
+  const groupApi={deleteGroup:vi.fn(),deleteAllGroups:vi.fn()};
   const assignments={createAssignment:vi.fn(()=>EMPTY),updateAssignment:vi.fn(()=>EMPTY)};
   beforeEach(async()=>{
     vi.clearAllMocks();
@@ -21,7 +23,7 @@ describe('Bocal course metadata and assignment duration',()=>{
       providers:[provideHttpClient(),
         {provide:AuthService,useValue:{user:()=>({id:5,orgId:1})}},
         {provide:ActivatedRoute,useValue:{queryParams:EMPTY}},{provide:Router,useValue:{navigate:vi.fn()}},
-        {provide:CourseService,useValue:courses},{provide:AssignmentService,useValue:assignments},{provide:EvalService,useValue:{}},
+        {provide:CourseService,useValue:courses},{provide:AssignmentService,useValue:assignments},{provide:EvalService,useValue:{}},{provide:GroupService,useValue:groupApi},
       ],
     }).compileComponents();
   });
@@ -95,4 +97,23 @@ describe('Bocal course metadata and assignment duration',()=>{
     fixture.detectChanges();
     expect((fixture.nativeElement.querySelector('#evaluation-duration') as HTMLInputElement).value).toBe('45');
   });
+  it('shows a rejected individual removal even if the groups panel is collapsed',()=>{
+    const f=TestBed.createComponent(BocalClassesComponent),c=f.componentInstance;
+    const a={id:1,name:'Assignment',classid:1} as any;
+    c.selectedClass.set(course);c.classAssignments.set([a]);
+    const message='This group has submission or evaluation history and cannot be deleted. Its existing records must be preserved.';
+    groupApi.deleteGroup.mockReturnValueOnce(throwError(()=>({error:{error:message}})));
+    const confirm=vi.spyOn(window,'confirm').mockReturnValue(true);
+    c.removeGroup(a,{id:9,name:'Group'} as any);f.detectChanges();
+    expect(f.nativeElement.querySelector('[role=alert]')?.textContent).toContain(message);confirm.mockRestore();
+  });
+  it('delete all groups uses one atomic assignment-scoped request rather than separate removals',()=>{
+    const c=TestBed.createComponent(BocalClassesComponent).componentInstance;
+    c.assignmentGroups.set(new Map([[1,[{id:9},{id:10}] as any]]));
+    groupApi.deleteAllGroups.mockReturnValueOnce(of({count:2}));
+    const confirm=vi.spyOn(window,'confirm').mockReturnValue(true);
+    c.deleteAllGroups({id:1,name:'Assignment'} as any);
+    expect(groupApi.deleteAllGroups).toHaveBeenCalledWith(1);expect(c.assignmentGroups().get(1)).toEqual([]);confirm.mockRestore();
+  });
+
 });

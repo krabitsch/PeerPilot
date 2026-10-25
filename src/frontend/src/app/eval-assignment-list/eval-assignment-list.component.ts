@@ -75,6 +75,14 @@ export class EvalAssignmentListComponent implements OnInit {
     });}
   cancel(id:number){if(!window.confirm('Cancel this pending pairing? Its history will be retained and the round will need a new evaluator.'))return;
     this.loading.set(true);this.workflow.cancel(id).subscribe({next:()=>this.load(),error:e=>this.failed(e)});}
+  deleteAllPairings(){
+    if(!this.assignmentId()||this.loading())return;
+    if(!window.confirm('Are you sure you want to delete all evaluation pairings for this assignment? This cannot be undone. Completed evaluations and responses are protected.'))return;
+    this.loading.set(true);this.error.set(null);this.notice.set(null);
+    this.eval.deleteEvalAssignments(this.assignmentId()).subscribe({
+      next:r=>{this.notice.set(`Deleted ${r.count} evaluation pairings.`);this.load();},error:e=>this.failed(e)
+    });
+  }
   recording(id:number){this.eval.getRecordingUrl(id).subscribe({next:r=>window.open(r.url,'_blank','noopener'),error:e=>this.failed(e)});}
   back(){this.router.navigate(['/bocal/classes'],{queryParams:{classId:this.data()?.assignment.classid}});}
   private failed(e:any){this.error.set(e?.error?.error??e?.error?.message??'Could not complete this action.');this.loading.set(false);}

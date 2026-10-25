@@ -50,7 +50,7 @@ describe('assignment participation and pairing management',()=>{
   });
   it('completed evaluations have no cancellation or overwrite controls',()=>{
     const f=page(),r=summary();r.pairings=[{id:1,evalueeGroupId:2,evaluatorUserId:3,evaluatorGroupId:null,round:1,status:'Submitted',outcome:'Failed',evalResponseId:null,evaluatorName:'previous',retryRequested:true}];
-    f.componentInstance.data.set(r);f.detectChanges();expect(f.nativeElement.textContent).not.toContain('Cancel pending pairing');expect(f.nativeElement.textContent).not.toContain('Delete');
+    f.componentInstance.data.set(r);f.detectChanges();expect(f.nativeElement.textContent).not.toContain('Cancel pending pairing');expect(f.nativeElement.textContent).not.toContain('Edit pairing');
   });
   it('generation lists only required slots and submits exact round selections',()=>{
     const f=page(),c=f.componentInstance,r=summary();
@@ -77,6 +77,23 @@ describe('assignment participation and pairing management',()=>{
     expect(c.modal()).toBe('generate');
     expect(c.loading()).toBe(false);
     expect(f.nativeElement.textContent).toContain(message);
+  });
+
+  it('reset requires confirmation and deletes only the selected assignment through the existing endpoint',()=>{
+    const f=page(),c=f.componentInstance;
+    const confirm=vi.spyOn(window,'confirm').mockReturnValue(false);
+    c.deleteAllPairings();http().expectNone('/api/eval/assignment/1/eval-assignments');
+    confirm.mockReturnValue(true);c.deleteAllPairings();
+    const req=http().expectOne('/api/eval/assignment/1/eval-assignments');expect(req.request.method).toBe('DELETE');
+    req.flush({count:2});http().expectOne('/api/eval/assignment/1/management').flush(summary());
+    expect(c.notice()).toContain('Deleted 2');confirm.mockRestore();
+  });
+  it('reset displays the preservation error when completed evaluations prevent deletion',()=>{
+    const f=page(),c=f.componentInstance;const confirm=vi.spyOn(window,'confirm').mockReturnValue(true);
+    c.deleteAllPairings();
+    http().expectOne('/api/eval/assignment/1/eval-assignments').flush({error:'Completed evaluation history must be preserved.'},{status:409,statusText:'Conflict'});
+    f.detectChanges();expect(f.nativeElement.textContent).toContain('Completed evaluation history must be preserved.');
+    expect(c.loading()).toBe(false);confirm.mockRestore();
   });
 
 });

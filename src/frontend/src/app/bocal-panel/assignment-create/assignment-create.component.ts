@@ -30,6 +30,7 @@ interface PendingSection {
   templateUrl: './assignment-create.component.html',
 })
 export class AssignmentCreateComponent implements OnInit {
+  readonly Math = Math;
   private route        = inject(ActivatedRoute);
   private router       = inject(Router);
   private auth          = inject(AuthService);
@@ -171,7 +172,7 @@ export class AssignmentCreateComponent implements OnInit {
     if (!maxScore || maxScore <= 0) { this.error.set(this.translate.instant('error_set_valid_max_score_first')); return; }
     if (!name)  { this.error.set(this.translate.instant('error_section_name_required')); return; }
     if (!desc)  { this.error.set(this.translate.instant('error_section_description_required')); return; }
-    if (!marks || marks <= 0) { this.error.set(this.translate.instant('error_invalid_marks')); return; }
+    if (marks === null || !Number.isInteger(marks) || marks < 0 || marks > 100) { this.error.set('Section points must be a whole number from 0 to 100.'); return; }
     if (!this.sectionBonus() && marks > this.remainingMarks()) {
       this.error.set(this.translate.instant('error_section_exceeds_max', { total: this.totalMarks() + marks, max: maxScore, remaining: this.remainingMarks() }));
       return;
@@ -234,7 +235,7 @@ export class AssignmentCreateComponent implements OnInit {
     if (idx === null) return;
     if (!name) { this.error.set(this.translate.instant('error_section_name_required')); return; }
     if (!desc) { this.error.set(this.translate.instant('error_section_description_required')); return; }
-    if (!marks || marks <= 0) { this.error.set(this.translate.instant('error_invalid_marks')); return; }
+    if (marks === null || !Number.isInteger(marks) || marks < 0 || marks > 100) { this.error.set('Section points must be a whole number from 0 to 100.'); return; }
     if (!this.editBonus() && marks > this.editRemainingMarks()) {
       this.error.set(this.translate.instant('error_section_exceeds_max_edit', { max: this.maxScore() ?? 0, available: this.editRemainingMarks() }));
       return;

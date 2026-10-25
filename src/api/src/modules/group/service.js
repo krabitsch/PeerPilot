@@ -247,20 +247,43 @@ const getGroupsForAssignment = async (assId)=>{
     })
 }
 
-// Never cascade-delete an evaluee's submission or evaluation history.
+const HISTORY_MESSAGE='This group has submission or evaluation history and cannot be deleted. Its existing records must be preserved.'
+const protectedPairing={OR:[{status:{not:'Cancelled'}},{evalResponseId:{not:null}},{submissionId:{not:null}}]}
+const deletionCounts={_count:{select:{submissions:true,
+    evalAssignmentsAsEvaluee:{where:protectedPairing},evalAssignmentsAsEvaluatorGroup:{where:protectedPairing}}}}
+const deleteGroupsInTransaction = async (db,assignmentId,ids) => {
+    // Group locks also block new submission foreign-key references. Pairing locks
+    // serialize against submission of an existing evaluator task.
+    for(const id of [...ids].sort((a,b)=>a-b)) {
+        await db.$queryRaw`SELECT id FROM "group" WHERE id = ${id} FOR UPDATE`
+        await db.$queryRaw`SELECT id FROM "evalAssignment" WHERE "evalueeGroupId" = ${id} OR "evaluatorGroupId" = ${id} ORDER BY id FOR UPDATE`
+    }
+    for(const id of ids) {
+        const group=await db.group.findUnique({where:{id},include:deletionCounts})
+        if(!group||group.assId!==assignmentId) throw new NotFoundError('Group not found')
+        const count=group._count
+        if(count.submissions||count.evalAssignmentsAsEvaluee||count.evalAssignmentsAsEvaluatorGroup)
+            throw new ConflictError(HISTORY_MESSAGE)
+    }
+    await db.evalAssignment.deleteMany({where:{status:'Cancelled',evalResponseId:null,submissionId:null,
+        OR:[{evalueeGroupId:{in:ids}},{evaluatorGroupId:{in:ids}}]}})
+    const result=await db.group.deleteMany({where:{assId:assignmentId,id:{in:ids}}})
+    return result.count
+}
 const deleteGroup = async (groupId, actor) => {
     const id=participation.positiveId(groupId)
     const group=await prisma.group.findUnique({where:{id}})
     if(!group) throw new NotFoundError('Group not found')
-    return participation.withAssignment(group.assId,actor,async(db)=>{
-        const current=await db.group.findUnique({where:{id},include:{_count:{select:{submissions:true,evalAssignmentsAsEvaluee:true}}}})
-        if(!current) throw new NotFoundError('Group not found')
-        if(current._count.submissions || current._count.evalAssignmentsAsEvaluee)
-            throw new ConflictError('This group has submission or evaluation history and cannot be deleted. Its existing records must be preserved.')
-        await db.group.delete({where:{id}})
+    return participation.withAssignment(group.assId,actor,async(db,a)=>{
+        await deleteGroupsInTransaction(db,a.id,[id])
         return {message:'Group deleted successfully',id}
     })
 }
+const deleteAllGroups = (id,actor) => participation.withAssignment(id,actor,async(db,a)=>{
+    const groups=await db.group.findMany({where:{assId:a.id},select:{id:true},orderBy:{id:'asc'}})
+    const count=await deleteGroupsInTransaction(db,a.id,groups.map(g=>g.id))
+    return {assignmentId:a.id,count,message:`Deleted ${count} groups.`}
+})
 
 const getMyGroupForAssignment = async ({ userId, assId }) => {
     if (!userId || !assId)
@@ -276,5 +299,5 @@ const getMyGroupForAssignment = async ({ userId, assId }) => {
 }
 
 module.exports = {createGroup, generateGroups, inviteMember, addMemberAdmin, removeMemberAdmin, respondToInvite, getGroup, leaveGroup,
-    deleteInvite, getInvites, getMyGroupForAssignment, getGroupsForAssignment, deleteGroup}
+    deleteInvite, getInvites, getMyGroupForAssignment, getGroupsForAssignment, deleteGroup, deleteAllGroups}
   

@@ -93,8 +93,9 @@ route.get('/assignment/:id/eval-assignments', async (req, res, next) => {
   }
 })
 
-route.delete('/assignment/:id/eval-assignments', requireStaff, (req, res) => {
-  res.status(409).json({error:'Bulk deletion is disabled to preserve evaluation history. Cancel individual pending pairings instead.'})
+route.delete('/assignment/:id/eval-assignments', requireStaff, async (req, res, next) => {
+  try { res.json(await service.deleteEvalAssignments(req.params.id,req.user)) }
+  catch(err) { next(err) }
 })
 
 // get one EvalAssignment by its EvalAssignment-id (GET /api/eval/eval-assignments/:id)

@@ -26,11 +26,27 @@ function harness(){
       const old=state.overrides.find(p=>p.userId===create.userId)
       if(old)Object.assign(old,update);else state.overrides.push({...create})
     }},
-    group:{findMany:async()=>state.groups,findUnique:async({where})=>state.groups.find(g=>g.id===where.id),
+    group:{findMany:async q=>state.groups.filter(g=>!q?.where?.assId||g.assId===q.where.assId),findUnique:async({where,include})=>{
+      const g=state.groups.find(g=>g.id===where.id)
+      if(!g||!include?._count||g._count)return g
+      const protectedRow=p=>p.status!=='Cancelled'||p.evalResponseId!=null||p.submissionId!=null
+      assert(include._count.select.evalAssignmentsAsEvaluatorGroup)
+      return {...g,_count:{submissions:g.submissionCount??0,
+        evalAssignmentsAsEvaluee:state.pairings.filter(p=>p.evalueeGroupId===g.id&&protectedRow(p)).length,
+        evalAssignmentsAsEvaluatorGroup:state.pairings.filter(p=>p.evaluatorGroupId===g.id&&protectedRow(p)).length}}
+    },deleteMany:async({where})=>{const old=state.groups.length;state.groups=state.groups.filter(g=>!(g.assId===where.assId&&where.id.in.includes(g.id)));return {count:old-state.groups.length}},
       findFirst:async({where})=>state.groups.find(g=>g.name===where.name),
       create:async({data})=>{const g=group(state.groups.length+1,data.members.create.map(m=>m.userId));Object.assign(g,{name:data.name,size:data.size});state.groups.push(g);return g}},
     groupMember:{findFirst:async({where})=>state.groups.flatMap(g=>g.members).find(m=>m.userId===where.userId)},
-    evalAssignment:{findMany:async({where})=>state.pairings.filter(p=>where.assignmentId?p.assignmentId===where.assignmentId:p.status!=='Cancelled'),
+    evalAssignment:{deleteMany:async({where})=>{
+      const old=state.pairings.length
+      state.pairings=state.pairings.filter(p=>{const matches=(
+        (where.assignmentId===undefined||p.assignmentId===where.assignmentId)&&
+        (typeof where.status==='string'?p.status===where.status:where.status.in.includes(p.status))&&
+        p.evalResponseId==null&&(where.submissionId!==null||p.submissionId==null)&&
+        (!where.OR||where.OR.some(clause=>Object.entries(clause).every(([key,value])=>value.in.includes(p[key])))));return !matches});
+      return {count:old-state.pairings.length}
+    },findMany:async({where})=>state.pairings.filter(p=>where.assignmentId?p.assignmentId===where.assignmentId:p.status!=='Cancelled'),
       findUnique:async({where})=>state.pairings.find(p=>where.passKey?p.passKey===where.passKey:p.id===where.id),
       create:async({data})=>{
         assert(!state.pairings.some(p=>p.assignmentId===data.assignmentId&&p.evalueeGroupId===data.evalueeGroupId&&p.evaluatorUserId===data.evaluatorUserId&&p.round===data.round))
@@ -163,12 +179,12 @@ test('W: service refuses students and other organisations',async()=>{
 })
 
 test('W: every management route rejects a student before calling a service; authenticated actor controls scope',async()=>{
-  const routes=[],router={};let actor
+  const routes=[],router={};let actor,resetAssignment
   for(const method of ['get','post','put','patch','delete']) router[method]=(url,...handlers)=>routes.push({method,url,handlers})
   const guard=(req,res,next)=>['Bocal','Admin'].includes(req.user.role)?next():next(new errors.ForbiddenError('Insufficient permissions'))
   const management={getSummary:async(id,who)=>{actor=who;return{}},cancelPairing:async()=>({})}
   const participation={getParticipation:async()=>({}),updateParticipation:async()=>({})}
-  load(path.join(__dirname,'routes.js'),{}, {'express':{Router:()=>router},'./service':{},'./pairing-management':management,'../participation/service':participation,
+  load(path.join(__dirname,'routes.js'),{}, {'express':{Router:()=>router},'./service':{deleteEvalAssignments:async(id,who)=>{resetAssignment=id;actor=who;return{}}},'./pairing-management':management,'../participation/service':participation,
     '../../middleware/authenticate':{requireStaff:guard},'@transcendence/filemanager':{recordingUploader:{single:()=>()=>{}}}})
   const protectedRoutes=routes.filter(r=>r.url.includes('management')||r.url.includes('participation')||
     r.url.includes('generate-simple-pairings')||(r.url.includes('eval-assignments')&&r.method!=='get'&&!r.url.endsWith('/retry')))
@@ -176,6 +192,9 @@ test('W: every management route rejects a student before calling a service; auth
   for(const r of protectedRoutes){let denied;r.handlers[0]({user:{role:'Student'}},{},e=>denied=e);assert.match(denied.message,/Insufficient permissions/)}
   await routes.find(r=>r.url.endsWith('/management')).handlers[1]({params:{id:1},user:staff,body:{orgId:999}}, {json(){}},e=>{throw e})
   assert.equal(actor.orgId,7)
+  await routes.find(r=>r.method==='delete'&&r.url==='/assignment/:id/eval-assignments').handlers[1](
+    {params:{id:1},user:staff,body:{assignmentId:999}}, {json(){}},e=>{throw e})
+  assert.equal(resetAssignment,1);assert.equal(actor,staff)
 })
 
 test('group deletion refuses submission/evaluation history instead of cascading it away',async()=>{
@@ -315,4 +334,56 @@ test('constrained matching agrees with exhaustive feasibility across every four-
       assert.equal(plan.length,4);assertUnique(plan)
     } else assert.throws(()=>encounters.planPairings({...assignment,req_eval:2},summary,slots),/Unable to generate all/)
   }
+})
+
+test('reset deletes only selected assignment pending/cancelled work, preserving groups and unrelated pairings',async()=>{
+ const h=harness()
+ h.state.pairings=[{id:1,assignmentId:1,status:'Pending'},{id:2,assignmentId:1,status:'Cancelled'},
+  {id:3,assignmentId:2,status:'Pending'}]
+ const result=await h.management.deleteAllPairings(1,staff)
+ assert.equal(result.count,2);assert.deepEqual(h.state.pairings.map(p=>p.id),[3]);assert.equal(h.state.groups.length,2)
+ await h.groups.deleteAllGroups(1,staff);assert.equal(h.state.groups.length,0)
+})
+test('reset refuses completed/response-bearing attempts atomically, including cancelled responses',async()=>{
+ for(const row of [{status:'Submitted'},{status:'Pending',evalResponseId:9},{status:'Cancelled',evalResponseId:9}]) {
+  const h=harness();h.state.pairings=[{id:1,assignmentId:1,status:'Pending'},{id:2,assignmentId:1,...row}]
+  await assert.rejects(h.management.deleteAllPairings(1,staff),/academic records must be preserved/)
+  assert.equal(h.state.pairings.length,2)
+ }
+})
+test('group deletion allows no history or cancelled-only history on either side, and cleans both references',async()=>{
+ for(const side of ['none','evalueeGroupId','evaluatorGroupId']) {
+  const h=harness()
+  if(side!=='none')h.state.pairings=[{id:1,assignmentId:1,status:'Cancelled',[side]:1}]
+  await h.groups.deleteGroup(1,staff)
+  assert.equal(h.state.groups.length,1);assert.equal(h.state.groups[0].id,2);assert.equal(h.state.pairings.length,0)
+ }
+})
+test('group deletion protects active tasks, submissions, completed responses, and linked submission history on both sides',async()=>{
+ for(const side of ['evalueeGroupId','evaluatorGroupId']) for(const protectedRow of [
+  {status:'Pending'},{status:'Submitted'},{status:'Cancelled',evalResponseId:9},{status:'Cancelled',submissionId:9},
+ ]) {
+  const h=harness();h.state.pairings=[{id:1,assignmentId:1,[side]:1,...protectedRow}]
+  await assert.rejects(h.groups.deleteGroup(1,staff),/history.*cannot be deleted/)
+  assert.equal(h.state.groups.length,2);assert.equal(h.state.pairings.length,1)
+ }
+ const h=harness();h.state.groups[0].submissionCount=1
+ await assert.rejects(h.groups.deleteGroup(1,staff),/history.*cannot be deleted/)
+})
+test('bulk group deletion is atomic and assignment-scoped; cancelled-only rows can be cleaned',async()=>{
+ const h=harness();h.state.groups.push({...group(99,[99]),assId:2})
+ h.state.pairings=[{id:1,assignmentId:1,evalueeGroupId:1,evaluatorGroupId:2,status:'Cancelled'}]
+ h.state.groups[1].submissionCount=1
+ await assert.rejects(h.groups.deleteAllGroups(1,staff),/history.*cannot be deleted/)
+ assert.equal(h.state.groups.length,3);assert.equal(h.state.pairings.length,1)
+ h.state.groups[1].submissionCount=0
+ const result=await h.groups.deleteAllGroups(1,staff)
+ assert.equal(result.count,2);assert.deepEqual(h.state.groups.map(g=>g.id),[99]);assert.equal(h.state.pairings.length,0)
+})
+test('reset and bulk group deletion retain staff/course access checks',async()=>{
+ const h=harness()
+ for(const action of [h.management.deleteAllPairings,h.groups.deleteAllGroups]) {
+  await assert.rejects(action(1,{role:'Student',orgId:7}),/cannot manage/)
+  await assert.rejects(action(1,{role:'Bocal',orgId:8}),/cannot manage/)
+ }
 })

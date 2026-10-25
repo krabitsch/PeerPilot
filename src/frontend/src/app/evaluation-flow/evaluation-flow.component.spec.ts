@@ -160,4 +160,15 @@ describe('evaluator task overview', () => {
     expect(component.totalScore()).toBe(108);
   });
 
+  it('zero-point toggle sections select one answer while contributing zero points',()=>{
+    const section={id:99,marks:0,sectionType:'Toggle'} as any;
+    component.setToggle(section,true);
+    expect(component.isToggleSelected(section,true)).toBe(true);
+    expect(component.isToggleSelected(section,false)).toBe(false);
+    expect(component.scoreFor(99)).toBe(0);
+    component.setToggle(section,false);
+    expect(component.isToggleSelected(section,true)).toBe(false);
+    expect(component.isToggleSelected(section,false)).toBe(true);
+  });
+
 });

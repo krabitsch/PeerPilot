@@ -384,6 +384,9 @@
             </div>
 
 
+            @if (groupActionError() && (groupActionAssignmentId() ?? expandedAssignment()) === a.id) {
+              <div [ngStyle]="errorStyle" role="alert" aria-live="assertive">{{ groupActionError() }}</div>
+            }
             @if (expandedAssignment() === a.id) {
               <app-assignment-participation [assignmentId]="a.id" [assignmentName]="a.name" (changed)="participationChanged(a,$event)" />
               <div style="padding:0 18px 14px;display:flex;flex-direction:column;gap:6px;border-top:1px solid oklch(22% 0.025 272)">
@@ -424,11 +427,6 @@
                   }
                 }
 
-                @if (groupActionError()) {
-                  <div [ngStyle]="errorStyle">
-                    {{ groupActionError() }}
-                  </div>
-                }
                 <div style="padding-top:12px;display:flex;justify-content:flex-end;gap:8px">
                     <app-btn
                       variant="secondary"

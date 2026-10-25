@@ -132,7 +132,7 @@ const getEvalAssignments = async (assignmentId, viewer)=>{
 }
 
 // Historical attempts are retained, including cancelled pending work.
-const deleteEvalAssignments = async () => { throw new ConflictError('Bulk deletion is disabled to preserve evaluation history') }
+const deleteEvalAssignments = (assignmentId, actor) => require('./pairing-management').deleteAllPairings(assignmentId, actor)
 
 const getEvalAssignmentById = async (evalAssignmentId, viewer) => {
   const evalAssignmentIdInt =

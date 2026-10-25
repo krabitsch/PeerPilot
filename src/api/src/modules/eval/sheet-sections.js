@@ -1,9 +1,10 @@
 const { prisma } = require('@transcendence/database')
 const { ValidationError, NotFoundError } = require('@transcendence/errors')
 const orderBy = [{ sortOrder: 'asc' }, { id: 'asc' }]
+const numericMarks = value => value == null || value === '' ? NaN : Number(value)
 const fields = row => {
   if (typeof row.name !== 'string' || !row.name.trim() || typeof row.description !== 'string' || !row.description.trim() ||
-      !Number.isInteger(row.marks) || row.marks <= 0 || !['Toggle','Slider'].includes(row.sectionType) ||
+      !Number.isInteger(row.marks) || (row.marks < 0 || row.marks > 100) || !['Toggle','Slider'].includes(row.sectionType) ||
       (row.isBonus !== undefined && typeof row.isBonus !== 'boolean')) throw new ValidationError('Invalid evaluation section')
   return { name: row.name, description: row.description, marks: row.marks, sectionType: row.sectionType, isBonus: row.isBonus ?? false }
 }
@@ -25,7 +26,7 @@ const position = (value, max) => {
   return value
 }
 const createSection = (id, payload) => withSheet(id, async (db,sheet) => {
-  const data = fields({...payload,marks:Number(payload.marks)})
+  const data = fields({...payload,marks:numericMarks(payload.marks)})
   const index = payload.sortOrder === undefined ? sheet.sections.length : position(payload.sortOrder,sheet.sections.length)
   const row = await db.evalSection.create({data:{...data,evalSheetId:sheet.id,sortOrder:index}})
   const rows=[...sheet.sections];rows.splice(index,0,row);await normalize(db,rows)
@@ -57,7 +58,7 @@ const updateSection = (id,payload) => withSheet(id, async (db,sheet) => {
   const index=sheet.sections.findIndex(s=>s.id===Number(payload.secId))
   if (index<0) throw new NotFoundError('Section not found')
   const current=sheet.sections[index]
-  const data=fields({...current,...payload,marks:payload.marks===undefined?current.marks:Number(payload.marks)})
+  const data=fields({...current,...payload,marks:payload.marks===undefined?current.marks:numericMarks(payload.marks)})
   const row=await db.evalSection.update({where:{id:current.id},data})
   const rows=sheet.sections.filter(s=>s.id!==current.id)
   const next=payload.sortOrder===undefined?index:position(payload.sortOrder,rows.length)
