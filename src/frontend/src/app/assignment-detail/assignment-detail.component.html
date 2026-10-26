@@ -164,7 +164,7 @@
               <p class="hint-text">You may optionally upload an updated submission file before the retry evaluation.</p>
               <div class="upload-picker">
                 <app-btn variant="secondary" size="sm" [disabled]="uploadingFile()">Upload updated submission file</app-btn>
-                <input class="file-input" type="file" [disabled]="uploadingFile()" accept=".zip,.pdf,.txt,.doc,.docx,image/*" (change)="onFileSelected($event)" />
+                <input class="file-input" type="file" [disabled]="uploadingFile()" [accept]="submissionAccept" (change)="onFileSelected($event)" />
               </div>
             }
 
@@ -177,7 +177,7 @@
                       class="file-input"
                       type="file"
                       [disabled]="uploadingFile()"
-                      accept=".zip,.pdf,.txt,.doc,.docx,image/*"
+                      [accept]="submissionAccept"
                       (change)="onFileSelected($event)"/>
                   </div>
                   <app-btn variant="danger" size="sm" [disabled]="uploadingFile()" (clicked)="closeSubmission()">{{ 'btn_close_submission' | translate }}</app-btn>
@@ -316,7 +316,7 @@
                     @if (!r.isStaffReview && !r.recordingFile) {
                       <label class="feedback-reply-label" [for]="'reply-recording-' + r.id">Evaluation recording (required)</label>
                       <p class="hint-text">Upload an audio recording of your evaluation together with your response. Both are required before receiving a passing grade or requesting another attempt.</p>
-                      <input type="file" [id]="'reply-recording-' + r.id" accept="audio/*" (change)="onReplyRecordingSelected(r.id, $event)" />
+                      <input type="file" [id]="'reply-recording-' + r.id" [accept]="audioAccept" (change)="onReplyRecordingSelected(r.id, $event)" />
                     }
                     <app-btn variant="secondary" size="sm" [disabled]="replying() || !(replyDraft(r.id) || r.reply || '').trim() || (!r.isStaffReview && !r.recordingFile && !replyRecordings().has(r.id))" (clicked)="submitReply(r)">{{ 'btn_reply' | translate }}</app-btn>
                   </div>

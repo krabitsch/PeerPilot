@@ -55,3 +55,30 @@ describe('assignment evaluator visibility', () => {
     }
   }
 });
+
+describe('assignment and recording upload selection',()=>{
+  beforeEach(()=>TestBed.configureTestingModule({
+    imports:[AssignmentDetailComponent,TranslateModule.forRoot()],providers:[provideHttpClient(),
+      {provide:ActivatedRoute,useValue:{queryParams:EMPTY}},{provide:Router,useValue:{navigate:vi.fn()}},
+      {provide:AuthService,useValue:{role:()=> 'Student',user:()=>({id:5})}},
+      {provide:SubmissionService,useValue:{}},{provide:GroupService,useValue:{}},{provide:EvalService,useValue:{}},
+    ],
+  }));
+  it('applies the submission format allowlist and the unchanged 50 MB size boundary',()=>{
+    const c=TestBed.createComponent(AssignmentDetailComponent).componentInstance as any;
+    expect(c.validateSubmissionFile({name:'project.7z',type:'application/octet-stream',size:50*1024*1024})).toBeNull();
+    expect(c.validateSubmissionFile({name:'project.rar',type:'application/vnd.rar',size:50*1024*1024+1})).not.toBeNull();
+    expect(c.validateSubmissionFile({name:'program.exe',type:'application/octet-stream',size:1})).toContain('Unsupported file type.');
+  });
+  it('accepts phone audio, rejects unsupported/oversized audio, and clears stale selection',()=>{
+    const c=TestBed.createComponent(AssignmentDetailComponent).componentInstance;
+    const select=(name:string,type:string,size=1)=>c.onReplyRecordingSelected(7,{target:{files:[{name,type,size}],value:name}} as any);
+    select('Voice.M4A','application/octet-stream',200*1024*1024);
+    expect(c.replyRecordings().get(7)?.name).toBe('Voice.M4A');expect(c.replyError()).toBeNull();
+    select('program.exe','application/octet-stream');
+    expect(c.replyRecordings().has(7)).toBe(false);expect(c.replyError()).toContain('Unsupported audio format.');
+    select('Voice.m4a','audio/mp4',200*1024*1024+1);
+    expect(c.replyRecordings().has(7)).toBe(false);expect(c.replyError()).toContain('200 MB');
+    select('recording.caf','');expect(c.replyRecordings().has(7)).toBe(true);expect(c.replyError()).toBeNull();
+  });
+});

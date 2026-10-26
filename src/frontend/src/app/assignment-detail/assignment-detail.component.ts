@@ -1,3 +1,4 @@
+import {fileAllowed, SUBMISSION_MAX_BYTES, AUDIO_MAX_BYTES, SUBMISSION_ACCEPT, AUDIO_ACCEPT, AUDIO_FORMAT_ERROR} from '../shared/upload-formats';
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { AssignmentInstructionsComponent } from './assignment-instructions.component';
 import { DecimalPipe } from '@angular/common';
@@ -683,13 +684,8 @@ import { MarkdownMathComponent } from '../shared/markdown-math.component';
   `],
 })
 export class AssignmentDetailComponent implements OnInit {
-  private readonly allowedSubmissionMimeTypes = new Set([
-    'application/zip', 'application/x-zip-compressed', 'application/pdf',
-    'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'text/plain',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  ]);
-  private readonly maxSubmissionFileSize = 50 * 1024 * 1024;
+  readonly submissionAccept = SUBMISSION_ACCEPT;
+  readonly audioAccept = AUDIO_ACCEPT;
 
   private auth          = inject(AuthService);
   private route         = inject(ActivatedRoute);
@@ -1014,9 +1010,16 @@ export class AssignmentDetailComponent implements OnInit {
 
   onReplyRecordingSelected(responseId: number, event: Event) {
     const file = (event.target as HTMLInputElement).files?.[0];
+    this.replyError.set(null);
+    const invalid = file && (!fileAllowed(file.name,file.type,true) ? AUDIO_FORMAT_ERROR :
+      file.size > AUDIO_MAX_BYTES ? 'Audio recording is too large. The maximum size is 200 MB.' : null);
+    if (invalid) {
+      this.replyError.set(invalid);
+      (event.target as HTMLInputElement).value = '';
+    }
     this.replyRecordings.update(map => {
       const next = new Map(map);
-      if (file) next.set(responseId, file); else next.delete(responseId);
+      if (file && !invalid) next.set(responseId, file); else next.delete(responseId);
       return next;
     });
   }
@@ -1173,10 +1176,10 @@ export class AssignmentDetailComponent implements OnInit {
   }
 
   private validateSubmissionFile(file: File): string | null {
-    if (!this.allowedSubmissionMimeTypes.has(file.type)) {
-      return this.translate.instant('error_unsupported_file_type');
+    if (!fileAllowed(file.name,file.type,false)) {
+      return 'Unsupported file type. Please upload a supported document, image, or archive.';
     }
-    if (file.size > this.maxSubmissionFileSize) {
+    if (file.size > SUBMISSION_MAX_BYTES) {
       return this.translate.instant('error_file_too_large');
     }
     return null;

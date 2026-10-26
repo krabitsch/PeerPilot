@@ -1,7 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const subService = require('./service')
-const { uploader } = require('@transcendence/filemanager')
+const { submissionUploader } = require('@transcendence/filemanager')
 const { isStaff } = require('../../middleware/authenticate')
 
 // `validateGroupMember` in the service already requires the caller to be
@@ -32,14 +32,14 @@ router.get('/assignment/:assId/', async (req, res, next)=>{
 })
 
 
-router.post('/:groupId/file', uploader.single('file'), async (req, res, next) => {
+router.post('/:groupId/file', submissionUploader.single('file'), async (req, res, next) => {
   try {
     res.json(await subService.uploadFile(req.params.groupId, req.user.userId, req.file))
   } catch (err) { next(err) }
 })
 
 
-router.post('/:groupId/retry-file', uploader.single('file'), async (req, res, next) => {
+router.post('/:groupId/retry-file', submissionUploader.single('file'), async (req, res, next) => {
   try { res.json(await subService.uploadRetryFile(req.params.groupId, req.user.userId, req.file)) }
   catch (err) { next(err) }
 })

@@ -159,7 +159,7 @@
       <div [ngStyle]="subCardStyle">
         <app-avatar [name]="selectedTask() ? taskNames(selectedTask()!) : session()!.group.name" [size]="40"/>
         <div style="flex:1">
-          <div style="font-family:'Space Grotesk',sans-serif;font-weight:600;color:oklch(94% 0.005 272);margin-bottom:2px">{{ session()!.assignment.name }}</div>
+          <div style="font-family:'Space Grotesk',sans-serif;font-size:1.15rem;font-weight:600;color:oklch(94% 0.005 272);margin-bottom:2px"> {{ session()!.assignment.name }} </div>
           <div style="font-size:0.8125rem;color:oklch(48% 0.01 272)">Evaluate: {{ selectedTask() ? taskNames(selectedTask()!) : session()!.group.name }}</div>
         </div>
         @if (session()!.submission.file) {
