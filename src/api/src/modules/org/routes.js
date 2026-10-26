@@ -49,9 +49,9 @@ router.patch('/:id/members', requireStaff, async (req, res, next)=>{
     }catch(err){ next(err)}
 })
 
-router.get('/:id/members', async (req, res, next)=>{
+router.get('/:id/members', requireStaff, async (req, res, next)=>{
     try{
-        res.json( await orgService.listOrgMembers(req.params.id))
+        res.json( await orgService.listOrgMembers(req.params.id, req.user))
     }catch(err) { next(err) }
 })
 

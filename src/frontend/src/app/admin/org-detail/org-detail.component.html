@@ -176,6 +176,7 @@
           <p [ngStyle]="sectionHintStyle">{{ 'org_detail_whitelist_hint' | translate }}</p>
         </div>
         <div [ngStyle]="badgeStyle">{{ 'label_count_total' | translate:{count: allowedEmails().length} }}</div>
+        <app-btn variant="secondary" size="sm" [disabled]="sendingInvitations()" (clicked)="sendInvitation()">Send invitations to all unregistered</app-btn>
       </div>
 
       @if (inviteNotice) {
@@ -198,11 +199,16 @@
             <div [ngStyle]="inviteTableRowStyle">
               <div>{{ invite.email }}</div>
               <div>
-                <span [ngStyle]="invite.used ? badgeStyle : pillStyle">{{ (invite.used ? 'badge_used' : 'badge_pending') | translate }}</span>
+                <span [ngStyle]="invite.used ? badgeStyle : pillStyle">{{ invite.invitation_status }}</span>
               </div>
               <div>{{ invite.invited_by_username || ('label_system' | translate) }}</div>
               <div>{{ formatInviteDate(invite.created_at) }}</div>
               <div>
+                @if (!invite.registered) {
+                  <app-btn variant="secondary" size="sm" [disabled]="sendingInvitations()" (clicked)="sendInvitation(invite)">
+                    {{ invite.invitation_status === 'Not invited' ? 'Send invitation' : 'Resend invitation' }}
+                  </app-btn>
+                }
                 <app-btn
                   variant="danger"
                   size="sm"

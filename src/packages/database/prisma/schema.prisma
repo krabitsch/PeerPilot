@@ -446,6 +446,9 @@ enum EvalAssignmentStatus {
 
 
 model AuthAllowedEmail {
+  invite_token_hash   String?   @unique
+  invite_token_expiry DateTime?
+  invite_sent_at      DateTime?
   id         Int       @id @default(autoincrement())
   email      String    @unique @db.VarChar(255)
   created_at DateTime  @default(now())

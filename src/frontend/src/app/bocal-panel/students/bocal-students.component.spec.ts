@@ -1,3 +1,4 @@
+import {provideHttpClient} from '@angular/common/http';
 import {TestBed} from '@angular/core/testing';
 import {ActivatedRoute} from '@angular/router';
 import {TranslateModule} from '@ngx-translate/core';
@@ -23,7 +24,7 @@ describe('Bocal students: adding students to a course',()=>{
     courses.getClassByOrgId.mockReturnValue(of([{id:1,name:'Macro',externalCourseCodes:codes}]));
     TestBed.configureTestingModule({
       imports:[BocalStudentsComponent,TranslateModule.forRoot()],
-      providers:[
+      providers:[provideHttpClient(),
         {provide:AuthService,useValue:{user:()=>({id:5,orgId:1})}},
         {provide:ActivatedRoute,useValue:{queryParams:of({classId:'1'})}},
         {provide:OrgService,useValue:org},{provide:CourseService,useValue:courses},
@@ -51,7 +52,8 @@ describe('Bocal students: adding students to a course',()=>{
     expect(c.addEmail()).toBe('');
     expect(org.listOrgMembers).toHaveBeenCalledTimes(2);
     const text=fixture.nativeElement.textContent;
-    expect(text).toContain('badge_not_registered');
+    expect(text).toContain('PENDING REGISTRATION');
+    expect(text).toContain('Not invited');
     expect(text).toContain('1421');
   });
 

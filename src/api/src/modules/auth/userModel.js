@@ -14,13 +14,13 @@ const SALT_ROUNDS = parseInt(process.env.BCRYPT_ROUNDS, 10) || 12;
 
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
 
-const generateUsername = async (email) => {
+const generateUsername = async (email, db = prisma) => {
   let base = email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
   if (!base) base = 'user';
   let username = base;
   let counter = 1;
   while (true) {
-    const existing = await prisma.user.findUnique({ where: { username }, select: { id: true } });
+    const existing = await db.user.findUnique({ where: { username }, select: { id: true } });
     if (!existing) return username;
     username = `${base}${counter++}`;
   }
@@ -168,27 +168,9 @@ const findOrCreateOAuthUser = async (provider, providerUserId, email, name) => {
     return rest;
   }
 
-  // New user — must be on the invite list
-  const allowed = await isEmailAllowed(email);
-  if (!allowed) {
-    const err = new ForbiddenError('Registration not permitted for this email address.');
-    err.code = 'INVITE_REQUIRED';
-    throw err;
-  }
+  // Existing OAuth sign-in remains available; new accounts require an invitation link.
+  throw new ForbiddenError('Please use your invitation link to create an account.');
 
-  const username = await generateUsername(email);
-  const user = await prisma.user.create({
-    data: {
-      email,
-      username,
-      role: 'Student',
-      orgId: allowed.orgId,
-      userAuth: { create: { provider, provider_user_id: providerUserId, email_verified: true } },
-    },
-    select: { id: true, email: true, username: true },
-  });
-  await markEmailAsUsed(email);
-  return { ...user, email_verified: true };
 };
 
 // ========== PASSWORD RESET ==========
@@ -342,6 +324,7 @@ const findUserById = async (userId) => {
 };
 
 module.exports = {
+  generateUsername,
   createUser,
   createPendingUser,
   claimPendingUser,

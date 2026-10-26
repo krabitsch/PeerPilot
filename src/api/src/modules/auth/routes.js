@@ -20,14 +20,15 @@ const limiter = (max, message) => rateLimit({
     },
 });
 
+router.post('/invitation/validate', limiter(30, 'Too many requests. Please try again later.'), authController.validateInvitation);
 router.post('/register',        limiter(5,  'Too many requests. Please try again in 15 minutes.'),  authController.register);
 router.post('/login',           limiter(10, 'Too many attempts. Please try again in 15 minutes.'),  authController.login);
 router.post('/refresh',         authController.refresh);
 router.post('/logout',          authController.logout);
 router.get('/me',               authenticate, authController.getMe);
-// Password reset is admin-driven and out-of-band (no mail service): see
+// Password reset remains admin-driven and out-of-band: see
 // POST /api/user/:id/reset-password. The emailed forgot/reset and the email-
-// verification routes have been removed; registration auto-verifies.
+// verification routes remain absent; invitation redemption verifies the email.
 // The OAuth routes below are left in place but are unreachable — the frontend
 // no longer offers GitHub/Google sign-in.
 router.get('/google', authController.googleAuth);
@@ -39,5 +40,8 @@ router.get('/github/callback', authController.githubCallback);
 router.post('/invite', authenticate, requireRole('Admin', 'Bocal'), authController.createInvite);
 router.get('/invites', authenticate, requireRole('Admin', 'Bocal'), authController.getInvites);
 router.delete('/invite/:id', authenticate, requireRole('Admin', 'Bocal'), authController.revokeInvite);
+
+router.post('/invite/:id/send', authenticate, requireRole('Admin', 'Bocal'), limiter(30, 'Too many requests. Please try again later.'), authController.sendInvitation);
+router.post('/invitations/send', authenticate, requireRole('Admin', 'Bocal'), limiter(10, 'Too many requests. Please try again later.'), authController.sendBulkInvitations);
 
 module.exports = router;

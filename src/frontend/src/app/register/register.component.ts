@@ -1,6 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { NgStyle } from '@angular/common';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { AuthService } from '../services/auth.service';
 import { DS } from '../tokens';
@@ -29,14 +29,20 @@ import { BtnComponent } from '../shared/btn.component';
             <app-btn variant="ghost" size="md" (clicked)="router.navigate(['/login'])" style="width:100%;margin-top:8px">
               {{ 'btn_back_to_sign_in' | translate }}
             </app-btn>
+          } @else if (!invitationReady()) {
+            <h1 [ngStyle]="h1Style">Create account</h1>
+            <p [ngStyle]="subtitleStyle" role="status">{{ invitationMessage() }}</p>
+            <p [ngStyle]="footerStyle">Already have an account?
+              <button type="button" (click)="router.navigate(['/login'])" [ngStyle]="linkStyle">Sign in</button>
+            </p>
           } @else {
             <h1 [ngStyle]="h1Style">{{ 'register_title' | translate }}</h1>
-            <p [ngStyle]="subtitleStyle">{{ 'register_subtitle' | translate }}</p>
+            <p [ngStyle]="subtitleStyle">Create your Peerofessor account</p>
 
             <div style="display:flex;flex-direction:column;gap:14px">
               <div style="display:flex;flex-direction:column;gap:5px">
                 <label [ngStyle]="labelStyle">{{ 'label_email' | translate }}</label>
-                <input [value]="email()" (input)="email.set($any($event.target).value)"
+                <input type="email" [value]="email()" readonly aria-readonly="true"
                        [ngStyle]="inputStyle('email')"
                        (focus)="focused.set('email')" (blur)="focused.set('')"
                        [placeholder]="'placeholder_invited_email' | translate"/>
@@ -85,6 +91,36 @@ export class RegisterComponent {
   router = inject(Router);
   private auth = inject(AuthService);
   private translate = inject(TranslateService);
+  private route = inject(ActivatedRoute);
+  private token = '';
+  invitationReady = signal(false);
+  invitationMessage = signal('Registration is currently available by invitation only. Please use the invitation link sent to your email address.');
+
+  constructor() {
+    this.route.queryParamMap.subscribe(params => {
+      this.token = params.get('token') || '';
+      const requestedToken = this.token;
+      this.invitationReady.set(false);
+      this.email.set('');
+      if (!this.token) {
+        this.invitationMessage.set('Registration is currently available by invitation only. Please use the invitation link sent to your email address.');
+        return;
+      }
+      this.invitationMessage.set('Checking invitation…');
+      this.auth.validateInvitation(this.token).subscribe({
+        next: result => {
+          if (requestedToken !== this.token) return;
+          this.email.set(result.email); this.invitationReady.set(true);
+        },
+        error: () => { if (requestedToken === this.token) this.invalidInvitation(); },
+      });
+    });
+  }
+
+  private invalidInvitation() {
+    this.invitationReady.set(false);
+    this.invitationMessage.set('This invitation link is invalid or has expired. Please request a new invitation from your course administrator.');
+  }
 
   email           = signal('');
   password        = signal('');
@@ -98,6 +134,7 @@ export class RegisterComponent {
   submit() {
     this.errorMsg.set('');
     this.suggestions.set([]);
+    if (!this.invitationReady() || !this.token || this.submitting()) return;
 
     if (!this.email() || !this.password()) {
       this.errorMsg.set(this.translate.instant('error_email_password_required'));
@@ -110,7 +147,7 @@ export class RegisterComponent {
 
     this.submitting.set(true);
     const submittedPassword = this.password();
-    this.auth.register(this.email(), submittedPassword).subscribe({
+    this.auth.register(this.token, submittedPassword).subscribe({
       next: () => {
         this.submitting.set(false);
         this.success.set(true);
@@ -118,8 +155,8 @@ export class RegisterComponent {
       error: (err) => {
         this.submitting.set(false);
         const body = err.error;
-        if (err.status === 403) {
-          this.errorMsg.set(this.translate.instant('error_email_not_invited'));
+        if (err.status === 403 || (err.status === 400 && !Array.isArray(body?.suggestions))) {
+          this.invalidInvitation();
         } else if (err.status === 409) {
           this.errorMsg.set(this.translate.instant('error_account_exists'));
         } else if (err.status === 400 && Array.isArray(body?.suggestions)) {
@@ -133,7 +170,7 @@ export class RegisterComponent {
             'Try combining several unrelated words, numbers, or symbols.',
           ]);
         } else {
-          this.errorMsg.set(body?.error || this.translate.instant('error_registration_failed'));
+          this.errorMsg.set(this.translate.instant('error_registration_failed'));
         }
       }
     });

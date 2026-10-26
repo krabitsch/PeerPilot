@@ -49,6 +49,21 @@ export class AdminOrgDetailComponent {
   pendingRoles: Record<number, string> = {}
   readonly validRoles = ['Admin', 'Bocal', 'Student']
 
+  sendingInvitations = signal(false)
+  sendInvitation(invite?: any) {
+    if (this.sendingInvitations()) return
+    this.sendingInvitations.set(true)
+    this.inviteNotice = ''
+    const url = invite ? `${this.authBase}/invite/${invite.id}/send` : `${this.authBase}/invitations/send`
+    this.http.post<any>(url, {orgId: this.orgId()}).subscribe({
+      next: result => {
+        this.inviteNotice = invite ? 'Invitation sent.' : `${result.sent} invitations sent. ${result.failed} could not be sent.`
+        this.sendingInvitations.set(false); this.loadAllowedEmails()
+      },
+      error: err => { this.sendingInvitations.set(false); this.inviteNotice = err?.error?.error || 'Invitations could not be sent.'; this.loadAllowedEmails() },
+    })
+  }
+
   constructor(){ this.load() }
 
   load(){
@@ -128,7 +143,7 @@ export class AdminOrgDetailComponent {
     this.removingInviteId.set(id)
     this.inviteNotice = ''
 
-    this.http.delete(`${this.authBase}/invite/${id}`).subscribe({
+    this.http.delete(`${this.authBase}/invite/${id}`, {params: {orgId: this.orgId()!}}).subscribe({
       next: () => {
         this.removingInviteId.set(null)
         this.inviteNotice = `Removed ${email}`

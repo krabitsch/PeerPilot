@@ -7,17 +7,12 @@ require('dotenv').config();
 
 const {
     findOrCreateOAuthUser,
-    createUser,
-    claimPendingUser,
     findUserByEmail,
     findUserById,
     storeRefreshToken,
     findRefreshToken,
     deleteRefreshToken,
-    isEmailAllowed,
-    markEmailAsUsed,
     addAllowedEmail,
-    getAllowedEmails,
     revokeAllowedEmail,
 } = require('./userModel');
 const { generateAccessToken, generateRefreshToken, verifyRefreshToken,
@@ -28,61 +23,22 @@ const { isPendingAuth } = require('@transcendence/utils');
 const normalizeEmail = (email) => String(email).trim().toLowerCase();
 
 
-
-
-
-
-
-
-
-
-
+const invitations = require('./invitationService');
+exports.validateInvitation = async (req, res, next) => {
+  try { res.json(await invitations.validateInvitation(req.body?.token)); } catch (err) { next(err); }
+};
 exports.register = async (req, res, next) => {
   try {
-    const { password } = req.body;
-    if (!req.body.email || !password) {
-      throw new ValidationError('Email and password required');
+    const { token, password } = req.body || {};
+    await invitations.validateInvitation(token);
+    if (typeof password !== 'string' || !password) throw new ValidationError('Password required');
+    const strength = validatePasswordStrength(password);
+    if (!strength.isValid) {
+      const err = new ValidationError('Password too weak'); err.suggestions = strength.suggestions; throw err;
     }
-    const email = normalizeEmail(req.body.email);
-
-    const allowedEmail = await isEmailAllowed(email);
-    if (!allowedEmail) {
-      throw new ForbiddenError('Registration not permitted for this email address.');
-    }
-
-    // An account staff created when enrolling this email is claimed by signing
-    // up; any account that already has a password is not.
-    const existing = await findUserByEmail(email);
-    if (existing && !isPendingAuth(existing)) {
-      throw new ConflictError('Email already exists');
-    }
-
-    const passwordStrength = validatePasswordStrength(password);
-    if (!passwordStrength.isValid) {
-      const err = new ValidationError('Password too weak');
-      err.suggestions = passwordStrength.suggestions;
-      throw err;
-    }
-
-    // No mail service in this deployment: whitelisted accounts are created
-    // already verified and can sign in immediately. (See GOING-LIVE.md.)
-    let user;
-    if (existing) {
-      await claimPendingUser(existing.id, password);
-      user = existing;
-    } else {
-      user = await createUser(email, password, allowedEmail.orgId);
-    }
-    await markEmailAsUsed(email);   // consume the whitelist entry
-
-    return res.status(201).json({
-      id: user.id,
-      email: user.email,
-      message: 'Registration successful. You can now sign in.'
-    });
-  } catch (err) {
-    return next(err);
-  }
+    const user = await invitations.redeemInvitation(token, password);
+    res.status(201).json({ ...user, message: 'Registration successful. You can now sign in.' });
+  } catch (err) { next(err); }
 };
 
 exports.login = async (req, res, next) => {
@@ -96,7 +52,7 @@ exports.login = async (req, res, next) => {
       throw new UnauthorizedError('Invalid credentials');
     }
     if (isPendingAuth(user)) {
-      throw new UnauthorizedError('This account is not activated yet. Sign up with this email to set your password.');
+      throw new UnauthorizedError('This account is not activated yet. Please use the invitation link sent to your email.');
     }
     // Accounts without a password (OAuth-only) cannot sign in here; bcrypt
     // would throw on the missing hash.
@@ -381,37 +337,29 @@ exports.githubCallback = async (req, res) => {
 
 // ---------- Invitations ----------
 exports.createInvite = async (req, res, next) => {
-    try {
-        const { email, orgId } = req.body;
-        if (!email) throw new ValidationError('Email required');
-        let parsedOrgId = null;
-        if (orgId != null) {
-            parsedOrgId = parseInt(orgId, 10);
-            if (Number.isNaN(parsedOrgId)) throw new ValidationError('Invalid orgId');
-        }
-        const invite = await addAllowedEmail(normalizeEmail(email), req.user.userId, parsedOrgId);
-        res.status(201).json(invite);
-    } catch (err) {
-        next(err);
-    }
+  try {
+    const orgId = await invitations.scope(req.user, req.body.orgId, true);
+    const email = normalizeEmail(req.body.email);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new ValidationError('Invalid email address');
+    // Protect against legacy case variants as well as the exact unique index.
+    const existing = await require('@transcendence/database').prisma.authAllowedEmail.findFirst({ where: { email: { equals: email, mode: 'insensitive' } } });
+    if (existing) throw new ConflictError('Email is already whitelisted.');
+    res.status(201).json(await addAllowedEmail(email, req.user.userId, orgId));
+  } catch (err) { next(err); }
 };
-
 exports.getInvites = async (req, res, next) => {
-    try {
-        const { orgId } = req.query;
-        const parsedOrgId = orgId != null ? parseInt(orgId, 10) : null;
-        const invites = await getAllowedEmails(Number.isNaN(parsedOrgId) ? null : parsedOrgId);
-        res.json(invites);
-    } catch (err) {
-        next(err);
-    }
+  try { res.json(await invitations.listInvitations(req.user, req.query.orgId)); } catch (err) { next(err); }
 };
-
 exports.revokeInvite = async (req, res, next) => {
-    try {
-        await revokeAllowedEmail(req.params.id);
-        res.status(204).send();
-    } catch (err) {
-        next(err);
-    }
+  try {
+    const entry = await invitations.scopedEntry(req.user, req.params.id, req.query.orgId);
+    await revokeAllowedEmail(entry.id);
+    res.status(204).send();
+  } catch (err) { next(err); }
+};
+exports.sendInvitation = async (req, res, next) => {
+  try { res.json(await invitations.sendInvitation(req.user, req.params.id, req.body.orgId)); } catch (err) { next(err); }
+};
+exports.sendBulkInvitations = async (req, res, next) => {
+  try { res.json(await invitations.sendBulk(req.user, req.body)); } catch (err) { next(err); }
 };

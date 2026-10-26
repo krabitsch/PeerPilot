@@ -223,10 +223,15 @@ echo
 
 echo -e "${BLUE}Email${RESET}"
 
+EMAIL_TRANSPORT=$(ask "Email transport (json or smtp)" "json")
+EMAIL_FROM=$(ask "Email sender" "Peerofessor <no-reply@example.invalid>")
+PUBLIC_APP_URL=$(ask "Public application URL for invitation links" "$FRONTEND_URL")
+EMAIL_SECURE=$(ask "SMTP TLS (true for port 465)" "false")
+INVITATION_EXPIRY_HOURS=$(ask "Invitation lifetime (hours)" "168")
 EMAIL_HOST=$(ask "SMTP Host" "sandbox.smtp.mailtrap.io")
 EMAIL_PORT=$(ask "SMTP Port" "25")
-EMAIL_USER=$(ask "SMTP Username" "abd7afb8b22993")
-EMAIL_PASS=$(ask "SMTP Password" "2d08047fd50cc6" "yes")
+EMAIL_USER=$(ask "SMTP Username" "")
+EMAIL_PASS=$(ask "SMTP Password" "" "yes")
 
 # -----------------------------------------------------------------------------
 # Write .env
@@ -294,6 +299,11 @@ FRONTEND_URL=${FRONTEND_URL}
 BASE_URL=${BASE_URL}
 
 # Email
+EMAIL_TRANSPORT=${EMAIL_TRANSPORT}
+EMAIL_FROM="${EMAIL_FROM}"
+PUBLIC_APP_URL=${PUBLIC_APP_URL}
+EMAIL_SECURE=${EMAIL_SECURE}
+INVITATION_EXPIRY_HOURS=${INVITATION_EXPIRY_HOURS}
 EMAIL_HOST=${EMAIL_HOST}
 EMAIL_PORT=${EMAIL_PORT}
 EMAIL_USER=${EMAIL_USER}

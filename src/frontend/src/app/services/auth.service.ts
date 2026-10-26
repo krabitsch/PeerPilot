@@ -106,8 +106,12 @@ export class AuthService {
     });
   }
 
-  register(email: string, password: string): Observable<any> {
-    return this.http.post(`${this.api}/register`, { email, password });
+  validateInvitation(token: string): Observable<{email: string}> {
+    return this.http.post<{email: string}>(`${this.api}/invitation/validate`, { token });
+  }
+
+  register(token: string, password: string): Observable<any> {
+    return this.http.post(`${this.api}/register`, { token, password });
   }
 
 }

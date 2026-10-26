@@ -1,3 +1,4 @@
+import { HttpClient } from '@angular/common/http';
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { NgStyle, DatePipe } from '@angular/common';
 import { A11yModule } from '@angular/cdk/a11y';
@@ -22,6 +23,8 @@ export interface OrgMember {
   created_at: string;
   // Enrolled by staff, not signed up yet.
   pending?: boolean;
+  invitation_id?: number | null;
+  invitation_status?: string;
 }
 
 interface ClassOption { id: number; name: string; externalCourseCodes: string[]; }
@@ -40,6 +43,26 @@ const ROLE_OPTIONS = ['All', 'Student', 'Bocal', 'Admin'];
 })
 export class BocalStudentsComponent implements OnInit {
   private auth          = inject(AuthService);
+  private http = inject(HttpClient);
+  sendingInvitations = signal(false);
+  invitationNotice = signal('');
+  registeredMembers = computed(() => this.filteredMembers().filter(m => !m.pending));
+  pendingMembers = computed(() => this.filteredMembers().filter(m => m.pending));
+  sendInvitation(member?: OrgMember) {
+    if (this.sendingInvitations() || (!member && !this.classFilter())) return;
+    this.sendingInvitations.set(true);
+    const url = member ? `/api/auth/invite/${member.invitation_id}/send` : '/api/auth/invitations/send';
+    this.http.post<any>(url, {orgId: this.orgId, classId: this.classFilter()}).subscribe({
+      next: result => {
+        this.invitationNotice.set(member ? 'Invitation sent.' : `${result.sent} invitations sent. ${result.failed} could not be sent.`);
+        this.sendingInvitations.set(false); this.loadMembers();
+      },
+      error: err => {
+        this.invitationNotice.set(err?.error?.error || 'Invitations could not be sent.');
+        this.sendingInvitations.set(false); this.loadMembers();
+      },
+    });
+  }
   private orgService    = inject(OrgService);
   private courseService = inject(CourseService);
   private assignService = inject(AssignmentService);

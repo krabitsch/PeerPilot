@@ -105,7 +105,8 @@ const deleteOrg = async (orgId)=>{
       orgId: id}
 }
 
-const listOrgMembers = async (orgId) => {
+const listOrgMembers = async (orgId, actor) => {
+  if (actor) await require('../auth/invitationService').scope(actor, orgId, true)
   const id = parseInt(orgId)
   await getOrg(id)
   const members = await prisma.user.findMany({
@@ -113,7 +114,18 @@ const listOrgMembers = async (orgId) => {
     select: {id: true, email: true, username: true, role: true, created_at: true,
       userAuth: {select: {provider: true, pass_hash: true}} }})
   // `pending`: enrolled by staff, not signed up yet. The hash never leaves here.
-  return members.map(({userAuth, ...member}) => ({...member, pending: utils.isPendingAuth(userAuth)}))
+  const entries = await prisma.authAllowedEmail.findMany({
+    where: {orgId: id},
+    select: {id: true, email: true, invite_sent_at: true, invite_token_expiry: true},
+  })
+  const { normalizeEmail, invitationStatus } = require('../../services/invitationState')
+  const byEmail = new Map(entries.map(e => [normalizeEmail(e.email), e]))
+  return members.map(({userAuth, ...member}) => {
+    const pending = utils.isPendingAuth(userAuth)
+    const entry = byEmail.get(normalizeEmail(member.email))
+    return {...member, pending, invitation_id: pending ? entry?.id ?? null : null,
+      invitation_status: invitationStatus(entry, !pending)}
+  })
 }
 
 // create or update org profile:

@@ -19,6 +19,7 @@ const harness=({users={},allowed=[]}={})=>{
   const module={exports:{}}
   vm.runInNewContext(fs.readFileSync(__dirname+'/controller.js','utf8'),{module,exports:module.exports,process,require:name=>{
     if(name==='./userModel')return model
+    if(name==='./invitationService')return {validateInvitation:async token=>{if(token!=='valid')throw new errors.ValidationError('Invalid invitation')},redeemInvitation:async()=>({id:7,email:'s@wu.at'})}
     if(name==='./utils')return {validatePasswordStrength:()=>({isValid:true}),generateAccessToken:()=>'a',generateRefreshToken:()=>'r'}
     if(name==='@transcendence/utils')return {isPendingAuth}
     if(name==='@transcendence/errors')return errors
@@ -40,34 +41,16 @@ const call=async(handler,body)=>{
 }
 const local=(id,pass_hash)=>({id,email:'s@wu.at',pass_hash,provider:'local'})
 
-test('signing up claims a pending account instead of creating a new one',async()=>{
-  const h=harness({users:{'s@wu.at':local(7,null)},allowed:['s@wu.at']})
-  const out=await call(h.controller.register,{email:' S@WU.at ',password:'pw'})
-  assert.equal(out.code,201);assert.equal(out.body.id,7)
-  assert.deepEqual(h.calls.claimed,[[7,'pw']]);assert.equal(h.calls.created.length,0)
-  assert.deepEqual(h.calls.used,['s@wu.at'])
-})
-test('signing up is refused for an account that already has a password',async()=>{
-  const h=harness({users:{'s@wu.at':local(7,'hash')},allowed:['s@wu.at']})
-  const out=await call(h.controller.register,{email:'s@wu.at',password:'pw'})
-  assert.ok(out.error instanceof errors.ConflictError)
-  assert.equal(h.calls.claimed.length+h.calls.created.length+h.calls.used.length,0)
-})
-test('signing up is refused for an OAuth-only account without a password',async()=>{
-  const h=harness({users:{'s@wu.at':{id:7,email:'s@wu.at',pass_hash:null,provider:'google'}},allowed:['s@wu.at']})
-  const out=await call(h.controller.register,{email:'s@wu.at',password:'pw'})
-  assert.ok(out.error instanceof errors.ConflictError);assert.equal(h.calls.claimed.length,0)
-})
-test('signing up without an account still creates one, and needs the whitelist',async()=>{
-  const h=harness({allowed:['new@wu.at']})
-  assert.equal((await call(h.controller.register,{email:'new@wu.at',password:'pw'})).code,201)
-  assert.deepEqual(h.calls.created,['new@wu.at'])
-  assert.ok((await call(h.controller.register,{email:'other@wu.at',password:'pw'})).error instanceof errors.ForbiddenError)
+test('registration requires a validated token and ignores arbitrary supplied email',async()=>{
+  const h=harness({allowed:['s@wu.at']})
+  assert.ok((await call(h.controller.register,{email:'s@wu.at',password:'pw'})).error instanceof errors.ValidationError)
+  const result=await call(h.controller.register,{token:'valid',email:'attacker@wu.at',password:'pw'})
+  assert.equal(result.code,201);assert.equal(result.body.email,'s@wu.at')
 })
 test('a pending account cannot sign in and is told to sign up',async()=>{
   const h=harness({users:{'s@wu.at':local(7,null)}})
   const out=await call(h.controller.login,{email:'s@wu.at',password:'pw'})
-  assert.ok(out.error instanceof errors.UnauthorizedError);assert.match(out.error.message,/Sign up/)
+  assert.ok(out.error instanceof errors.UnauthorizedError);assert.match(out.error.message,/invitation link/)
   assert.equal(h.calls.compared,0)
 })
 test('an account without a password is rejected cleanly instead of crashing bcrypt',async()=>{

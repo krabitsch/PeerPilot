@@ -140,8 +140,10 @@
     </div>
   }
 
+  @if (invitationNotice()) { <p role="status">{{ invitationNotice() }}</p> }
+  <h2 style="font-size:0.875rem;margin:24px 0 12px">REGISTERED STUDENTS</h2>
   <app-list
-    [items]="filteredMembers()"
+    [items]="registeredMembers()"
     [trackBy]="memberTrackFn"
     [emptyMessage]="'bocal_no_members_match_filters' | translate"
     [pageSize]="150">
@@ -167,6 +169,50 @@
           }
           <span [ngStyle]="roleStyle(m.role)">{{ m.role }}</span>
           <span style="font-size:0.8125rem;color:oklch(68% 0.01 272)">{{ m.created_at | date:'mediumDate' }}</span>
+          @if (classFilter()) {
+            <app-btn variant="ghost" size="sm" (clicked)="removeFromClass(m)">{{ 'btn_remove_from_class' | translate }}</app-btn>
+          }
+        </div>
+      </div>
+    </ng-template>
+  </app-list>
+
+  <div style="display:flex;align-items:center;gap:16px;margin:24px 0 12px;flex-wrap:wrap">
+    <h2 style="font-size:0.875rem">PENDING REGISTRATION</h2>
+    @if (classFilter()) {
+      <app-btn variant="secondary" size="sm" [disabled]="sendingInvitations()" (clicked)="sendInvitation()">Send invitations to all unregistered</app-btn>
+    }
+  </div>
+  <app-list
+    [items]="pendingMembers()"
+    [trackBy]="memberTrackFn"
+    [emptyMessage]="'bocal_no_members_match_filters' | translate"
+    [pageSize]="150">
+    <ng-template let-m>
+      <div style="padding:14px 18px;display:flex;justify-content:space-between;align-items:center">
+        <div style="display:flex;align-items:center;gap:10px">
+          <app-avatar [name]="m.username" [size]="28"/>
+          <div>
+            @if (m.role === 'Student') {
+              <button type="button" (click)="openStudent(m)" [ngStyle]="studentLinkStyle">{{ m.username }}</button>
+            } @else {
+              <div style="font-weight:600;font-size:0.9375rem;color:oklch(94% 0.005 272)">{{ m.username }}</div>
+            }
+            <div style="font-size:0.8125rem;color:oklch(48% 0.01 272)">{{ m.email }}</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:16px">
+          @if (m.pending) {
+            <span [ngStyle]="pendingBadgeStyle" [title]="'hint_not_registered' | translate">{{ m.invitation_status || 'Not invited' }}</span>
+          }
+          @if (classFilter() && classCourseCodes().get(m.id); as code) {
+            <span style="font-family:monospace;font-size:0.8125rem;color:oklch(68% 0.01 272)">{{ code }}</span>
+          }
+          <span [ngStyle]="roleStyle(m.role)">{{ m.role }}</span>
+          <span style="font-size:0.8125rem;color:oklch(68% 0.01 272)">{{ m.created_at | date:'mediumDate' }}</span>
+          @if (m.invitation_id) {
+            <app-btn variant="secondary" size="sm" [disabled]="sendingInvitations()" (clicked)="sendInvitation(m)">{{ !m.invitation_status || m.invitation_status === 'Not invited' ? 'Send invitation' : 'Resend invitation' }}</app-btn>
+          }
           @if (classFilter()) {
             <app-btn variant="ghost" size="sm" (clicked)="removeFromClass(m)">{{ 'btn_remove_from_class' | translate }}</app-btn>
           }
