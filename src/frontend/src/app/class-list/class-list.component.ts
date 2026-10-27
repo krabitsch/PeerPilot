@@ -7,17 +7,14 @@ import { CourseService } from '../core/services/course-service/course-service';
 import { AuthService } from '../services/auth.service';
 import { LoadingService } from '../core/services/loading-service/loading.service';
 import { ListComponent } from '../shared/list.component';
-import { SlicePipe } from '@angular/common';
 import { BtnComponent } from '../shared/btn.component';
-import { BadgeComponent } from '../shared/badge.component';
-import { ProgressBarComponent } from '../shared/progress-bar.component';
 import { hasPassedCourse, getProgressLabel, getAssignmentCount } from '../utilities/course-utilities';
 import { EnrollService, EnrollmentEligibility} from '../core/services/enroll-service/enroll-service';
 
 @Component({
   selector: 'app-class-list',
   standalone: true,
-  imports: [ListComponent, BtnComponent, BadgeComponent, ProgressBarComponent, SlicePipe, TranslateModule],
+  imports: [ListComponent, BtnComponent, TranslateModule],
   template: `
     <div class="page">
 

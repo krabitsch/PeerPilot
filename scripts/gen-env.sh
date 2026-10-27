@@ -223,13 +223,13 @@ echo
 
 echo -e "${BLUE}Email${RESET}"
 
-EMAIL_TRANSPORT=$(ask "Email transport (json or smtp)" "json")
-EMAIL_FROM=$(ask "Email sender" "Peerofessor <no-reply@example.invalid>")
+EMAIL_TRANSPORT=$(ask "Email transport (json or smtp)" "smtp")
+EMAIL_FROM=$(ask "Email sender" "")
 PUBLIC_APP_URL=$(ask "Public application URL for invitation links" "$FRONTEND_URL")
 EMAIL_SECURE=$(ask "SMTP TLS (true for port 465)" "false")
 INVITATION_EXPIRY_HOURS=$(ask "Invitation lifetime (hours)" "168")
-EMAIL_HOST=$(ask "SMTP Host" "sandbox.smtp.mailtrap.io")
-EMAIL_PORT=$(ask "SMTP Port" "25")
+EMAIL_HOST=$(ask "SMTP Host" "")
+EMAIL_PORT=$(ask "SMTP Port" "587")
 EMAIL_USER=$(ask "SMTP Username" "")
 EMAIL_PASS=$(ask "SMTP Password" "" "yes")
 

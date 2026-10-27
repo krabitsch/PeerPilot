@@ -1,10 +1,8 @@
 import { Component, input } from '@angular/core';
-import { NgStyle } from '@angular/common';
 
 @Component({
   selector: 'app-logo',
   standalone: true,
-  imports: [NgStyle],
   template: `
     <div style="display:flex;align-items:center;gap:10px">
       <img style="display: block; height: 60px; width: auto; object-fit: contain;" 

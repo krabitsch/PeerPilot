@@ -1,7 +1,6 @@
 import {fileAllowed, SUBMISSION_MAX_BYTES, AUDIO_MAX_BYTES, SUBMISSION_ACCEPT, AUDIO_ACCEPT, AUDIO_FORMAT_ERROR} from '../shared/upload-formats';
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { AssignmentInstructionsComponent } from './assignment-instructions.component';
-import { DecimalPipe } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { of } from 'rxjs';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
@@ -22,12 +21,11 @@ import { BtnComponent } from '../shared/btn.component';
 import { AvatarComponent } from '../shared/avatar.component';
 import { ScorePillComponent } from '../shared/score-pill.component';
 
-import { MarkdownMathComponent } from '../shared/markdown-math.component';
 
 @Component({
   selector: 'app-assignment-detail',
   standalone: true,
-  imports: [AssignmentInstructionsComponent, DecimalPipe, ContainerComponent, BadgeComponent, BtnComponent, AvatarComponent, ScorePillComponent, TranslateModule, MarkdownMathComponent],
+  imports: [AssignmentInstructionsComponent, ContainerComponent, BadgeComponent, BtnComponent, AvatarComponent, ScorePillComponent, TranslateModule],
   templateUrl: './assignment-detail.component.html',
   styles: [`
     .page {
