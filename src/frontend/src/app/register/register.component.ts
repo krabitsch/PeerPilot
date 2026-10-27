@@ -1,3 +1,4 @@
+import { ENGLISH_TRANSLATIONS } from '../languages/english-translations.provider';
 import { Component, inject, signal } from '@angular/core';
 import { NgStyle } from '@angular/common';
 import { Router, ActivatedRoute } from '@angular/router';
@@ -10,6 +11,8 @@ import { BtnComponent } from '../shared/btn.component';
 @Component({
   selector: 'app-register',
   standalone: true,
+  providers: [ENGLISH_TRANSLATIONS],
+  host: { lang: 'en', dir: 'ltr' },
   imports: [NgStyle, LogoComponent, BtnComponent, TranslateModule],
   template: `
     <div [ngStyle]="pageStyle">

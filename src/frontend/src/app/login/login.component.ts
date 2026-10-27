@@ -1,3 +1,4 @@
+import { ENGLISH_TRANSLATIONS } from '../languages/english-translations.provider';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { NgStyle } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -10,6 +11,8 @@ import { LogoComponent } from '../shared/logo.component';
 @Component({
   selector: 'app-login',
   standalone: true,
+  providers: [ENGLISH_TRANSLATIONS],
+  host: { lang: 'en', dir: 'ltr' },
   imports: [NgStyle, FormsModule, LogoComponent, TranslateModule, RouterLink],
   template: `
     <div [ngStyle]="pageStyle">

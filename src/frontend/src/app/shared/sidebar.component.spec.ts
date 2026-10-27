@@ -36,11 +36,20 @@ describe('role-specific sidebar navigation',()=>{
   });
   for(const [role,ids] of [
     ['Student',['student-dashboard','student-classes','student-assignments','student-evaluations','student-progress']],
-    ['Admin',['student-evaluations','bocal-dashboard','bocal-courses','bocal-assignments','bocal-students','bocal-analytics','admin']],
-  ] as const) it(`preserves ${role} order without adding a divider`,()=>{
+    ['Admin',['admin','bocal-dashboard','bocal-courses','bocal-assignments','bocal-students','bocal-analytics','student-evaluations']],
+  ] as const) it(`uses the requested ${role} order and separators`,()=>{
     user.update(u=>({...u,role}));
     const fixture=TestBed.createComponent(SidebarComponent);fixture.detectChanges();
     expect(fixture.componentInstance.visibleItems().map(i=>i.id)).toEqual([...ids]);
-    expect(fixture.nativeElement.querySelector('[role=separator]')).toBeNull();
+    expect(fixture.nativeElement.querySelectorAll('[role=separator]').length).toBe(role === 'Admin' ? 2 : 0);
+    if (role === 'Admin') {
+      const items = fixture.componentInstance.visibleItems();
+      expect(items.filter(i => i.separateBefore).map(i => i.id)).toEqual(['bocal-dashboard', 'student-evaluations']);
+      expect(items.map(i => [i.route, i.queryParams ?? null])).toEqual([
+        ['/admin/orgs', null], ['/bocal/dashboard', null], ['/bocal/classes', null],
+        ['/bocal/classes', {view: 'assignments'}], ['/bocal/students', null],
+        ['/bocal/analytics', null], ['/evaluation', null],
+      ]);
+    }
   });
 });

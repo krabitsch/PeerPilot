@@ -1,4 +1,4 @@
-import { Component, HostListener } from '@angular/core';
+import { Component, HostListener, input, OnInit } from '@angular/core';
 import { TranslateService, TranslateModule } from '@ngx-translate/core';
 import { isSupportedLang, setLanguage } from './language.service';
 
@@ -159,7 +159,12 @@ import { isSupportedLang, setLanguage } from './language.service';
     }
   `
 })
-export class LanguageSwitcherComponent {
+export class LanguageSwitcherComponent implements OnInit {
+  englishOnly = input(false);
+
+  ngOnInit() {
+    if (this.englishOnly()) this.currentLanguage = 'en';
+  }
   languages = [
     { code: 'en', name: 'English', flag: '🇬🇧' },
     // { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
@@ -192,6 +197,7 @@ export class LanguageSwitcherComponent {
   }
 
   switchLanguage(languageCode: string): void {
+    if (this.englishOnly() && languageCode !== 'en') return;
     if (!isSupportedLang(languageCode)) return;
 
     this.currentLanguage = languageCode;

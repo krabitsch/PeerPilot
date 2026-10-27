@@ -1,3 +1,4 @@
+import { ENGLISH_TRANSLATIONS } from '../languages/english-translations.provider';
 import { Component, inject, signal, computed } from '@angular/core';
 import { NgStyle } from '@angular/common';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
@@ -46,6 +47,8 @@ const NAV_ITEMS: NavItem[] = [
 @Component({
   selector: 'app-sidebar',
   standalone: true,
+  providers: [ENGLISH_TRANSLATIONS],
+  host: { lang: 'en', dir: 'ltr' },
   imports: [NgStyle, LogoComponent, IconComponent, RouterLink, LanguageSwitcherComponent, TranslateModule],
   template: `
     <button class="sidebar-toggle" (click)="toggleMobile()" [attr.aria-label]="'aria_toggle_menu' | translate">
@@ -103,7 +106,7 @@ const NAV_ITEMS: NavItem[] = [
       <!-- Bottom -->
       <div style="padding:8px;border-top:1px solid oklch(22% 0.025 272)">
         <div [ngStyle]="itemStyle('')" style="text-decoration:none">
-          <app-language-switcher/>
+          <app-language-switcher [englishOnly]="true"/>
         </div>
         <a [ngStyle]="itemStyle('/logout')" (click)="logout()" style="text-decoration:none;cursor:pointer">{{ 'btn_sign_out' | translate }}</a>
       </div>
@@ -178,6 +181,13 @@ export class SidebarComponent {
   visibleItems = computed(() => {
     const role = this.user()?.role ?? 'Student';
     const items = NAV_ITEMS.filter(i => i.roles.includes(role));
+    if (role === 'Admin') {
+      const admin = items.find(i => i.id === 'admin')!;
+      const management = items.filter(i => i.id.startsWith('bocal-'));
+      const evaluator = items.find(i => i.id === 'student-evaluations')!;
+      return [admin, ...management.map((item, index) => ({ ...item, separateBefore: index === 0 })),
+        { ...evaluator, separateBefore: true }];
+    }
     if (role !== 'Bocal') return items;
     const evaluator = items.find(i => i.id === 'student-evaluations')!;
     return [...items.filter(i => i !== evaluator), { ...evaluator, separateBefore: true }];
