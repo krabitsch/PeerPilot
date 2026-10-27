@@ -68,6 +68,7 @@ import { LogoComponent } from '../shared/logo.component';
             </div>
 
           </form>
+          <p><a routerLink="/forgot-password" [ngStyle]="legalLinkStyle">Forgot password?</a></p>
 
           @if (errorMsg()) {
             <p [ngStyle]="feedbackStyle('error')">{{ errorMsg() }}</p>

@@ -44,3 +44,25 @@ test('SMTP rejection and incomplete configuration fail rather than reporting del
   await assert.rejects(harness({ EMAIL_TRANSPORT: 'smtp' }).service.sendInvitationEmail(invitation))
   await assert.rejects(harness({ EMAIL_TRANSPORT: 'unknown' }).service.sendInvitationEmail(invitation))
 })
+
+test('password reset reuses JSON transport and includes expiry and password-preservation notice', async () => {
+  const h = harness({ EMAIL_TRANSPORT: 'json' })
+  await h.service.sendPasswordResetEmail({ email: 'student@example.com', url: 'http://localhost:4200/reset-password?token=secret', minutes: 20 })
+  assert.equal(h.transports[0].jsonTransport, true)
+  assert.equal(h.messages[0].subject, 'Reset your Peerofessor password')
+  assert.match(h.messages[0].text, /expires in 20 minutes/)
+  assert.match(h.messages[0].text, /current password will remain unchanged/)
+  assert.match(JSON.stringify(h.logs), /reset-password/)
+})
+test('password reset SMTP sends through the shared transport without logging reset secrets', async () => {
+  const h = harness({ EMAIL_TRANSPORT: 'smtp', EMAIL_HOST: 'smtp.example.com', EMAIL_FROM: 'course@example.com' })
+  await h.service.sendPasswordResetEmail({ email: 'student@example.com', url: 'https://example.com/reset-password?token=secret', minutes: 20 })
+  assert.equal(h.transports[0].host, 'smtp.example.com')
+  assert.equal(h.logs.length, 0)
+})
+test('password reset never logs the raw link in production, even with explicitly selected JSON transport', async () => {
+  const h = harness({ EMAIL_TRANSPORT: 'json', NODE_ENV: 'production' })
+  await h.service.sendPasswordResetEmail({ email: 'student@example.com', url: 'https://example.com/reset-password?token=secret', minutes: 20 })
+  assert.equal(h.logs.length, 0)
+  assert.equal(h.transports[0].jsonTransport, true)
+})

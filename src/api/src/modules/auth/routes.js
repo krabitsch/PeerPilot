@@ -20,15 +20,29 @@ const limiter = (max, message) => rateLimit({
     },
 });
 
+const passwordReset = require('./passwordResetController');
+const resetMessage = require('./passwordResetService').MESSAGE;
+const genericResetResponse = (_req, res) => res.json({ message: resetMessage });
+// Both limits apply regardless of whether an account exists. Email keys are
+// hashed so the in-memory limiter does not retain addresses in plain text.
+const resetIpLimit = rateLimit({ windowMs: 15 * 60 * 1000, max: 5 * scale,
+    standardHeaders: true, legacyHeaders: false, handler: genericResetResponse });
+const resetEmailLimit = rateLimit({ windowMs: 15 * 60 * 1000, max: 3 * scale,
+    keyGenerator: req => require('crypto').createHash('sha256')
+        .update(String(req.body?.email ?? '').trim().toLowerCase()).digest('hex'),
+    standardHeaders: false, legacyHeaders: false, handler: genericResetResponse });
+router.post('/forgot-password', resetIpLimit, resetEmailLimit, passwordReset.request);
+router.post('/reset-password/validate', limiter(30, 'Too many requests. Please try again later.'), passwordReset.validate);
+router.post('/reset-password', limiter(5, 'Too many requests. Please try again later.'), passwordReset.redeem);
+
 router.post('/invitation/validate', limiter(30, 'Too many requests. Please try again later.'), authController.validateInvitation);
 router.post('/register',        limiter(5,  'Too many requests. Please try again in 15 minutes.'),  authController.register);
 router.post('/login',           limiter(10, 'Too many attempts. Please try again in 15 minutes.'),  authController.login);
 router.post('/refresh',         authController.refresh);
 router.post('/logout',          authController.logout);
 router.get('/me',               authenticate, authController.getMe);
-// Password reset remains admin-driven and out-of-band: see
-// POST /api/user/:id/reset-password. The emailed forgot/reset and the email-
-// verification routes remain absent; invitation redemption verifies the email.
+// The existing Admin replacement-password endpoint remains unchanged.
+// Invitation redemption verifies the email; no separate verification route.
 // The OAuth routes below are left in place but are unreachable — the frontend
 // no longer offers GitHub/Google sign-in.
 router.get('/google', authController.googleAuth);
