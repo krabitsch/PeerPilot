@@ -1,3 +1,4 @@
+const { assertDeadline } = require('../assignment/deadlines')
 const { prisma } = require('@transcendence/database')
 const crypto = require('crypto')
 const { fileVersionInclude, submissionFiles } = require('../submission/files')
@@ -220,7 +221,7 @@ const getMyEvaluatorTasks = async (userId, role = 'Student') => {
         { assignmentId: 'asc' }, { round: 'asc' }, { id: 'asc' }],
       select: {
         id: true, assignmentId: true, evalueeGroupId: true, round: true, status: true,
-        assignment: { select: { id: true, name: true, created_at: true, classid: true, max_score:true, pass_threshold:true, evaluationDurationMinutes:true } },
+        assignment: { select: { id: true, name: true, created_at: true, classid: true, evaluationDeadline:true, max_score:true, pass_threshold:true, evaluationDurationMinutes:true } },
         evalueeGroup: {
           select: { id: true, name: true, members: {
             orderBy: { userId: 'asc' }, select: { user: { select: { id: true, username: true, email:true } } }
@@ -266,6 +267,7 @@ const startEvaluation = async ({ evalAssignmentId, evaluatorUserId, passkey }) =
       throw new ValidationError('Mismatched submission for this evaluation pairing')
 
     const assignment = await getAssignmentWithSheet(pairing.assignmentId)
+    assertDeadline(assignment, 'evaluation')
     if (!assignment?.evalSheet) throw new NotFoundError('This assignment has no eval sheet yet')
     if (!pairing.submissionId) {
       const linked = await tx.evalAssignment.updateMany({
@@ -277,7 +279,7 @@ const startEvaluation = async ({ evalAssignmentId, evaluatorUserId, passkey }) =
     const files = submissionFiles(submission).map(file => ({...file, url: storage.getPublicUrl(file.url)}))
     return {
       evalAssignmentId: pairing.id,
-      assignment: { id: assignment.id, name: assignment.name, description: assignment.description, max_score: assignment.max_score, pass_threshold:assignment.pass_threshold, evaluationDurationMinutes:assignment.evaluationDurationMinutes },
+      assignment: { evaluationDeadline:assignment.evaluationDeadline, id: assignment.id, name: assignment.name, description: assignment.description, max_score: assignment.max_score, pass_threshold:assignment.pass_threshold, evaluationDurationMinutes:assignment.evaluationDurationMinutes },
       group: { id: submission.group.id, name: submission.group.name },
       submission: { id: submission.id, file: files.at(-1) ?? null, files },
       evalSheet: assignment.evalSheet
@@ -305,6 +307,7 @@ const submitEvaluation = async ({evalAssignmentId, evaluatorUserId, comment, sco
         throw new ValidationError('No submission attached to this evaluation — start the evaluation again')
 
     const assignment = await getAssignmentWithSheet(evalAssignment.assignmentId)
+    assertDeadline(assignment, 'evaluation')
     const sections = assignment?.evalSheet?.sections ?? []
     if(sections.length === 0)
         throw new NotFoundError('This assignment has no eval sheet')
@@ -336,6 +339,7 @@ const submitEvaluation = async ({evalAssignmentId, evaluatorUserId, comment, sco
     const givenMarks = coreScore + bonusScore
 
     const response = await prisma.$transaction(async (tx) => {
+        assertDeadline(await tx.assignment.findUnique({where:{id:assignment.id}}), 'evaluation')
         // Serialize outcome recomputation for concurrent evaluations of one submission.
         await tx.$queryRaw`SELECT id FROM "submission" WHERE id = ${evalAssignment.submissionId} FOR UPDATE`
         const claimed = await tx.evalAssignment.updateMany({

@@ -1,3 +1,4 @@
+import { deadlinePassed, formatDeadline } from '../shared/assignment-deadlines';
 import {fileAllowed, SUBMISSION_MAX_BYTES, AUDIO_MAX_BYTES, SUBMISSION_ACCEPT, AUDIO_ACCEPT, AUDIO_FORMAT_ERROR} from '../shared/upload-formats';
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { AssignmentInstructionsComponent } from './assignment-instructions.component';
@@ -741,7 +742,14 @@ export class AssignmentDetailComponent implements OnInit {
   retryError = signal<string | null>(null);
   requestingRetry = signal<number | null>(null);
 
+  formatDeadline = formatDeadline;
+  submissionDeadlinePassed() { return deadlinePassed(this.assignment()?.submissionDeadline); }
+  evaluationDeadlinePassed() { return deadlinePassed(this.assignment()?.evaluationDeadline); }
+  deadlineFailure = computed(() => this.mySubmission()?.deadlineFailure || this.myGroup()?.deadlineFailure ||
+    this.assignment()?.groups?.find(g => g.id === this.myGroup()?.id)?.deadlineFailure || false);
+
   statusBadge = computed(() => {
+    if (this.deadlineFailure()) return 'failed' as const;
     const sub = this.mySubmission();
     if (!sub) return 'pending' as const;
     if (sub.status !== 'Close') return 'submitted' as const;
@@ -752,6 +760,7 @@ export class AssignmentDetailComponent implements OnInit {
   });
 
   statusLabel = computed(() => {
+    if (this.deadlineFailure()) return 'Failed';
     const sub = this.mySubmission();
     if (!sub) return 'Not started';
     if (sub.status === 'Close' && sub.workflowStatus === 'FeedbackRequired') return 'Feedback required';
@@ -1088,7 +1097,7 @@ export class AssignmentDetailComponent implements OnInit {
     const a = this.assignment();
     const group = this.myGroup();
     const userId = this.currentUserId();
-    if (!a || !group || !userId) return;
+    if (!a || !group || !userId || this.submissionDeadlinePassed()) return;
     this.actionError.set(null);
     this.submissionError.set(null);
     this.selectedFile.set(null);
@@ -1124,7 +1133,8 @@ export class AssignmentDetailComponent implements OnInit {
     const file = this.selectedFile();
     const group = this.myGroup();
     const userId = this.currentUserId();
-    if (!file || !group || !userId) return;
+    const revised = this.mySubmission()?.status === 'Close';
+    if (!file || !group || !userId || (revised ? this.evaluationDeadlinePassed() : this.submissionDeadlinePassed())) return;
 
     const meta = this.selectedFileMeta();
     this.actionError.set(null);
@@ -1155,6 +1165,7 @@ export class AssignmentDetailComponent implements OnInit {
     const group = this.myGroup();
     const userId = this.currentUserId();
     if (!group || !userId) return;
+    if (this.submissionDeadlinePassed()) return;
     if (!confirm(this.translate.instant('confirm_close_submission'))) return;
     this.actionError.set(null);
     this.submissionError.set(null);

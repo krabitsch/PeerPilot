@@ -19,6 +19,7 @@ import { ExportService } from '../../core/services/export-service/export-service
 
 
 interface GroupInfo {
+  deadlineFailure?: boolean;
   id: number;
   name: string;
   members: { userId: number }[];
@@ -39,6 +40,7 @@ interface ProgressCell {
 }
 
 interface StudentProgress {
+  deadlineFailure?: boolean;
   id: number;
   name: string;
   groupName: string;
@@ -238,7 +240,7 @@ export class AnalyticsAssignmentComponent implements OnInit {
         const eligibleEvaluees = new Set(data.management.participants.filter(p=>p.evalueeEligible).map(p=>p.id));
 
         const groups: GroupInfo[] = data.groups.map((g: any) => ({
-          id: Number(g.id),
+          id: Number(g.id), deadlineFailure:g.deadlineFailure,
           name: String(g.name),
           members: (g.members ?? []).map((m: any) => ({
             userId: Number(m.userId)
@@ -353,6 +355,7 @@ export class AnalyticsAssignmentComponent implements OnInit {
               name: student.username,
               groupName: group?.name ?? (eligibleEvaluees.has(student.id) ? 'Unallocated' : 'Not an evaluee'),
               groupId: group?.id ?? null,
+              deadlineFailure:group?.deadlineFailure,
               evalueeEligible:eligibleEvaluees.has(student.id),
               received,
               evaluator,

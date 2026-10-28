@@ -45,6 +45,18 @@
           }
         </div>
 
+        @if (editMode()) {
+          <div>
+            <label for="submission-deadline" [ngStyle]="fieldLabelStyle">Submission deadline</label>
+            <input id="submission-deadline" [ngStyle]="inputStyle" type="datetime-local" step="1" [value]="submissionDeadline()" (input)="submissionDeadline.set($any($event.target).value)" />
+          </div>
+          <div>
+            <label for="evaluation-deadline" [ngStyle]="fieldLabelStyle">Peer-evaluation deadline</label>
+            <input id="evaluation-deadline" [ngStyle]="inputStyle" type="datetime-local" step="1" [value]="evaluationDeadline()" (input)="evaluationDeadline.set($any($event.target).value)" />
+          </div>
+          @if (deadlineError()) { <div [ngStyle]="errorStyle" role="alert">{{ deadlineError() }}</div> }
+        }
+
         <div>
           <label for="evaluation-duration" [ngStyle]="fieldLabelStyle">Recommended evaluation duration (minutes)</label>
           <input id="evaluation-duration" [ngStyle]="inputStyle" type="number" min="5" max="180" step="1" [value]="evaluationDurationMinutes()" (input)="evaluationDurationMinutes.set(+$any($event.target).value)" />

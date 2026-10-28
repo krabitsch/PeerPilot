@@ -301,7 +301,8 @@
                 </td>
 
                 <td class="student-group">
-                  <span>{{ student.groupName }}</span>
+                  <span>{{ student.groupName }}
+                  @if (student.deadlineFailure) { <span class="attempt-status failed" title="Overall assignment result: Failed — deadline missed">× Failed</span> }</span>
                   @if (student.groupId !== null) {
                     <button
                       type="button"

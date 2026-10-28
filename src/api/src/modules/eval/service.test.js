@@ -54,7 +54,8 @@ const harness = (marks = 20) => {
   const module = { exports: {} }
   vm.runInNewContext(fs.readFileSync(__dirname + '/service.js', 'utf8'), {
     module, Date, require: name => {
-      if (name === '@transcendence/database') return { prisma: db }
+      if (name === '../assignment/deadlines') return require('../assignment/deadlines')
+    if (name === '@transcendence/database') return { prisma: db }
       if (name === '@transcendence/errors') return errors
       if (name === '@transcendence/utils') return { getEvalAssignments: async () => [record], getEvalAssignmentById: async () => record, getAssignmentById: async (id, select, include) => { sheetQueries.push(include); return assignment }, getEvalSheetById: async (id, select, include) => { sheetQueries.push(include); return assignment.evalSheet } }
       if (name === '@transcendence/filemanager') return { recordingUploader: { single: () => () => {} }, createStorage: () => ({ ensureBucket: async () => {}, upload: async () => {}, getPublicUrl: key => key }) }
@@ -190,7 +191,8 @@ test('A/E: evaluator task query scopes identity and enrollments with scoped cont
   const module = { exports: {} }
   vm.runInNewContext(fs.readFileSync(__dirname + '/service.js', 'utf8'), {
     module, require: name => {
-      if (name === '@transcendence/database') return { prisma: database }
+      if (name === '../assignment/deadlines') return require('../assignment/deadlines')
+    if (name === '@transcendence/database') return { prisma: database }
       if (name === '@transcendence/errors') return errors
       if (name === '@transcendence/utils') return {}
       if (name === '@transcendence/filemanager') return { recordingUploader: { single: () => () => {} }, createStorage: () => ({ ensureBucket: async () => {}, upload: async () => {}, getPublicUrl: key => key }) }
@@ -340,4 +342,15 @@ test('both eval-sheet read APIs request authoritative ordering rather than creat
  const expected=[{sortOrder:'asc'},{id:'asc'}]
  assert.deepEqual(JSON.parse(JSON.stringify(h.sheetQueries[0].sections.orderBy)),expected)
  assert.deepEqual(JSON.parse(JSON.stringify(h.sheetQueries[1].evalSheet.include.sections.orderBy)),expected)
+})
+
+test('late evaluation start/completion rejects without changing pairing, response or score',async()=>{
+  const h=harness(null)
+  assignment.evaluationDeadline=new Date(Date.now()-1000)
+  const original=structuredClone(h.record)
+  try {
+    await assert.rejects(h.service.startEvaluation({evalAssignmentId:1,evaluatorUserId:4,passkey:'482913'}),/peer-evaluation deadline has passed/)
+    await assert.rejects(h.service.submitEvaluation({evalAssignmentId:1,evaluatorUserId:4,comment:'Constructive feedback. '.repeat(8),scores:[{sectionId:1,score:80}]}),/peer-evaluation deadline has passed/)
+    assert.deepEqual(h.record,original);assert.equal(h.responses.length,0)
+  } finally { delete assignment.evaluationDeadline }
 })

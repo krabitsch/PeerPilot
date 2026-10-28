@@ -16,6 +16,8 @@ export interface CreateAssignmentPayload {
 }
 
 export interface UpdateAssignmentPayload {
+  submissionDeadline?: string | null;
+  evaluationDeadline?: string | null;
   classId: number;
   name: string;
   description: string;
@@ -29,6 +31,8 @@ export interface UpdateAssignmentPayload {
 }
 
 export interface AssignmentResponse {
+  submissionDeadline?: string | null;
+  evaluationDeadline?: string | null;
   evaluationDurationMinutes?: number;
   id: number;
   classid: number;
@@ -41,7 +45,7 @@ export interface AssignmentResponse {
   created_at: string;
   fileId?: number | null;
   file?: { id: number; name: string; url: string; mimiType: string; size: number } | null;
-  groups?: { id: number; name: string; members?: { userId: number }[] }[];
+  groups?: { deadlineFailure?: boolean; workflowStatus?: string; id: number; name: string; members?: { userId: number }[] }[];
 }
 
 @Injectable({ providedIn: "root" })
@@ -75,7 +79,7 @@ export class AssignmentService {
 
     const { file, ...fields } = data;
     const form = new FormData();
-    Object.entries(fields).forEach(([key, value]) => form.append(key, String(value)));
+    Object.entries(fields).forEach(([key, value]) => form.append(key, value == null ? '' : String(value)));
     if (file) form.append('file', file);
 
     return new Observable((observer) => {
@@ -168,7 +172,7 @@ export class AssignmentService {
 
     const { file, ...fields } = data;
     const form = new FormData();
-    Object.entries(fields).forEach(([key, value]) => form.append(key, String(value)));
+    Object.entries(fields).forEach(([key, value]) => form.append(key, value == null ? '' : String(value)));
     if (file) form.append('file', file);
 
     return new Observable((observer) => {

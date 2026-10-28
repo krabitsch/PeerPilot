@@ -96,3 +96,16 @@ test('meeting contact follows selected pending attempt, before close and through
   assert.equal(get([{...pending,evalueeGroupId:999}]).meetingEvaluator,null)
   assert.equal(get([pairing(1,80)]).meetingEvaluator,null)
 })
+
+test('My Progress derives overall deadline failure and removes it after extension without changing rounds',()=>{
+  const a=structuredClone(assignment);a.groups[0].submissions=[];a.submissionDeadline=new Date(Date.now()-1000)
+  const e={...enrollment,class:{...enrollment.class,assignments:[a]}}
+  assert.equal(buildLearningSummary([e],[],[],5).courses[0].assignments[0].status,'Failed')
+  a.submissionDeadline=new Date(Date.now()+60000)
+  assert.equal(buildLearningSummary([e],[],[],5).courses[0].assignments[0].status,'NotStarted')
+  a.submissionDeadline=null;a.groups[0].submissions=[{id:3,status:'Close',fileId:4}];a.evaluationDeadline=new Date(Date.now()-1000)
+  const result=buildLearningSummary([e],[pairing(1,80),pairing(2,null),pairing(3,80)],[],5).courses[0].assignments[0]
+  assert.equal(result.status,'Failed');assert.equal(result.evaluationRounds[1].displayOutcome,'Pending')
+  a.evaluationDeadline=null
+  assert.equal(buildLearningSummary([e],[],[],5).courses[0].assignments[0].status,'InProgress')
+})

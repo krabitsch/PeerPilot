@@ -1,3 +1,4 @@
+import { deadlineInput, deadlineIso, deadlineOrderError } from '../../shared/assignment-deadlines';
 import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { NgStyle } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -52,6 +53,9 @@ export class AssignmentCreateComponent implements OnInit {
   description   = signal('');
   maxScore      = signal<number | null>(null);
   evaluationDurationMinutes = signal(30);
+  submissionDeadline = signal('');
+  evaluationDeadline = signal('');
+  deadlineError = computed(() => deadlineOrderError(this.submissionDeadline(), this.evaluationDeadline()));
   reqEval       = signal<number | null>(null);
   groupSize     = signal<number | null>(1);
   passThreshold = signal<number | null>(80);
@@ -127,6 +131,8 @@ export class AssignmentCreateComponent implements OnInit {
         this.maxScore.set(a.max_score);
         this.reqEval.set(a.req_eval);
         this.evaluationDurationMinutes.set(a.evaluationDurationMinutes ?? 30);
+        this.submissionDeadline.set(deadlineInput(a.submissionDeadline));
+        this.evaluationDeadline.set(deadlineInput(a.evaluationDeadline));
         this.groupSize.set(a.groupSize ?? 1);
         this.passThreshold.set(a.pass_threshold ?? 80);
         this.fileName.set(a.file?.name ?? null);
@@ -368,7 +374,9 @@ export class AssignmentCreateComponent implements OnInit {
 
     this.error.set(null);
     this.loading.show();
+    if (this.deadlineError()) { this.error.set(this.deadlineError()); this.loading.hide(); return; }
     this.assignService.updateAssignment(assId, {
+      submissionDeadline:deadlineIso(this.submissionDeadline()), evaluationDeadline:deadlineIso(this.evaluationDeadline()),
       classId, name, description: desc, groupSize, reqEval, maxScore, passThreshold,
       evaluationDurationMinutes:this.evaluationDurationMinutes(),
       createdBy, file: this.file ?? undefined,

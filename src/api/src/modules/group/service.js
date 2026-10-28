@@ -1,3 +1,4 @@
+const { assignmentOutcome, responseSelect } = require('../eval/outcome')
 const {prisma} = require('@transcendence/database')
 const {NotFoundError, ValidationError, ConflictError, UnauthorizedError} = require('@transcendence/errors')
 const utils = require('@transcendence/utils')
@@ -241,9 +242,15 @@ const getGroupsForAssignment = async (assId)=>{
     if(!assignment)
         throw new NotFoundError('Assignment not found')
 
-    return await prisma.group.findMany({
+    const groups = await prisma.group.findMany({
         where: {assId: parseInt(assId)},
-        include: {members: {include: {user: {select: {id: true, username: true, email: true}}}}}
+        include: {members: {include: {user: {select: {id: true, username: true, email: true}}}},
+          submissions:true, evalAssignmentsAsEvaluee:{include:{evalResponse:{select:responseSelect}}}}
+    })
+    return groups.map(({submissions, evalAssignmentsAsEvaluee, ...group}) => {
+      const submission = submissions?.[0]
+      const result = assignmentOutcome(assignment, (evalAssignmentsAsEvaluee ?? []).filter(p => !p.submissionId || p.submissionId === submission?.id), submission)
+      return {...group, workflowStatus:result.workflowStatus, deadlineFailure:result.deadlineFailure}
     })
 }
 
@@ -291,11 +298,16 @@ const getMyGroupForAssignment = async ({ userId, assId }) => {
     const membership = await utils.existingMembership(userId, assId, {
         group: {
             include: {
-                members: { include: { user: true } }
+                members: { include: { user: true } }, assignment:true, submissions:true,
+                evalAssignmentsAsEvaluee:{include:{evalResponse:{select:responseSelect}}}
             }
         }
     })
-    return membership?.group ?? null
+    if (!membership?.group) return null
+    const {assignment,submissions,evalAssignmentsAsEvaluee,...group} = membership.group
+    const submission = submissions?.[0]
+    const result = assignmentOutcome(assignment,(evalAssignmentsAsEvaluee ?? []).filter(p => !p.submissionId || p.submissionId === submission?.id),submission)
+    return {...group,deadlineFailure:result.deadlineFailure,workflowStatus:result.workflowStatus}
 }
 
 module.exports = {createGroup, generateGroups, inviteMember, addMemberAdmin, removeMemberAdmin, respondToInvite, getGroup, leaveGroup,

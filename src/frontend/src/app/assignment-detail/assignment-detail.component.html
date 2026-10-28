@@ -134,10 +134,22 @@
 
           @if (myGroup() && !mySubmission()) {
             <p class="hint-text">
-              No submission yet. Upload your answers and your proposed
-              solution to this assignment.
+              @if (assignment()?.submissionDeadline) {
+                No submission yet. Upload your answers and proposed solution to this assignment.
+              } @else {
+                No submission yet. Upload your answers and your proposed
+                solution to this assignment.
+              }
             </p>
-            <app-btn variant="primary" (clicked)="startSubmission()">{{ 'btn_start_submission' | translate }}</app-btn>
+            <app-btn variant="primary" [disabled]="submissionDeadlinePassed()" (clicked)="startSubmission()">{{ 'btn_start_submission' | translate }}</app-btn>
+          }
+
+          @if (assignment()?.submissionDeadline) {
+            @if (!mySubmission()) {
+              <p class="hint-text">The submission deadline is {{ formatDeadline(assignment()?.submissionDeadline) }}. After the deadline, submissions can no longer be uploaded or changed. If no submission has been made for your group by the deadline, the assignment will be marked as Failed.</p>
+            } @else {
+              <p class="hint-text">Submission deadline: {{ formatDeadline(assignment()?.submissionDeadline) }}.</p>
+            }
           }
 
           @if (mySubmission(); as submission) {
@@ -163,8 +175,8 @@
             @if (submission.status === 'Close' && submission.canUploadRetryFile) {
               <p class="hint-text">You may optionally upload an updated submission file before the retry evaluation.</p>
               <div class="upload-picker">
-                <app-btn variant="secondary" size="sm" [disabled]="uploadingFile()">Upload updated submission file</app-btn>
-                <input class="file-input" type="file" [disabled]="uploadingFile()" [accept]="submissionAccept" (change)="onFileSelected($event)" />
+                <app-btn variant="secondary" size="sm" [disabled]="uploadingFile() || evaluationDeadlinePassed()">Upload updated submission file</app-btn>
+                <input class="file-input" type="file" [disabled]="uploadingFile() || evaluationDeadlinePassed()" [accept]="submissionAccept" (change)="onFileSelected($event)" />
               </div>
             }
 
@@ -172,15 +184,15 @@
               <div class="upload-panel">
                 <div class="upload-row">
                   <div class="upload-picker">
-                    <app-btn variant="secondary" size="sm" [disabled]="uploadingFile()">{{ 'btn_choose_file' | translate }}</app-btn>
+                    <app-btn variant="secondary" size="sm" [disabled]="uploadingFile() || submissionDeadlinePassed()">{{ 'btn_choose_file' | translate }}</app-btn>
                     <input
                       class="file-input"
                       type="file"
-                      [disabled]="uploadingFile()"
+                      [disabled]="uploadingFile() || submissionDeadlinePassed()"
                       [accept]="submissionAccept"
                       (change)="onFileSelected($event)"/>
                   </div>
-                  <app-btn variant="danger" size="sm" [disabled]="uploadingFile()" (clicked)="closeSubmission()">{{ 'btn_close_submission' | translate }}</app-btn>
+                  <app-btn variant="danger" size="sm" [disabled]="uploadingFile() || submissionDeadlinePassed()" (clicked)="closeSubmission()">{{ 'btn_close_submission' | translate }}</app-btn>
                   <span class="upload-meta">{{ 'upload_max_size' | translate }} · {{ 'upload_one_file' | translate }}</span>
                 </div>
 
@@ -209,6 +221,9 @@
           <p class="hint-text">{{ evaluationRows().length > 1 ? 'Contact the evaluators listed below to schedule your peer-evaluation sessions.' : 'Contact your evaluator to schedule your peer-evaluation session.' }}
             Recommended duration per session: {{ assignment()?.evaluationDurationMinutes ?? 30 }} minutes.</p>
 
+          @if (assignment()?.evaluationDeadline) {
+            <p class="hint-text">All required peer evaluations must be completed by {{ formatDeadline(assignment()?.evaluationDeadline) }}. If any required evaluation is still incomplete after this deadline, the overall assignment result will be Failed.</p>
+          }
           <div class="evaluation-list">
             @for (row of evaluationRows(); track row.round) {
               <div class="evaluation-row" [class.before-close]="mySubmission()?.status !== 'Close'">
@@ -275,6 +290,7 @@
             }
           </div>
 
+          @if (deadlineFailure()) { <p class="hint-text">Overall assignment result: Failed</p> }
           @for (row of feedbackRows(); track $index) {
               <div class="feedback-item">
                 <div class="feedback-head">

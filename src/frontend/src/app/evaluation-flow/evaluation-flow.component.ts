@@ -1,3 +1,4 @@
+import { deadlinePassed } from '../shared/assignment-deadlines';
 import { scoreColor as outcomeScoreColor } from '../shared/score-color';
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { NgStyle } from '@angular/common';
@@ -235,7 +236,7 @@ export class EvaluationFlowComponent implements OnInit {
   allScored  = computed(() => this.sections().every(s => this.sectionScores().get(s.id) != null));
   totalScore = computed(() => [...this.sectionScores().values()].reduce((sum: number, v) => sum + (v ?? 0), 0));
   commentOk  = computed(() => this.comment().trim().length >= 100);
-  canSubmit  = computed(() => this.allScored() && this.commentOk());
+  canSubmit  = computed(() => this.allScored() && this.commentOk() && !deadlinePassed(this.session()?.assignment.evaluationDeadline));
 
   scoreColor = computed(() => outcomeScoreColor(this.coreScore(), this.maxScore(),
     this.session()?.assignment.pass_threshold ?? 50));
@@ -244,6 +245,7 @@ export class EvaluationFlowComponent implements OnInit {
   startEvaluation() {
     const task = this.selectedTask();
     if (!task || task.status !== 'Pending' || this.starting()) return;
+    if (deadlinePassed(task.assignment.evaluationDeadline)) { this.loginError.set('The peer-evaluation deadline has passed.'); return; }
     const passkey = this.passkeyInput().trim();
     if (!/^\d{6}$/.test(passkey)) {
       this.loginError.set('Enter the six-digit evaluation passkey.');
@@ -296,6 +298,7 @@ export class EvaluationFlowComponent implements OnInit {
   submit() {
     const session = this.session();
     const evaluatorUserId = this.auth.user()?.id;
+    if (deadlinePassed(session?.assignment.evaluationDeadline)) { this.submitError.set('The peer-evaluation deadline has passed.'); return; }
     if (!session || !evaluatorUserId || !this.canSubmit() || this.submittingEvaluation() || this.submitted()) return;
 
     const scores = this.sections().map(s => ({ sectionId: s.id, score: this.scoreFor(s.id) ?? 0 }));

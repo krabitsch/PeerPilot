@@ -25,37 +25,16 @@ export function HttpLoaderFactory(http: HttpClient) {
   return new TranslateHttpLoader(http, "languages/", ".json");
 }
  
-function initLanguage(translate: TranslateService) {
+export function initLanguage(translate: TranslateService) {
   return (): Promise<void> => {
-    translate.setDefaultLang("en");
- 
-    const storedLang = localStorage.getItem("language");
-    const targetLang = storedLang
-      ? storedLang
-      : (translate.getBrowserLang()?.match(/en|de|hu|ar/)
-          ? translate.getBrowserLang()!
-          : "en");
- 
-    if (!storedLang) {
-      localStorage.setItem("language", targetLang);
-    }
- 
-    // Set RTL direction immediately if the stored language needs it.
-    document.documentElement.dir = targetLang === "ar" ? "rtl" : "ltr";
-    document.documentElement.lang = targetLang;
-
-    if (targetLang === "en") {
-      return translate.use("en").toPromise().then(() => undefined);
-    }
- 
-    return translate
-      .use("en")
-      .toPromise()
-      .then(() => translate.use(targetLang).toPromise())
-      .then(() => undefined);
+    translate.setDefaultLang('en');
+    localStorage.setItem('language', 'en');
+    document.documentElement.dir = 'ltr';
+    document.documentElement.lang = 'en';
+    return translate.use('en').toPromise().then(() => undefined);
   };
 }
- 
+
 export const appConfig: ApplicationConfig = {
   providers: [
     provideZoneChangeDetection({ eventCoalescing: true }),

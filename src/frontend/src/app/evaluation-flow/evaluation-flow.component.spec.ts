@@ -1,6 +1,9 @@
+import en from '../languages/en.json';
+import de from '../languages/de.json';
+import {initLanguage} from '../app.config';
 import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, Router } from '@angular/router';
-import { TranslateModule } from '@ngx-translate/core';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { of } from 'rxjs';
 import { EvaluationFlowComponent } from './evaluation-flow.component';
 import { AuthService } from '../services/auth.service';
@@ -169,6 +172,25 @@ describe('evaluator task overview', () => {
     component.setToggle(section,false);
     expect(component.isToggleSelected(section,true)).toBe(false);
     expect(component.isToggleSelected(section,false)).toBe(true);
+  });
+
+  it('keeps evaluation chrome English under German locale and preserves authored content',async()=>{
+    const previous=localStorage.getItem('language');localStorage.setItem('language','de');
+    const spy=vi.spyOn(navigator,'language','get').mockReturnValue('de-DE');
+    try {
+      const t=TestBed.inject(TranslateService);t.setTranslation('en',en);t.setTranslation('de',de);t.use('de');await initLanguage(t)();
+      component.session.set({assignment:{name:'Meine Aufgabe',description:'Unverändert',max_score:100},group:{name:'Gruppe'},submission:{file:null},evalSheet:{sections:[
+        {id:1,name:'Erklären Sie die Nachfrage',description:'Deutsche Frage',marks:100,sectionType:'Toggle'},
+      ]}} as any);component.phase.set('flow');fixture.detectChanges();
+      const text=fixture.nativeElement.textContent;
+      expect(text).toContain('Written feedback');expect(text).toContain('Submit evaluation');expect(text).toContain('Erklären Sie die Nachfrage');
+      for(const german of ['Abgabe bewerten','Peer-Bewertung','Schriftliches Feedback','Bewertung absenden'])expect(text).not.toContain(german);
+    } finally {spy.mockRestore();if(previous===null)localStorage.removeItem('language');else localStorage.setItem('language',previous);}
+  });
+  it('prevents late evaluation completion while the pairing remains Pending',()=>{
+    component.session.set({assignment:{evaluationDeadline:'2000-01-01T00:00:00Z',max_score:100},group:{name:'Group'},submission:{file:null},evalSheet:{sections:[]}} as any);
+    component.comment.set('Feedback '.repeat(20));component.submit();
+    expect(api.submitEvaluation).not.toHaveBeenCalled();expect(component.submitError()).toBe('The peer-evaluation deadline has passed.');
   });
 
 });

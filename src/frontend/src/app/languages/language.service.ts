@@ -12,11 +12,11 @@ export function isSupportedLang(lang: string | null): lang is SupportedLang {
 // Shared by the language switcher and any route (e.g. the landing page's
 // /:lang variants) that needs to change the active language consistently.
 export function setLanguage(translate: TranslateService, lang: SupportedLang) {
-  translate.use(lang);
-  localStorage.setItem("language", lang);
+  translate.use('en');
+  localStorage.setItem("language", "en");
   //document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
   document.documentElement.dir = 'ltr';
-  document.documentElement.lang = lang;
+  document.documentElement.lang = 'en';
 }
 
 @Injectable()

@@ -1,3 +1,5 @@
+const { assignmentDeadlines } = require('../assignment/deadlines')
+const { assignmentOutcome, responseSelect } = require('../eval/outcome')
 const { prisma } = require('@transcendence/database')
 const logger = require('@transcendence/logger')
 const {NotFoundError, ValidationError, ConflictError} = require('@transcendence/errors')
@@ -177,7 +179,7 @@ const createAssignment = async (classId, {name, description, maxScore, reqEval, 
             ...(passThreshold && { pass_threshold: parseFloat(passThreshold) }),
             ...(subjectFile && { fileId: subjectFile.id })
         },
-         select: {evaluationDurationMinutes:true, id: true, name: true, description: true, max_score:true, req_eval:true,
+         select: {submissionDeadline:true, evaluationDeadline:true, evaluationDurationMinutes:true, id: true, name: true, description: true, max_score:true, req_eval:true,
             pass_threshold: true, created_at: true, classid:true, fileId:true}
     })
     return {...result, file: subjectFile}
@@ -202,28 +204,34 @@ const getAssignments = async (classId)=>{
     if(!targetClass)
         throw new NotFoundError("Class not found")
 
-    const select = {evaluationDurationMinutes:true, id: true, name: true, description: true, max_score:true, req_eval:true,
+    const select = {submissionDeadline:true, evaluationDeadline:true, evaluationDurationMinutes:true, id: true, name: true, description: true, max_score:true, req_eval:true,
             created_at: true, classid:true, fileId:true, groupSize:true, pass_threshold:true}
     const assignments = await utils.getAssignments(parseInt(classId), select)
     return await attachSubjectFile(assignments)
 }
 
 const getAssignmentById = async (assignId)=>{
-    const select = {evaluationDurationMinutes:true, id: true, classid: true, name: true, description: true, created_at: true,
+    const select = {submissionDeadline:true, evaluationDeadline:true, evaluationDurationMinutes:true, id: true, classid: true, name: true, description: true, created_at: true,
             groupSize: true, req_eval: true, max_score: true, pass_threshold: true, subtype: true, fileId: true }
     const result = await utils.getAssignmentById(assignId, select, {
         groups: {
             include: {
-                members: true
+                members: true, submissions: true, evalAssignmentsAsEvaluee: {include:{evalResponse:{select:responseSelect}}}
             }
         }
     })
     if(!result)
         throw new NotFoundError("Assignment not found")
-    return (await attachSubjectFile(result))[0]
+    const decorated = (await attachSubjectFile(result))[0]
+    decorated.groups = (result.groups ?? []).map(({submissions, evalAssignmentsAsEvaluee, ...group}) => {
+      const submission = submissions?.[0]
+      const overall = assignmentOutcome(result, (evalAssignmentsAsEvaluee ?? []).filter(p => !p.submissionId || p.submissionId === submission?.id), submission)
+      return {...group, deadlineFailure:overall.deadlineFailure, workflowStatus:overall.workflowStatus, passed:overall.passed}
+    })
+    return decorated
 }
 
-const updateAssignment = async (assignId, {classId, name, description, groupSize, reqEval, maxScore, passThreshold, createdBy, evaluationDurationMinutes}, reqFile)=>{
+const updateAssignment = async (assignId, {classId, name, description, groupSize, reqEval, maxScore, passThreshold, createdBy, evaluationDurationMinutes, submissionDeadline, evaluationDeadline}, reqFile)=>{
     if(!assignId ||!classId || !name|| !description || !groupSize || !reqEval|| !maxScore || !passThreshold )
         throw new ValidationError("Invalid request")
 
@@ -235,6 +243,7 @@ const updateAssignment = async (assignId, {classId, name, description, groupSize
     if(!targetClass)
         throw new NotFoundError("Class not found")
 
+    const deadlines = assignmentDeadlines({submissionDeadline, evaluationDeadline}, targetAssign)
     const duration = evaluationDuration(evaluationDurationMinutes ?? targetAssign.evaluationDurationMinutes ?? 30)
     let fileId = targetAssign.fileId
     if (reqFile) {
@@ -261,9 +270,9 @@ const updateAssignment = async (assignId, {classId, name, description, groupSize
 
     const result = await prisma.assignment.update({
         where: { id: parseInt(assignId) },
-        data: { evaluationDurationMinutes: duration, classid: parseInt(classId), name, description, groupSize: parseInt(groupSize), req_eval:parseInt(reqEval), max_score: parseInt(maxScore),
+        data: { ...deadlines, evaluationDurationMinutes: duration, classid: parseInt(classId), name, description, groupSize: parseInt(groupSize), req_eval:parseInt(reqEval), max_score: parseInt(maxScore),
                     pass_threshold: parseInt(passThreshold), ...(reqFile && { fileId }) },
-        select: {evaluationDurationMinutes:true, id: true, classid: true, name: true, description: true, groupSize: true, req_eval: true, max_score: true,
+        select: {submissionDeadline:true, evaluationDeadline:true, evaluationDurationMinutes:true, id: true, classid: true, name: true, description: true, groupSize: true, req_eval: true, max_score: true,
             created_at: true, fileId: true}
     })
     return (await attachSubjectFile(result))[0]

@@ -14,6 +14,8 @@ const harness=()=>{
   const utils={getOrgById:async()=>({id:1}),getUserById:async()=>({id:1}),getClassById:async()=>course,getAssignmentById:async()=>assignment,getAssignmentByName:async()=>null}
   const module={exports:{}}
   vm.runInNewContext(fs.readFileSync(__dirname+'/service.js','utf8'),{module,require:name=>{
+    if (name === '../eval/outcome') return require('../eval/outcome')
+    if (name === '../assignment/deadlines') return require('../assignment/deadlines')
     if(name==='@transcendence/database')return {prisma:db}
     if(name==='@transcendence/errors')return errors
     if(name==='@transcendence/utils')return utils
@@ -64,4 +66,30 @@ for(const duration of [0,4,181,30.5,'invalid'])test(`invalid duration ${duration
   await assert.rejects(h.service.createAssignment(1,{...assFields,evaluationDurationMinutes:duration}),/5 to 180 minutes/)
   await assert.rejects(h.service.updateAssignment(2,{...assFields,evaluationDurationMinutes:duration}),/5 to 180 minutes/)
   assert.equal(h.assignment.evaluationDurationMinutes,30)
+})
+
+test('Edit Assignment saves, preserves, validates and clears optional deadline instants',async()=>{
+  const h=harness()
+  const submissionDeadline='2026-10-28T22:59:00Z',evaluationDeadline='2026-11-04T22:59:00Z'
+  await h.service.updateAssignment(2,{...assFields,submissionDeadline,evaluationDeadline})
+  assert.equal(h.assignment.submissionDeadline.toISOString(),new Date(submissionDeadline).toISOString())
+  assert.equal(h.assignment.evaluationDeadline.toISOString(),new Date(evaluationDeadline).toISOString())
+  await h.service.updateAssignment(2,assFields)
+  assert.equal(h.assignment.evaluationDeadline.toISOString(),new Date(evaluationDeadline).toISOString())
+  await assert.rejects(h.service.updateAssignment(2,{...assFields,evaluationDeadline:'2026-10-27T12:00:00Z'}),/on or after/)
+  await h.service.updateAssignment(2,{...assFields,evaluationDeadline:submissionDeadline})
+  await h.service.updateAssignment(2,{...assFields,submissionDeadline:'',evaluationDeadline:''})
+  assert.equal(h.assignment.submissionDeadline,null);assert.equal(h.assignment.evaluationDeadline,null)
+})
+
+test('assignment detail derives every group result without persisting or exposing pairing details',async()=>{
+  const h=harness();Object.assign(h.assignment,{req_eval:1,max_score:100,pass_threshold:50,submissionDeadline:new Date(Date.now()-1000),groups:[
+    {id:4,members:[],submissions:[],evalAssignmentsAsEvaluee:[]},
+    {id:5,members:[],submissions:[{id:9,status:'Close',fileId:6}],evalAssignmentsAsEvaluee:[]},
+  ]})
+  const first=await h.service.getAssignmentById(2),second=await h.service.getAssignmentById(2)
+  assert.equal(first.groups[0].workflowStatus,'Failed');assert.equal(first.groups[1].deadlineFailure,false)
+  assert.deepEqual(first.groups,second.groups)
+  assert.equal(first.groups[0].evalAssignmentsAsEvaluee,undefined)
+  assert.equal(h.assignment.groups[0].workflowStatus,undefined)
 })

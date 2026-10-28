@@ -407,6 +407,9 @@ export class AssignmentListComponent
               pair =>
 
                 forkJoin({
+                  deadlineGroup: pair.assignment.submissionDeadline || pair.assignment.evaluationDeadline
+                    ? this.groupService.getMyGroupForAssignment(userId,pair.assignment.id).pipe(catchError(() => of(null)))
+                    : of(null),
 
                   submissions:
                     this.subService
@@ -447,11 +450,11 @@ export class AssignmentListComponent
 
                     ...pair,
 
-                    status:
+                    status: results[index].deadlineGroup?.deadlineFailure ? 'failed' :
                       this.statusFor(
                         results[index]
                           .submissions ?? [],
-                        userId
+                        userId, results[index].groups ?? []
                       ),
 
                     groupMembers:
@@ -619,8 +622,9 @@ export class AssignmentListComponent
 
   private statusFor(
     submissions: any[],
-    userId: number
+    userId: number, groups: any[] = []
   ): AssignmentStatus {
+    if (groups.some(g => g.deadlineFailure && g.members?.some((m: any) => m.userId === userId))) return 'failed';
 
     const mine =
       submissions.find(
@@ -636,6 +640,8 @@ export class AssignmentListComponent
     if (!mine)
       return 'not_started';
 
+
+    if (mine.deadlineFailure) return 'failed';
 
     if (mine.status === 'Open')
       return 'in_progress';

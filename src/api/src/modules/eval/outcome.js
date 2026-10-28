@@ -44,25 +44,39 @@ const summarizeEvaluationRounds = (assignment, pairings) => {
 
 const responseSelect = { id: true, givenMarks: true, coreScore: true, bonusScore: true, subId: true, userId: true, isStaffReview: true, reply: true, recordingFileId: true }
 
+// Deadline failure overrides only the overall result, never the individual rounds.
+const assignmentOutcome = (assignment, pairings, submission, now = Date.now()) => {
+  const summary = summarizeEvaluationRounds(assignment, pairings)
+  const overdue = key => !!assignment[key] && now > new Date(assignment[key]).getTime()
+  const validSubmission = submission?.status === 'Close' && submission.fileId != null
+  const deadlineFailure = (overdue('submissionDeadline') && !validSubmission) ||
+    (overdue('evaluationDeadline') && summary.evaluationRounds.some(r => r.outcome === 'Pending'))
+  return { ...summary, deadlineFailure,
+    workflowStatus: deadlineFailure ? 'Failed' : !submission ? 'NotStarted' : submission.status !== 'Close' ? 'InProgress' : summary.workflowStatus,
+    passed: deadlineFailure ? false : submission?.status === 'Close' ? summary.passed : null }
+}
+
 // Read-time derivation prevents old cached Submission.passed values from leaking
 // into either student page after pairing/threshold changes.
-const submissionOutcome = async (db, submission) => {
+const submissionOutcome = async (db, submission, enforceDeadlines = true) => {
   const group = await db.group.findUnique({
     where: { id: submission.groupId },
     include: { assignment: true, evalAssignmentsAsEvaluee: { include: { evalResponse: { select: responseSelect } } } },
   })
-  const summary = summarizeEvaluationRounds(group.assignment,
-    group.evalAssignmentsAsEvaluee.filter(p => !p.submissionId || p.submissionId === submission.id))
+  const attempts = group.evalAssignmentsAsEvaluee.filter(p => !p.submissionId || p.submissionId === submission.id)
+  const summary = enforceDeadlines ? assignmentOutcome(group.assignment, attempts, submission) :
+    {...summarizeEvaluationRounds(group.assignment, attempts), deadlineFailure:false}
+  if (!summary.deadlineFailure) summary.workflowStatus = summarizeEvaluationRounds(group.assignment, attempts).workflowStatus
   const scores = await db.evalResponse.findMany({ where: { subId: submission.id }, select: { givenMarks: true } })
   const finalScore = scores.length ? scores.reduce((sum, r) => sum + r.givenMarks, 0) / scores.length : null
-  return { ...submission, ...summary, finalScore, passed: submission.status === 'Close' ? summary.passed : null }
+  return { ...submission, ...summary, finalScore, passed: summary.deadlineFailure || submission.status === 'Close' ? summary.passed : null }
 }
 
 const recomputeSubmissionPassed = async (db, subId) => {
   const submission = await db.submission.findUnique({ where: { id: subId } })
-  const result = await submissionOutcome(db, submission)
+  const result = await submissionOutcome(db, submission, false)
   await db.submission.update({ where: { id: subId }, data: { passed: result.passed, finalScore: result.finalScore } })
   return result
 }
 
-module.exports = { evaluationDisplayOutcome, evaluationOutcome, summarizeEvaluationRounds, responseSelect, submissionOutcome, recomputeSubmissionPassed }
+module.exports = { assignmentOutcome, evaluationDisplayOutcome, evaluationOutcome, summarizeEvaluationRounds, responseSelect, submissionOutcome, recomputeSubmissionPassed }

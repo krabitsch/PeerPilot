@@ -1,3 +1,4 @@
+const { assertDeadline } = require('../assignment/deadlines')
 const {prisma} = require('@transcendence/database')
 const {NotFoundError, ValidationError} = require('@transcendence/errors')
 const utils = require('@transcendence/utils')
@@ -67,7 +68,8 @@ const getGroupSubmissions = async (groupId, {userId, isStaff} = {}) => {
 const createSubmission = async ({groupId, userId, type}) => {
     if (!groupId || !userId || !['FILE','IMAGE','PDF'].includes(type))
         throw new ValidationError('Invalid request')
-    await validateGroupMember(groupId, userId)
+    const {group: deadlineGroup} = await validateGroupMember(groupId, userId)
+    assertDeadline(deadlineGroup.assignment, 'submission')
     let saved
     try { saved = await prisma.submission.upsert({
         where:{groupId:Number(groupId)}, update:{},
@@ -116,9 +118,11 @@ const lockSubmission = async (db, groupId) => {
 }
 
 const closeSubmission = async (groupId, {userId}) => {
-    await validateGroupMember(groupId, userId)
+    const {group: deadlineGroup} = await validateGroupMember(groupId, userId)
+    assertDeadline(deadlineGroup.assignment, 'submission')
     return prisma.$transaction(async tx => {
         const existing = await lockSubmission(tx, groupId)
+        assertDeadline(deadlineGroup.assignment, 'submission')
         const saved = existing.status === 'Close' ? existing : await tx.submission.update({
             where:{id:existing.id}, data:{status:'Close',closedAt:new Date()},
             include:{file:true,fileVersions:fileVersionInclude},
@@ -131,7 +135,8 @@ const closeSubmission = async (groupId, {userId}) => {
 // A closed original is immutable; retry uploads only append a version relation.
 const saveFile = async (groupId, userId, reqFile, revised = false) => {
     if (!groupId || !userId || !reqFile) throw new ValidationError('Invalid request')
-    await validateGroupMember(groupId, userId)
+    const {group: deadlineGroup} = await validateGroupMember(groupId, userId)
+    assertDeadline(deadlineGroup.assignment, revised ? 'evaluation' : 'submission')
     const fileName = `${groupId}-${randomUUID()}-${reqFile.originalname}`
     await storage.upload(fileName, reqFile.buffer, reqFile.mimetype, reqFile.size)
     let supersededDraft = null
@@ -139,6 +144,7 @@ const saveFile = async (groupId, userId, reqFile, revised = false) => {
     try {
         result = await prisma.$transaction(async tx => {
             const existing = await lockSubmission(tx, groupId)
+            assertDeadline((await tx.group.findUnique({where:{id:Number(groupId)},include:{assignment:true}})).assignment, revised ? 'evaluation' : 'submission')
             if (revised ? !await retryFileAllowed(tx, existing) : existing.status !== 'Open')
                 throw new ValidationError(revised ? 'Only one updated file per unresolved retry is allowed, before its evaluation starts.' : 'Submission is already closed')
             const file = await tx.file.create({data:{name:reqFile.originalname, size:reqFile.size,
@@ -183,9 +189,11 @@ const getDownloadUrl = async(groupId, { userId, isStaff, fileId } = {})=>{
 
 const removeFile = async (groupId, userId) => {
     if (!groupId || !userId) throw new ValidationError('Invalid request')
-    await validateGroupMember(groupId, userId)
+    const {group: deadlineGroup} = await validateGroupMember(groupId, userId)
+    assertDeadline(deadlineGroup.assignment, 'submission')
     const removed = await prisma.$transaction(async tx => {
         const existing = await lockSubmission(tx, groupId)
+        assertDeadline(deadlineGroup.assignment, 'submission')
         if (existing.status !== 'Open') throw new ValidationError('Submission is already closed')
         if (!existing.file) throw new NotFoundError('File not found')
         await tx.submission.update({where:{id:existing.id},data:{fileId:null}})

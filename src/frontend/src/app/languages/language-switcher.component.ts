@@ -176,10 +176,7 @@ export class LanguageSwitcherComponent implements OnInit {
   isOpen = false;
 
   constructor(private translate: TranslateService) {
-    const savedLanguage = localStorage.getItem('language');
-    if (savedLanguage) {
-      this.currentLanguage = savedLanguage;
-    }
+    this.currentLanguage = 'en';
   }
 
   toggleDropdown(): void {

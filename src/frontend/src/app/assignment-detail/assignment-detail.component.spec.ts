@@ -82,3 +82,47 @@ describe('assignment and recording upload selection',()=>{
     select('recording.caf','');expect(c.replyRecordings().has(7)).toBe(true);expect(c.replyError()).toBeNull();
   });
 });
+
+describe('optional deadline display',()=>{
+  beforeEach(()=>TestBed.configureTestingModule({imports:[AssignmentDetailComponent,TranslateModule.forRoot()],providers:[provideHttpClient(),
+    {provide:ActivatedRoute,useValue:{queryParams:EMPTY}},{provide:Router,useValue:{navigate:vi.fn()}},
+    {provide:AuthService,useValue:{role:()=> 'Student',user:()=>({id:5})}},
+    {provide:SubmissionService,useValue:{}},{provide:GroupService,useValue:{}},{provide:EvalService,useValue:{}},
+  ]}));
+  for(const submission of [false,true])for(const evaluation of [false,true])it(`shows configured deadlines only: ${submission}/${evaluation}`,()=>{
+    const f=TestBed.createComponent(AssignmentDetailComponent),c=f.componentInstance;
+    c.assignment.set({id:1,name:'Assignment',description:'Description',req_eval:1,max_score:100,
+      submissionDeadline:submission?'2099-10-28T22:59:00Z':null,evaluationDeadline:evaluation?'2099-11-04T22:59:00Z':null} as any);
+    c.myGroup.set({id:2,leaderId:5,members:[]} as any);
+    c.myEvaluators.set([{id:7,round:1,status:'Pending',evaluatorUser:{id:4,username:'student4'}}] as any);
+    f.detectChanges();const text=f.nativeElement.textContent;
+    expect(text.includes('The submission deadline is')).toBe(submission);
+    expect(text.includes('All required peer evaluations must be completed by')).toBe(evaluation);
+    expect(text).toContain('No submission yet.');expect(c.submissionDeadlinePassed()).toBe(false);
+  });
+  it('uses backend Failed for missing work and keeps submitted files visible after deadline',()=>{
+    const f=TestBed.createComponent(AssignmentDetailComponent),c=f.componentInstance;
+    c.assignment.set({id:1,name:'Assignment',description:'Description',req_eval:1,max_score:100,submissionDeadline:'2000-01-01T00:00:00Z',groups:[{id:2,deadlineFailure:true}]} as any);
+    c.myGroup.set({id:2,leaderId:5,members:[]} as any);f.detectChanges();
+    expect(c.statusLabel()).toBe('Failed');expect(c.statusBadge()).toBe('failed');expect(c.submissionDeadlinePassed()).toBe(true);
+    const start=f.nativeElement.querySelector('.submission-card app-btn button');expect(start.disabled).toBe(true);
+    c.mySubmission.set({id:3,groupId:2,status:'Close',files:[{id:4,name:'answers.pdf'}]} as any);f.detectChanges();
+    expect(f.nativeElement.textContent).toContain('Submission deadline:');expect(f.nativeElement.textContent).toContain('answers.pdf');
+    expect(f.nativeElement.textContent).toContain('Download');
+  });
+  for(const overdue of [false,true])it(`retry picker uses evaluation deadline after original submission deadline: overdue=${overdue}`,()=>{
+    const f=TestBed.createComponent(AssignmentDetailComponent),c=f.componentInstance;
+    c.assignment.set({id:1,name:'Assignment',description:'Description',req_eval:1,max_score:100,
+      submissionDeadline:'2000-01-01T00:00:00Z',evaluationDeadline:overdue?'2000-01-02T00:00:00Z':'2099-01-01T00:00:00Z'} as any);
+    c.myGroup.set({id:2,leaderId:5,members:[]} as any);
+    c.mySubmission.set({id:3,groupId:2,status:'Close',canUploadRetryFile:true,files:[]} as any);
+    const retry=vi.fn(()=>of({id:3,groupId:2,status:'Close',files:[]}));
+    (TestBed.inject(SubmissionService) as any).uploadRetryFile=retry;
+    f.detectChanges();
+    expect(f.nativeElement.querySelector('.submission-card input[type=file]').disabled).toBe(overdue);
+    expect(f.nativeElement.querySelector('.submission-card .upload-picker button').disabled).toBe(overdue);
+    c.selectedFile.set(new File(['answers'],'answers.pdf',{type:'application/pdf'}));c.uploadSelectedFile();
+    expect(retry.mock.calls.length).toBe(overdue?0:1);
+  });
+
+});

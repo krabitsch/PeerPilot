@@ -34,6 +34,7 @@ const harness = () => {
   const storage={ensureBucket:async()=>{},makePublic:async()=>{},upload:async key=>uploaded.push(key),delete:async key=>deleted.push(key),getUrl:async key=>key}
   const module={exports:{}}
   vm.runInNewContext(fs.readFileSync(__dirname+'/service.js','utf8'),{module,Date,require:name=>{
+    if (name === '../assignment/deadlines') return require('../assignment/deadlines')
     if(name==='@transcendence/database')return {prisma:db}
     if(name==='@transcendence/errors')return errors
     if(name==='@transcendence/utils')return utils
@@ -145,4 +146,47 @@ test('a subsequent failed replacement and new retry allow exactly one more versi
   assert.equal(revised.canUploadRetryFile,false)
   await assert.rejects(h.service.uploadRetryFile(2,5,h.file),/one updated file per unresolved retry/)
   assert.equal(h.submission.fileVersions.length,2)
+})
+
+test('deadline guards cover start/upload/close/remove while preserving downloads and originals',async()=>{
+  const h=harness(); h.group.assignment.submissionDeadline=new Date(Date.now()+60000)
+  await h.start(5);await h.service.uploadFile(2,5,h.file)
+  await h.service.uploadFile(2,6,h.file)
+  const original=h.submission.fileId, uploaded=h.uploaded.length
+  h.group.assignment.submissionDeadline=new Date(Date.now()-1000)
+  for (const action of [()=>h.start(5),()=>h.service.uploadFile(2,5,h.file),
+    ()=>h.service.closeSubmission(2,{userId:5}),()=>h.service.removeFile(2,5)])
+    await assert.rejects(action(),/The submission deadline has passed/)
+  assert.equal(h.submission.fileId,original);assert.equal(h.uploaded.length,uploaded)
+  assert((await h.service.getDownloadUrl(2,{userId:5})).url)
+  h.group.assignment.submissionDeadline=null
+  await h.service.closeSubmission(2,{userId:5})
+  h.group.assignment.submissionDeadline=new Date(Date.now()-1000)
+  const [saved]=await h.service.getSubmissionsForAssignment(1)
+  assert.equal(saved.deadlineFailure,false);assert.equal(saved.fileId,original)
+})
+test('late creation is refused without creating a submission row',async()=>{
+  const h=harness();h.group.assignment.submissionDeadline=new Date(Date.now()-1000)
+  await assert.rejects(h.start(5),/submission deadline has passed/)
+  assert.equal(h.submission,null)
+})
+
+for (const evaluationDeadline of [null, new Date(Date.now()+60000)]) test(`retry upload ignores original submission deadline with evaluation deadline ${evaluationDeadline}`,async()=>{
+  const h=harness();await h.start(5);await h.service.uploadFile(2,5,h.file);await h.service.closeSubmission(2,{userId:5});h.retry()
+  h.group.evalAssignmentsAsEvaluee.push({id:9,round:1,assignmentId:1,status:'Pending',submissionId:null,createdAt:new Date()})
+  const original=h.submission.fileId
+  h.group.assignment.submissionDeadline=new Date(Date.now()-1000)
+  h.group.assignment.evaluationDeadline=evaluationDeadline
+  const saved=await h.service.uploadRetryFile(2,5,h.file)
+  assert.equal(saved.files.length,2);assert.equal(h.submission.fileId,original);assert.equal(h.deleted.length,0)
+  await assert.rejects(h.service.uploadRetryFile(2,5,h.file),/one updated file per unresolved retry/)
+  await assert.rejects(h.service.uploadFile(2,5,h.file),/submission deadline has passed/)
+})
+test('retry upload is rejected after evaluation deadline without changing original or uploading storage data',async()=>{
+  const h=harness();await h.start(5);await h.service.uploadFile(2,5,h.file);await h.service.closeSubmission(2,{userId:5});h.retry()
+  const original=h.submission.fileId,uploads=h.uploaded.length
+  h.group.assignment.submissionDeadline=new Date(Date.now()-2000)
+  h.group.assignment.evaluationDeadline=new Date(Date.now()-1000)
+  await assert.rejects(h.service.uploadRetryFile(2,5,h.file),/peer-evaluation deadline has passed/)
+  assert.equal(h.submission.fileId,original);assert.equal(h.submission.fileVersions.length,0);assert.equal(h.uploaded.length,uploads)
 })

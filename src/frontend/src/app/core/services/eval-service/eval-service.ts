@@ -57,7 +57,7 @@ export interface EvaluatorTask {
   evalueeGroupId: number;
   round: number;
   status: EvalAssignmentStatus;
-  assignment: { id: number; name: string; created_at: string; classid: number; max_score?:number; pass_threshold?:number; evaluationDurationMinutes?: number };
+  assignment: { evaluationDeadline?: string | null; id: number; name: string; created_at: string; classid: number; max_score?:number; pass_threshold?:number; evaluationDurationMinutes?: number };
   evalueeGroup: { id: number; name: string; members: { user: { id: number; username: string; email?: string } }[] };
   evalResponse: {
     id: number; givenMarks: number; coreScore?: number | null; bonusScore?: number; comment: string; reply: string | null;
@@ -118,7 +118,7 @@ export interface UpdateEvalAssignmentPayload {
 export interface StartEvaluationResponse {
   evalAssignmentId: number;
 
-  assignment: {
+  assignment: { evaluationDeadline?: string | null;
     id: number;
     name: string;
     description: string;

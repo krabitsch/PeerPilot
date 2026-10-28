@@ -1,5 +1,5 @@
 const { prisma } = require('@transcendence/database')
-const { summarizeEvaluationRounds, evaluationOutcome, responseSelect } = require('../eval/outcome')
+const { assignmentOutcome, evaluationOutcome, responseSelect } = require('../eval/outcome')
 
 const buildLearningSummary = (enrollments, pairings, evaluatorTasks, userId) => ({
   courses: enrollments.map(enrollment => {
@@ -10,7 +10,7 @@ const buildLearningSummary = (enrollments, pairings, evaluatorTasks, userId) => 
         const submission = group?.submissions[0]
         const attempts = pairings.filter(p => p.assignmentId === assignment.id && p.evalueeGroupId === group?.id &&
           (!p.submissionId || p.submissionId === submission?.id))
-        const summary = summarizeEvaluationRounds(assignment, attempts)
+        const summary = assignmentOutcome(assignment, attempts, submission)
         const rounds = summary.evaluationRounds.map(round => {
           const current = attempts.find(p => p.id === round.evalAssignmentId)
           const passedAfterRetry = round.displayOutcome === 'Passed' && attempts.some(p => p.round === round.round &&
@@ -24,7 +24,7 @@ const buildLearningSummary = (enrollments, pairings, evaluatorTasks, userId) => 
               ? current.evaluatorUser ?? null : null }
         })
         const tasks = evaluatorTasks.filter(t => t.assignmentId === assignment.id && t.status !== 'Cancelled')
-        const status = !submission ? 'NotStarted' : submission.status !== 'Close' ? 'InProgress' : summary.workflowStatus
+        const status = summary.workflowStatus
         return {
           id: assignment.id, name: assignment.name, created_at: assignment.created_at,
           status, groupAssigned: !!group, canReply: group?.leaderId === userId,
@@ -52,9 +52,9 @@ const getLearningSummary = async userId => {
       select: { externalCourseCode: true, class: { select: {
         id: true, name: true, description: true, term: true,
         assignments: { orderBy: [{ created_at: 'asc' }, { id: 'asc' }], select: {
-          id: true, name: true, created_at: true, req_eval: true, max_score: true, pass_threshold: true,
+          submissionDeadline:true, evaluationDeadline:true, id: true, name: true, created_at: true, req_eval: true, max_score: true, pass_threshold: true,
           groups: { where: { members: { some: { userId } } }, select: {
-            id: true, leaderId: true, submissions: { select: { id: true, status: true }, orderBy: { createdAt: 'desc' } }
+            id: true, leaderId: true, submissions: { select: { id: true, status: true, fileId:true }, orderBy: { createdAt: 'desc' } }
           } }
         } }
       } } }

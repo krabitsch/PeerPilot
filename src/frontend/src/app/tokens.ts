@@ -231,6 +231,7 @@ export interface GroupMember {
 }
 
 export interface Group {
+  deadlineFailure?: boolean;
   id: number;
   assId: number;
   name: string;
@@ -285,6 +286,7 @@ export interface Submission {
   responses?: EvalResponse[];
   finalScore?: number;
   passed?: boolean | null;
+  deadlineFailure?: boolean;
   workflowStatus?: 'FeedbackRequired' | 'Failed' | 'Passed' | 'InProgress';
   evaluationRounds?: EvaluationRoundOutcome[];
 }

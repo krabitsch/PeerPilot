@@ -151,6 +151,8 @@ model Assignment {
   groupSize   Int    @default(1) // solo or group
   fileId     Int?
 
+  submissionDeadline DateTime? @db.Timestamptz(3)
+  evaluationDeadline DateTime? @db.Timestamptz(3)
   evaluationDurationMinutes Int @default(30)
   req_eval            Int            @default(3)
   max_score           Int            @default(100)
