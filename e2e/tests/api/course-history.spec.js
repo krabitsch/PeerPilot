@@ -129,4 +129,41 @@ test.describe('removing a student keeps course history', () => {
     await expectOk(await admin.delete(`user/${fresh.id}`))
     expect(await db().user.findUnique({ where: { id: fresh.id } })).toBeNull()
   })
+
+  test('removing a student from the organisation, alone or with a course drop and re-add, keeps their work', async ({ api }) => {
+    const x = await build(), admin = await api('admin'), bocal = await api('bocal')
+    const intact = async (label) => test.step(label, async () => {
+      expect(await db().submission.findUnique({ where: { id: x.submission.id } })).not.toBeNull()
+      expect(await db().evalResponse.findUnique({ where: { id: x.response.id } })).not.toBeNull()
+      expect(await db().groupMember.findFirst({ where: { groupId: x.g.a.id, userId: x.s.a.id } })).not.toBeNull()
+      expect(await db().groupMember.findFirst({ where: { groupId: x.pairs.ab.id, userId: x.s.a.id } })).not.toBeNull()
+      expect((await db().evalAssignment.findUnique({ where: { id: x.pairings.bEvaluatedA.id } })).status).toBe('Submitted')
+    })
+    const seesOwnWork = async () => {
+      const student = await loginAs(x.s.a.email)
+      expect((await expectOk(await student.get(`submission/assignment/${x.solo.id}/`))).map(sub => sub.id)).toEqual([x.submission.id])
+      expect((await expectOk(await student.get(`eval/submission/${x.submission.id}/responses`))).map(r => r.id)).toContain(x.response.id)
+      await student.dispose()
+    }
+
+    // Removing from the organisation only detaches the account; the course enrollment stays.
+    await expectOk(await admin.delete(`org/${seeded().orgId}/members`, { data: { email: x.s.a.email } }))
+    expect(await db().user.findUnique({ where: { id: x.s.a.id } })).toMatchObject({ orgId: null, role: 'Student' })
+    expect((await db().enrollment.findFirst({ where: { userId: x.s.a.id, classId: x.course.id } })).status).toBe('Active')
+    expect((await db().evalAssignment.findUnique({ where: { id: x.pairings.aEvaluatesC.id } })).status).toBe('Pending')
+    await intact('removing from the organisation deletes nothing')
+    await seesOwnWork()
+
+    // Then also dropped from the course, added back by email (which re-attaches the
+    // organisation) and regrouped: still the same submission and evaluation.
+    await expectOk(await bocal.patch('enroll', { data: { classId: x.course.id, studentId: x.s.a.id } }))
+    await intact('a later course drop deletes nothing either')
+    await expectOk(await bocal.post(`enroll/class/${x.course.id}/students`, { data: { students: [{ email: x.s.a.email }] } }))
+    await expectOk(await bocal.post(`group/assignment/${x.solo.id}/generate`))
+    expect((await db().user.findUnique({ where: { id: x.s.a.id } })).orgId).toBe(seeded().orgId)
+    const groupsOfA = await db().group.findMany({ where: { assId: x.solo.id, members: { some: { userId: x.s.a.id } } } })
+    expect(groupsOfA.map(g => g.id)).toEqual([x.g.a.id])
+    await intact('re-adding restores the student to the same groups')
+    await seesOwnWork()
+  })
 })
