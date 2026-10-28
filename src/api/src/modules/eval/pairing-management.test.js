@@ -59,7 +59,7 @@ function harness(){
   db.$transaction=async fn=>{const saved=structuredClone(state);try{return await fn(db)}catch(e){Object.assign(state,saved);throw e}}
   const participation=load(path.join(__dirname,'../participation/service.js'),db)
   const management=load(path.join(__dirname,'pairing-management.js'),db,{'../participation/service':participation,'./outcome':outcome,'./encounters':load(path.join(__dirname,'encounters.js'),db)})
-  const groups=load(path.join(__dirname,'../group/service.js'),db,{'../participation/service':participation,'@transcendence/utils':{}})
+  const groups=load(path.join(__dirname,'../group/service.js'),db,{'../participation/service':participation,'@transcendence/utils':{},'./history':require('../group/history')})
   return {state,db,participation,management,groups}
 }
 const failure=(id,evaluatorUserId,round=1)=>({id,assignmentId:1,evalueeGroupId:1,evaluatorUserId,round,status:'Submitted',createdAt:new Date(id*1000),
@@ -87,6 +87,14 @@ test('C/D/E/F: independent eligibility drives groups and supports evaluator-only
   const slot=r.slots.find(s=>s.candidateIds.includes(20))
   const row=await h.management.createPairing({assignmentId:1,evalueeGroupId:slot.groupId,round:slot.round,evaluatorUserId:20},staff)
   assert.equal(row.evaluatorGroupId,null)
+})
+test('dropped members kept in groups with history do not block pairing; groups of only dropped members get no slots',async()=>{
+  // Users 8 and 9 are no longer participants (dropped from the course).
+  const h=harness();h.state.groups=[group(1,[1,9]),group(2,[2]),group(3,[3]),group(4,[8])]
+  const r=await h.management.getSummary(1,staff)
+  assert(r.groups.find(g=>g.id===1).eligible);assert(!r.groups.find(g=>g.id===4).eligible)
+  assert(r.slots.some(s=>s.groupId===1));assert(!r.slots.some(s=>s.groupId===4))
+  assert(r.slots.every(s=>!s.candidateIds.includes(8)&&!s.candidateIds.includes(9)))
 })
 test('G: disabling grouped evaluee is rejected atomically and groups remain unchanged',async()=>{
   const h=harness(),before=JSON.stringify(h.state.groups)

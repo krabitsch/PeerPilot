@@ -43,6 +43,12 @@ test('missing pairings are detected for populated groups with adequate group cou
   const a={...grouped,groups:[...grouped.groups,{id:7,members:[{user:{id:6,username:'student46'}}]}],evalAssignments:[]}
   assert(buildStaffDashboard([{...course(a),enrollments:[{user},{user:{id:6}}]}]).actions.some(a=>a.kind==='pairings'))
 })
+test('dropped students kept in groups with history neither block nor add missing pairing rounds', () => {
+  const dropped = id => ({ user: { id, username: `dropped${id}` } })
+  const a={...grouped,groups:[{id:2,members:[{user},dropped(9)]},{id:7,members:[{user:{id:6,username:'student46'}}]},{id:8,members:[dropped(10)]}],evalAssignments:[]}
+  const action=buildStaffDashboard([{...course(a),enrollments:[{user},{user:{id:6}}]}]).actions.find(a=>a.kind==='pairings')
+  assert(action.label.includes('(2 required rounds unassigned)'))
+})
 test('only caller organisation is queried; data does not expose scores, replies or passkeys', async () => {
   await getStaffDashboard(3); assert.equal(query.where.org_id,3)
   assert.equal(query.select.enrollments.where.status,'Active')

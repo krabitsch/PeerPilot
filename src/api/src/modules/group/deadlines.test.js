@@ -14,6 +14,7 @@ test('student and staff group fetches derive the same result without writes or p
     if(name==='@transcendence/database')return {prisma:db}
     if(name==='@transcendence/utils')return {getAssignmentById:async()=>assignment,existingMembership:async()=>({group:groups[0]})}
     if(name==='../participation/service')return {}
+    if(name==='./history')return require('./history')
     throw Error(name)
   }})
   const staff=await module.exports.getGroupsForAssignment(1)

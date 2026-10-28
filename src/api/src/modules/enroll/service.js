@@ -2,6 +2,7 @@ const { prisma } = require('@transcendence/database')
 const {AppError, NotFoundError, ValidationError, ConflictError, ForbiddenError} = require('@transcendence/errors')
 const utils = require('@transcendence/utils')
 const { createPendingUser } = require('../auth/userModel')
+const { hasHistory, lockedHistory } = require('../group/history')
 
 const MAX_ROSTER_ROWS = 1000
 const EMAIL_PATTERN = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/
@@ -232,45 +233,71 @@ const dropStudent = async ({classId, studentId})=>{
     const existing = await utils.getEnrollment(studentId, classId)
     if(!existing) throw new ConflictError('Student is not enrolled')
 
-    const result = await prisma.enrollment.update({
-        where: { id: existing.id },
-        data: { status: 'Dropped' },
-        select: {
-            id: true,
-            userId: true,
-            classId: true,
-            status: true,
-            enrollDate: true
-        }
-    })
-
-    // Consequence: a dropped student can no longer take part in this class's
-    // assignment groups — leave their groups, promoting a new leader (or
-    // deleting the group entirely) when they were the sole member/leader.
-    await leaveClassGroups(studentId, classId)
-
-    return result
+    const userId = parseInt(studentId), courseId = parseInt(classId)
+    // Same course lock as group and pairing changes, so a drop never interleaves
+    // with group generation or pairing.
+    return prisma.$transaction(async tx => {
+        await tx.$queryRaw`SELECT id FROM "class" WHERE id = ${courseId} FOR UPDATE`
+        const result = await tx.enrollment.update({
+            where: { id: existing.id },
+            data: { status: 'Dropped' },
+            select: {
+                id: true,
+                userId: true,
+                classId: true,
+                status: true,
+                enrollDate: true
+            }
+        })
+        await leaveClassGroups(tx, userId, courseId)
+        await cancelOpenPairings(tx, userId, courseId)
+        return result
+    }, { timeout: 30000 })
 }
 
-const leaveClassGroups = async (studentId, classId)=>{
-    const memberships = await prisma.groupMember.findMany({
-        where: { userId: parseInt(studentId), group: { assignment: { classid: parseInt(classId) } } },
+// Dropping never deletes course history. In a group with a submission or real
+// pairings the student stays a member, so their submission and the evaluations
+// they received stay linked and come back if they are enrolled again. Only
+// groups without history are left (and deleted once empty).
+const leaveClassGroups = async (db, studentId, classId)=>{
+    const memberships = await db.groupMember.findMany({
+        where: { userId: studentId, group: { assignment: { classid: classId } } },
         include: { group: { include: { members: true } } }
     })
 
     for (const membership of memberships) {
         const group = membership.group
-        const remaining = group.members.filter(m => m.userId !== parseInt(studentId))
+        if (hasHistory(await lockedHistory(db, group.id))) continue
+        const remaining = group.members.filter(m => m.userId !== studentId)
 
         if (remaining.length === 0) {
-            await prisma.group.delete({ where: { id: group.id } })
+            await db.group.delete({ where: { id: group.id } })
             continue
         }
-        if (group.leaderId === parseInt(studentId)) {
-            await prisma.group.update({ where: { id: group.id }, data: { leaderId: remaining[0].userId } })
+        if (group.leaderId === studentId) {
+            await db.group.update({ where: { id: group.id }, data: { leaderId: remaining[0].userId } })
         }
-        await prisma.groupMember.delete({ where: { id: membership.id } })
+        await db.groupMember.delete({ where: { id: membership.id } })
     }
+}
+
+// A dropped student can no longer meet anyone for an evaluation. Their open,
+// never-submitted pairings are cancelled (not deleted): the ones where they
+// evaluate, and the ones evaluating a group with no current member left. Nobody
+// is left waiting, and staff can refill the slots with "Generate missing pairings".
+const cancelOpenPairings = async (db, studentId, classId)=>{
+    const groups = await db.group.findMany({
+        where: { assignment: { classid: classId }, members: { some: { userId: studentId } } },
+        select: { id: true, members: { select: { userId: true, user: { select: { role: true,
+            enrollments: { where: { classId, status: 'Active' }, select: { id: true } } } } } } }
+    })
+    const abandoned = groups.filter(g => g.members.every(m => m.userId === studentId ||
+        (m.user.role === 'Student' && !m.user.enrollments.length))).map(g => g.id)
+    await db.evalAssignment.updateMany({
+        where: { status: 'Pending', evalResponseId: null, assignment: { classid: classId },
+            OR: [{ evaluatorUserId: studentId }, { evalueeGroupId: { in: abandoned } }] },
+        data: { status: 'Cancelled' }
+    })
 }
 
 const getEnrollement = async(studentId)=>{

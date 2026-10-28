@@ -50,7 +50,7 @@ test('Dave evaluates Carol, and Carol replies to the feedback', async ({ browser
   await dave.getByRole('button', { name: /^Yes/ }).click()
   await dave.getByPlaceholder('Describe what was done well and what could be improved...').fill(feedback)
 
-  await expect(dave.locator('input[accept="audio/*"]')).toHaveCount(0)
+  await expect(dave.locator('input[type=file][accept*="audio"]'), 'the evaluator uploads no recording').toHaveCount(0)
   await expect(submit).toBeEnabled()
   await submit.click()
 
@@ -67,7 +67,7 @@ test('Dave evaluates Carol, and Carol replies to the feedback', async ({ browser
   await expect(carol.getByText(feedback)).toBeVisible()
   await carol.getByPlaceholder('Reply to this feedback...').fill('Thanks, Dave — fixed the edge case you spotted.')
   await expect(carol.getByRole('button', { name: 'Reply' })).toBeDisabled()
-  await carol.locator('input[accept="audio/*"]').setInputFiles(sampleAudioUpload())
+  await carol.locator('input[id^="reply-recording-"]').setInputFiles(sampleAudioUpload())
   await carol.getByRole('button', { name: 'Reply' }).click()
   await expect(carol.getByText('Thanks, Dave — fixed the edge case you spotted.')).toBeVisible()
 

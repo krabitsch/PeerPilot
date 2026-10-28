@@ -30,7 +30,11 @@ const buildStaffDashboard = courses => {
       if (missingStudents)
         add('groups', `${assignment.name} needs groups for ${missingStudents} unassigned ${missingStudents === 1 ? 'student' : 'students'}.`,
           '/bocal/classes', { classId: course.id, groupAssignmentId: assignment.id })
-      const eligible = assignment.groups.filter(g => g.members.length && g.members.every(m => students.has(m.user.id)))
+      // Dropped students stay in groups that have history; only the current roster counts.
+      const eligible = assignment.groups.filter(g => {
+        const current = g.members.filter(m => roster.has(m.user.id))
+        return current.length && current.every(m => students.has(m.user.id))
+      })
       let missingRounds = 0
       for (const group of eligible) {
         const pairings = assignment.evalAssignments.filter(p => p.evalueeGroupId === group.id)

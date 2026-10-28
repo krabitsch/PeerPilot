@@ -59,7 +59,7 @@ test('creates an assignment with an eval sheet that sums to the max score', asyn
     await main.getByRole('combobox').nth(0).selectOption(type)
     await page.getByRole('button', { name: '+ Add section' }).click()
   }
-  await expect(page.getByText('0 pts remaining')).toBeVisible()
+  await expect(page.getByText('0 core pts remaining')).toBeVisible()
   await page.getByRole('button', { name: 'Create assignment' }).click()
 
   // The page saves in three steps — assignment, then eval sheet, then each

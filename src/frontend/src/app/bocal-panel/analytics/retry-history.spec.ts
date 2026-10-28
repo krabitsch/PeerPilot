@@ -36,17 +36,26 @@ describe('historical analytics retries',()=>{
     expect(cells[0].querySelectorAll('.attempt-status').length).toBe(2);
     expect(cells[0].querySelector('.failed')?.title).toContain('Attempt 1 — evaluated by original — Failed');
     expect(cells[0].querySelector('.pending')?.title).toContain('Attempt 2 — evaluated by replacement — Pending');
+    // Evaluator cells show duty, not the evaluee's result: the submitted (failed)
+    // attempt is a completed task, its replacement still pending.
     expect(cells[1].querySelectorAll('.attempt-status').length).toBe(2);
-    expect(cells[1].textContent).toContain('×');
+    expect(cells[1].querySelector('.passed')?.title).toContain('Evaluates group2 — task 7 — Completed');
+    expect(cells[1].querySelector('.pending')?.title).toContain('Evaluates group2 — task 8 — Pending');
+    expect(cells[1].textContent).not.toContain('×');
     expect(f.componentInstance.stats()?.pairings).toBe(2);
   });
   it('retains the original failure alongside its pending replacement in chronological order',()=>{
     const f=TestBed.createComponent(AnalyticsStudentComponent);f.detectChanges();
     const rows=f.componentInstance.evalueeRows();
     expect(rows.map(r=>[r.attempt,r.evaluatorName,r.status])).toEqual([[1,'original','Failed'],[2,'replacement','Pending']]);
-    expect(f.nativeElement.textContent).toContain('Attempt 1');
-    expect(f.nativeElement.textContent).toContain('Attempt 2');
-    expect(f.nativeElement.textContent).toContain('Failed');
-    expect(f.nativeElement.textContent).not.toContain('Completed');
+    const [asEvaluee, asEvaluator]=f.nativeElement.querySelectorAll('table');
+    expect(asEvaluee.textContent).toContain('Attempt 1');
+    expect(asEvaluee.textContent).toContain('Attempt 2');
+    expect(asEvaluee.textContent).toContain('Failed');
+    expect(asEvaluee.textContent).not.toContain('Passed');
+    // The same attempts seen as evaluator duty: done, and still to do.
+    expect(asEvaluator.textContent).toContain('Completed');
+    expect(asEvaluator.textContent).toContain('Pending');
+    expect(asEvaluator.textContent).not.toContain('Failed');
   });
 });

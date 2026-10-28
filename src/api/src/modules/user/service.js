@@ -5,6 +5,7 @@ const logger = require('@transcendence/logger')
 const {createStorage} = require('@transcendence/filemanager')
 const bcrypt = require('bcrypt')
 const crypto = require('crypto')
+const { protectedPairing, historyCounts, hasHistory } = require('../group/history')
 
 let storage
 (async () => {
@@ -102,9 +103,19 @@ const updateProfile = async (id, bio, username) => {
   }
 }
 
+// Deleting an account cascades to everything it touches: evaluations it wrote
+// (other students lose their grades), files it uploaded (which takes the
+// submissions holding them) and its group memberships. Accounts with course
+// history are kept; remove them from the course or organisation instead.
 const deleteUser = async (id)=>{
   const user = await utils.getUserById(id)
   if(!user) throw new NotFoundError('User not found')
+  const history = await prisma.user.findUnique({where: {id: parseInt(id)}, select: {
+    _count: {select: {uploadedFiles: true, evalResponses: true, evalAssignments: {where: protectedPairing}}},
+    membership: {select: {group: {include: historyCounts}}}}})
+  const count = history._count
+  if (count.uploadedFiles || count.evalResponses || count.evalAssignments || history.membership.some(m => hasHistory(m.group)))
+    throw new ConflictError('This account has submission or evaluation history and cannot be deleted. Remove the user from the course or organisation instead.')
   await prisma.user.delete({where: {id: parseInt(id)}})
 
   return{

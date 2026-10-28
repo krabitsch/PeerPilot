@@ -5,6 +5,7 @@ const utils = require('@transcendence/utils')
 
 
 const participation = require('../participation/service')
+const {historyCounts, hasHistory, lockedHistory, HISTORY_MESSAGE, MEMBER_HISTORY_MESSAGE} = require('./history')
 const groupInclude = {members:{include:{user:{select:{id:true,username:true,email:true}}}}}
 const createGroupInTransaction = async (db, assignment, {userId,name,size}) => {
     userId=participation.positiveId(userId)
@@ -115,7 +116,11 @@ const removeMemberAdmin = async (groupId, { userId }) => {
         throw new ConflictError('User is not a member of this group')
     if (group.members.length <= 1)
         throw new ConflictError('Cannot remove the last member of a group. Remove the whole group instead.')
-    await prisma.groupMember.delete({ where: { userId_groupId: { userId: userIdInt, groupId: groupIdInt }}})
+    await prisma.$transaction(async tx => {
+        if (hasHistory(await lockedHistory(tx, groupIdInt)))
+            throw new ConflictError(MEMBER_HISTORY_MESSAGE)
+        await tx.groupMember.delete({ where: { userId_groupId: { userId: userIdInt, groupId: groupIdInt }}})
+    })
 
     if (group.leaderId === userIdInt) {
         const newLeader = group.members.find(member => member.userId !== userIdInt)
@@ -171,8 +176,12 @@ const leaveGroup = async(groupId, {userId})=>{
         throw new ConflictError('User is not a member of this group')
     if(group.leaderId === parseInt(userId))
         throw new ConflictError('Group leader cannot leave the group')
-    await prisma.groupMember.delete({
-        where:{userId_groupId: {userId: parseInt(userId), groupId: parseInt(groupId)}}
+    await prisma.$transaction(async tx => {
+        if(hasHistory(await lockedHistory(tx, parseInt(groupId))))
+            throw new ConflictError(MEMBER_HISTORY_MESSAGE)
+        await tx.groupMember.delete({
+            where:{userId_groupId: {userId: parseInt(userId), groupId: parseInt(groupId)}}
+        })
     })
     return {message: 'Left the group successfully'}
 }
@@ -254,10 +263,6 @@ const getGroupsForAssignment = async (assId)=>{
     })
 }
 
-const HISTORY_MESSAGE='This group has submission or evaluation history and cannot be deleted. Its existing records must be preserved.'
-const protectedPairing={OR:[{status:{not:'Cancelled'}},{evalResponseId:{not:null}},{submissionId:{not:null}}]}
-const deletionCounts={_count:{select:{submissions:true,
-    evalAssignmentsAsEvaluee:{where:protectedPairing},evalAssignmentsAsEvaluatorGroup:{where:protectedPairing}}}}
 const deleteGroupsInTransaction = async (db,assignmentId,ids) => {
     // Group locks also block new submission foreign-key references. Pairing locks
     // serialize against submission of an existing evaluator task.
@@ -266,11 +271,9 @@ const deleteGroupsInTransaction = async (db,assignmentId,ids) => {
         await db.$queryRaw`SELECT id FROM "evalAssignment" WHERE "evalueeGroupId" = ${id} OR "evaluatorGroupId" = ${id} ORDER BY id FOR UPDATE`
     }
     for(const id of ids) {
-        const group=await db.group.findUnique({where:{id},include:deletionCounts})
+        const group=await db.group.findUnique({where:{id},include:historyCounts})
         if(!group||group.assId!==assignmentId) throw new NotFoundError('Group not found')
-        const count=group._count
-        if(count.submissions||count.evalAssignmentsAsEvaluee||count.evalAssignmentsAsEvaluatorGroup)
-            throw new ConflictError(HISTORY_MESSAGE)
+        if(hasHistory(group)) throw new ConflictError(HISTORY_MESSAGE)
     }
     await db.evalAssignment.deleteMany({where:{status:'Cancelled',evalResponseId:null,submissionId:null,
         OR:[{evalueeGroupId:{in:ids}},{evaluatorGroupId:{in:ids}}]}})
