@@ -3,6 +3,7 @@
 const { test, expect, expectError, expectOk } = require('../../support/api')
 const { seeded } = require('../../support/sessions')
 const { PASSWORD } = require('../../support/data')
+const { mailedLink } = require('../../support/mail')
 
 const MODULES = ['user', 'org', 'class', 'enroll', 'group', 'submission', 'eval']
 
@@ -152,7 +153,8 @@ test.describe('enrolment is staff-driven', () => {
   })
 
   // Students are enrolled (and can be grouped and paired) before they sign
-  // up. Signing up claims the pending account — exactly once.
+  // up. Signing up with the emailed invitation link claims the pending
+  // account — exactly once.
   test('a Bocal enrols an unregistered email, and signing up claims it once', async ({ api }) => {
     const { classes } = seeded()
     const bocal = await api('bocal')
@@ -165,12 +167,17 @@ test.describe('enrolment is staff-driven', () => {
     expect(roster.find((s) => s.email === email)).toMatchObject({ id: row.userId, pending: true })
 
     await expectError(await anon.post('auth/login', { data: { email, password: PASSWORD } }), 401)
-    const registered = await expectOk(await anon.post('auth/register', { data: { email, password: PASSWORD } }))
+    // Without the emailed token there is no sign-up, even for an enrolled address.
+    await expectError(await anon.post('auth/register', { data: { email, password: PASSWORD } }), 400)
+
+    const invite = (await expectOk(await bocal.get('auth/invites'))).find((i) => i.email === email)
+    await expectOk(await bocal.post(`auth/invite/${invite.id}/send`, { data: {} }))
+    const token = new URLSearchParams(mailedLink(email, '/register').split('?')[1]).get('token')
+    const registered = await expectOk(await anon.post('auth/register', { data: { token, password: PASSWORD } }))
     expect(registered.id, 'sign-up claims the enrolled account').toBe(row.userId)
 
-    // A second sign-up cannot replace the password.
-    const res = await anon.post('auth/register', { data: { email, password: 'Another-Passw0rd!' } })
-    expect((await res.json()).ok).toBe(false)
+    // The link works once: a second sign-up cannot replace the password.
+    await expectError(await anon.post('auth/register', { data: { token, password: 'Another-Passw0rd!' } }), 400)
     await expectOk(await anon.post('auth/login', { data: { email, password: PASSWORD } }))
     const after = await expectOk(await bocal.get(`class/${classes.open}/students`))
     expect(after.find((s) => s.email === email)).toMatchObject({ pending: false })

@@ -1,5 +1,6 @@
 // Full bottom-up lifecycle, all through the UI:
-//   admin creates an org and whitelists emails → people register → admin
+//   admin creates an org, whitelists emails and sends the invitations → people
+//   register through the emailed link → admin
 //   promotes one to Bocal → the teacher builds a class, enrols students, creates
 //   an assignment (with a subject file + eval sheet) and a group per student →
 //   students submit → the teacher generates pairings → two rounds of peer
@@ -14,12 +15,15 @@ const { test, expect } = require('@playwright/test')
 const { pageAs, freshContext, recordVideoOpts, samplePdf, sampleAudioUpload } = require('../../support/ui')
 const { db } = require('../../support/db')
 const D = require('../../support/data')
+const { mailedLink } = require('../../support/mail')
 
 const PW = D.PASSWORD // a zxcvbn-strong password the seed already uses
 
 const ORG = { name: 'Lifecycle Academy', email: 'life-org@e2e.test', tag: 'LIFE' }
 const TEACHER = 'life-teacher@e2e.test'
-const STUDENTS = ['life-s1@e2e.test', 'life-s2@e2e.test', 'life-s3@e2e.test']
+// Two students meet at most once, in either direction, so two rounds of solo
+// pairings need at least five students (n solo groups allow floor((n-1)/2) rounds).
+const STUDENTS = ['life-s1@e2e.test', 'life-s2@e2e.test', 'life-s3@e2e.test', 'life-s4@e2e.test', 'life-s5@e2e.test']
 const CLASS_NAME = 'Lifecycle Web'
 const COURSE_CODES = ['1268', '1421']
 const ASSIGNMENT = 'Lifecycle Project'
@@ -54,13 +58,18 @@ test.describe.serial('full lifecycle, bottom-up through the UI', () => {
     await admin.context().close()
   })
 
-  test('admin whitelists the teacher and students', async ({ browser }) => {
+  test('admin whitelists the teacher and students and sends their invitations', async ({ browser }) => {
     const admin = await pageAs(browser, 'admin')
     await admin.goto(`/admin/org/${S.orgId}`)
     for (const email of [TEACHER, ...STUDENTS]) {
       await admin.getByPlaceholder('name@example.com').fill(email)
       await admin.getByRole('button', { name: 'Whitelist email', exact: true }).click()
-      await expect(admin.getByText(email, { exact: true }).first()).toBeVisible()
+      const row = admin.locator('div')
+        .filter({ has: admin.getByText(email, { exact: true }) })
+        .filter({ has: admin.getByRole('button', { name: 'Send invitation' }) })
+        .last()
+      await row.getByRole('button', { name: 'Send invitation' }).click()
+      await expect(row).toContainText('Invitation sent')
     }
     const invited = await db().authAllowedEmail.findMany({ where: { orgId: S.orgId } })
     expect(invited.map(i => i.email).sort()).toEqual([TEACHER, ...STUDENTS].sort())
@@ -71,8 +80,8 @@ test.describe.serial('full lifecycle, bottom-up through the UI', () => {
     for (const email of [TEACHER, ...STUDENTS]) {
       const ctx = await browser.newContext({ ignoreHTTPSErrors: true, ...recordVideoOpts() })
       const page = await ctx.newPage()
-      await page.goto('/register')
-      await page.getByPlaceholder('your.invited@email.com').fill(email)
+      await page.goto(mailedLink(email, '/register'))
+      await expect(page.locator('input[type=email]')).toHaveValue(email)
       await page.locator('input[type=password]').nth(0).fill(PW)
       await page.locator('input[type=password]').nth(1).fill(PW)
       await page.getByRole('button', { name: 'Create account' }).click()
@@ -188,7 +197,7 @@ test.describe.serial('full lifecycle, bottom-up through the UI', () => {
       await main.getByRole('combobox').nth(0).selectOption(type)
       await teacher.getByRole('button', { name: '+ Add section' }).click()
     }
-    await expect(teacher.getByText('0 pts remaining')).toBeVisible()
+    await expect(teacher.getByText('0 core pts remaining')).toBeVisible()
     await teacher.getByRole('button', { name: 'Create assignment' }).click()
 
     const load = () => db().assignment.findFirst({
@@ -259,7 +268,7 @@ test.describe.serial('full lifecycle, bottom-up through the UI', () => {
 
     await expect.poll(async () =>
       (await db().evalAssignment.findMany({ where: { assignmentId: S.assignmentId } })).length,
-    ).toBe(STUDENTS.length * 2) // groups × rounds = 3 × 2
+    ).toBe(STUDENTS.length * 2) // groups × rounds = 5 × 2
     const rounds = [...new Set(
       (await db().evalAssignment.findMany({ where: { assignmentId: S.assignmentId } })).map(p => p.round),
     )].sort()
@@ -331,7 +340,7 @@ test.describe.serial('full lifecycle, bottom-up through the UI', () => {
         const form = forms.first()
         await form.locator('textarea').fill('Thank you, I understand the feedback and will address it.')
         await expect(form.getByRole('button', { name: 'Reply' })).toBeDisabled()
-        await form.locator('input[accept="audio/*"]').setInputFiles(sampleAudioUpload())
+        await form.locator('input[id^="reply-recording-"]').setInputFiles(sampleAudioUpload())
         await form.getByRole('button', { name: 'Reply' }).click()
         await expect(forms).toHaveCount(1 - round)
       }

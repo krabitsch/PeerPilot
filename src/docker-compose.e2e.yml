@@ -18,6 +18,7 @@ services:
       - EMAIL_TRANSPORT=json          # build emails, deliver nothing
       - AUTH_RATE_LIMIT_SCALE=1000    # one IP drives the whole suite, run after run
       - BASE_URL=https://localhost:8443/
+      - PUBLIC_APP_URL=https://localhost:8443/   # emailed invitation and reset links
       - JWT_ACCESS_EXPIRY=2h          # saved sessions outlive a full run
 
   database:

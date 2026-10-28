@@ -6,7 +6,9 @@ const { seeded } = require('../../support/sessions')
 
 const EXPECTED_CSV_HEADER =
   'evalueeGroup,round,evaluatorUsername,evaluatorEmail,isStaffReview,' +
-  'Functionality,Code quality,totalGivenMarks,maxScore,comment,reply,replied,recordingFileName'
+  'Functionality,Code quality,totalGivenMarks,maxScore,comment,reply,replied,recordingFileName,' +
+  // One row per pairing attempt, so retries and cancelled pairings stay traceable.
+  'evalAssignmentId,attempt,status,outcome,createdAt,retryRequestedAt,evalResponseId'
 
 test.describe('export endpoints are staff-only', () => {
   const paths = () => {
