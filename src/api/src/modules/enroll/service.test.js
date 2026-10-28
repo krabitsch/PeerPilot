@@ -42,6 +42,7 @@ const harness=({codes=['1268','1269','1421']}={})=>{
     if(name==='@transcendence/errors')return errors
     if(name==='@transcendence/utils')return {isPendingAuth}
     if(name==='../auth/userModel')return userModel
+    if(name==='../group/history')return require('../group/history')
     throw Error(name)
   }})
   return {service:module.exports,users,allowed,enrollments}

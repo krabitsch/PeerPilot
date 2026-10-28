@@ -13,7 +13,12 @@ const buildSummary = (assignment,participants,groups,pairings,workloads) => {
   }
   const people=participants.map(p=>({...p,...counts.get(p.id)}))
   const eligibleIds=new Set(people.filter(p=>p.evalueeEligible).map(p=>p.id))
-  const evalueeGroups=groups.map(g=>({...g,eligible:g.members.length>0 && g.members.every(m=>eligibleIds.has(m.userId))}))
+  // Dropped students stay in groups that have history; only current participants decide eligibility.
+  const participantIds=new Set(people.map(p=>p.id))
+  const evalueeGroups=groups.map(g=>{
+    const current=g.members.filter(m=>participantIds.has(m.userId))
+    return {...g,eligible:current.length>0 && current.every(m=>eligibleIds.has(m.userId))}
+  })
   const used=encounters.usedEncounters(pairings,groups)
   const slots=[]
   for (const group of evalueeGroups.filter(g=>g.eligible)) {
