@@ -2,7 +2,7 @@ const { prisma } = require('@transcendence/database')
 const { NotFoundError, ValidationError } = require('@transcendence/errors')
 const utils = require('@transcendence/utils')
 const { createStorage } = require('@transcendence/filemanager')
-const { csvRow, sanitize } = require('./csv')
+const { csvRow, sanitize, shorten, fitEntry, ARCHIVE_ROOT_MAX, ARCHIVE_NAME_MAX } = require('./csv')
 const { fileVersionInclude } = require('../submission/files')
 const { evaluationOutcome } = require('../eval/outcome')
 
@@ -170,7 +170,7 @@ const planArchive = async (assId, { includeRecordings = true, studentId = null }
             if (!file) continue
             latestByGroup.set(s.groupId,s)
             submissionEntries.push({
-                path:`submissions/${sanitize(s.group.name)}-group-${s.groupId}/submission-${s.id}/${folder}/${sanitize(file.name)}`,
+                path:fitEntry(`submissions/${shorten(s.group.name, ARCHIVE_NAME_MAX)}-group-${s.groupId}/submission-${s.id}/${folder}/`, file.name),
                 bucket:'submissions',key:file.url,size:file.size ?? 0,
             })
         }
@@ -189,8 +189,10 @@ const planArchive = async (assId, { includeRecordings = true, studentId = null }
     if (includeRecordings) {
         const responses = await getResponsesForAssignment(assignment.id, { onlyWithRecording: true, scope })
         recordingEntries = responses.map(r => ({
-            path: `recordings/${scope ? `${directionFor(scope, r.submission?.group?.id, r.userId) ?? 'other'}/` : ''}${sanitize(r.submission?.group?.name ?? 'unknown')}-group-${r.submission?.group?.id ?? 'unknown'}/` +
-                  `round${r.evalAssignment?.round ?? 'NA'}-pairing-${r.evalAssignment?.id ?? 'NA'}-response-${r.id}-${sanitize(r.user?.username ?? 'unknown')}-${sanitize(r.recordingFile.name)}`,
+            path: fitEntry(
+                `recordings/${scope ? `${directionFor(scope, r.submission?.group?.id, r.userId) ?? 'other'}/` : ''}${shorten(r.submission?.group?.name ?? 'unknown', ARCHIVE_NAME_MAX)}-group-${r.submission?.group?.id ?? 'unknown'}/` +
+                `round${r.evalAssignment?.round ?? 'NA'}-pairing-${r.evalAssignment?.id ?? 'NA'}-response-${r.id}-${shorten(r.user?.username ?? 'unknown', ARCHIVE_NAME_MAX)}-`,
+                r.recordingFile.name),
             bucket: 'eval-recordings',
             key: r.recordingFile.url,
             size: r.recordingFile.size ?? 0,
@@ -228,7 +230,14 @@ const planArchive = async (assId, { includeRecordings = true, studentId = null }
     // big the download will be before it starts (CSV/manifest are negligible).
     const totalBytes = [...submissionEntries, ...recordingEntries].reduce((sum, e) => sum + (e.size || 0), 0)
 
-    return { filenameBase, csv, manifest, submissionEntries, recordingEntries, totalBytes }
+    // ZIP file name and its single top-level folder (see ARCHIVE_ROOT_MAX):
+    // the assignment, not the course (that's in MANIFEST.txt), and a student's
+    // username is kept whole while the assignment name is cut.
+    const suffix = scope ? `-${shorten(scope.user.username, 16)}` : ''
+    const base = `peerofessor-${sanitize(assignment.name)}`.replace(/\s+/g, '-')
+    const archiveRoot = base.slice(0, ARCHIVE_ROOT_MAX - suffix.length).replace(/[-_. ]+$/, '') + suffix
+
+    return { filenameBase, archiveRoot, csv, manifest, submissionEntries, recordingEntries, totalBytes }
 }
 
 // Opens a readable stream for one planned entry, at pipe time.

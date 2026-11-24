@@ -41,7 +41,7 @@ test('real ZIP route streams all retry files, feedback, attempts and optional re
       const response=await fetch(`${base}/assignment/1/archive${recordings?'':'?recordings=0'}`)
       assert.equal(response.status,200)
       assert.equal(response.headers.get('content-type'),'application/zip')
-      assert.match(response.headers.get('content-disposition'),/attachment; filename="peerofessor-Course-Assignment.zip"/)
+      assert.match(response.headers.get('content-disposition'),/attachment; filename="peerofessor-Assignment.zip"/)
       const bytes=Buffer.from(await response.arrayBuffer())
       assert(isZip(bytes))
       fs.writeFileSync(path.join(os.tmpdir(),`peerofessor-fixture-${recordings?'audio':'no-audio'}.zip`),bytes)

@@ -37,7 +37,7 @@ route.get('/assignment/:id/student/:userId/evaluations.csv', requireStaff, sendE
 // Headers are committed before the first byte, so after that a failure can
 // only tear the socket down — the browser then reports the download as failed.
 const streamArchive = async (plan, res, { label = '' } = {}) => {
-    const root = `peerofessor-${service.sanitize(plan.filenameBase).replace(/\s+/g, '-')}`
+    const root = plan.archiveRoot ?? `peerofessor-${service.sanitize(plan.filenameBase).replace(/\s+/g, '-')}`
     res.setHeader('Content-Type', 'application/zip')
     res.setHeader('Content-Disposition', `attachment; filename="${root}.zip"`)
     res.setHeader('Cache-Control', 'no-store')

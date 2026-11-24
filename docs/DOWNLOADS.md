@@ -116,6 +116,12 @@ Entry layout:
   submissions + CSV grab.
 - **Sanitize** every entry name (group name, original filename) to block
   zip-slip / path traversal.
+- **Keep paths short for Windows.** Explorer refuses to extract a path over
+  260 characters, counting `C:\Users\<name>\Downloads\<zip name>\`. The ZIP
+  name and its root folder are `peerofessor-<assignment>[-<username>]`
+  (≤ 44 chars); entry paths are ≤ 128 chars (group names and usernames ≤ 20,
+  the original filename cut last, extension kept). The ids in each path keep
+  entries unique. See `export/csv.js` and `path-length.test.js`.
 
 ## Frontend specification
 
