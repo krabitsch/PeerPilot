@@ -167,3 +167,21 @@ test.describe('removing a student keeps course history', () => {
     await seesOwnWork()
   })
 })
+
+// §8.1: feedback used to be readable by any logged-in student who guessed a
+// submission id. Now: staff and the evaluated group see it all, an evaluator
+// only what they wrote, anyone else nothing.
+test.describe('who can read feedback on a submission', () => {
+  test('the evaluated group and staff read it, its evaluator reads their own, others are refused', async ({ api }) => {
+    const x = await build(), path = `eval/submission/${x.submission.id}/responses`
+    const a = await loginAs(x.s.a.email), b = await loginAs(x.s.b.email), c = await loginAs(x.s.c.email)
+    try {
+      expect((await expectOk(await a.get(path))).map(r => r.id)).toEqual([x.response.id])
+      expect((await expectOk(await (await api('bocal')).get(path))).map(r => r.id)).toEqual([x.response.id])
+      const own = await expectOk(await b.get(path))
+      expect(own.map(r => r.userId)).toEqual([x.s.b.id])
+      await expectError(await c.get(path), 403)
+      await expectError(await (await api('alice')).get(path), 403)
+    } finally { await Promise.all([a, b, c].map(s => s.dispose())) }
+  })
+})

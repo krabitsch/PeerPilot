@@ -154,10 +154,11 @@ route.post('/evaluate/submit', async (req, res, next) => {
     }catch(err){next(err)}
 })
 
-// get all eval feedback left on one submission (GET /api/eval/submission/:subId/responses)
+// eval feedback left on one submission — staff and the evaluated group see all
+// of it, an evaluator only their own (GET /api/eval/submission/:subId/responses)
 route.get('/submission/:subId/responses', async (req, res, next) => {
     try{
-        res.json(await service.getEvalResponsesForSubmission(req.params.subId))
+        res.json(await service.getEvalResponsesForSubmission(req.params.subId, { userId: req.user.userId, isStaff: isStaff(req) }))
     }catch(err){next(err)}
 })
 

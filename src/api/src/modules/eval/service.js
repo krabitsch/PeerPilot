@@ -371,14 +371,35 @@ const submitEvaluation = async ({evalAssignmentId, evaluatorUserId, comment, sco
     return response
 }
 
-// get all eval feedback (EvalResponse rows) left on one submission
-const getEvalResponsesForSubmission = async (subId) => {
+// Eval feedback (EvalResponse rows) left on one submission, for the people
+// entitled to read it — the same rule as getRecordingUrl. Staff and members of
+// the evaluated group see all of it; an evaluator sees only the responses they
+// wrote; anyone else is refused. `requester` is { userId, isStaff }.
+const getEvalResponsesForSubmission = async (subId, requester) => {
     const subIdInt = parseInt(subId)
     if(!subIdInt)
         throw new ValidationError('Invalid submission id')
 
+    const where = { subId: subIdInt }
+    if (!requester?.isStaff) {
+        const uid = parseInt(requester?.userId)
+        if (!uid) throw new ForbiddenError('You cannot access this feedback')
+        const submission = await prisma.submission.findUnique({
+            where: { id: subIdInt },
+            select: { group: { select: { members: { where: { userId: uid }, select: { userId: true } } } } },
+        })
+        if (!submission) throw new NotFoundError('Submission not found')
+        if (!submission.group?.members?.length) {
+            // Not in the group: only an evaluator of this submission gets in, and
+            // only to their own responses.
+            where.userId = uid
+            if (await prisma.evalResponse.count({ where }) === 0)
+                throw new ForbiddenError('You cannot access this feedback')
+        }
+    }
+
     return await prisma.evalResponse.findMany({
-        where: { subId: subIdInt },
+        where,
         select: {
             id: true, isStaffReview: true, givenMarks: true, coreScore: true, bonusScore: true, comment: true, reply: true, rating: true, userId: true,
             user: { select: { id: true, username: true } },
