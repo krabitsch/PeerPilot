@@ -407,3 +407,33 @@
   cursor: help;
 }
 .deadline-ok { color: oklch(50% 0.01 272); }
+
+/* Submission column: who handed in. Amber = uploaded but NOT handed in. */
+.submission-cell { text-align: center; white-space: nowrap; }
+.submission-pill {
+  display: inline-block;
+  padding: 2px 9px;
+
+  border: 1px solid transparent;
+  border-radius: 999px;
+
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.5;
+
+  cursor: help;
+}
+.submission-pill.ok    { color: #86efac; background: oklch(30% 0.08 150 / 0.35); border-color: oklch(55% 0.12 150 / 0.55); }
+.submission-pill.warn  { color: #fcd34d; background: oklch(32% 0.08 80 / 0.35);  border-color: oklch(62% 0.13 80 / 0.6); }
+.submission-pill.muted { color: oklch(72% 0.01 272); background: oklch(22% 0.02 272); border-color: oklch(32% 0.02 272); }
+.submission-pill.none  { color: oklch(58% 0.01 272); border-color: oklch(28% 0.02 272); }
+.submission-extra {
+  display: block;
+  margin-top: 3px;
+
+  color: oklch(58% 0.01 272);
+  font-size: 0.7rem;
+}
+
+.summary-card.ok .summary-number   { color: #86efac; }
+.summary-card.warn .summary-number { color: #fcd34d; }

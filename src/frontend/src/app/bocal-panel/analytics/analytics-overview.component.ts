@@ -21,6 +21,7 @@ interface CourseOption {
 
 interface GroupSummary {
   id: number;
+  submission?: { status?: string };
 }
 
 interface PairingSummary {
@@ -45,6 +46,10 @@ interface AssignmentCard {
 
   rounds: RoundProgress[];
   dataError: boolean;
+
+  // Per group, from the staff group list's submission summary.
+  submitted: number;
+  uploadedNotClosed: number;
 }
 
 @Component({
@@ -293,7 +298,9 @@ export class AnalyticsOverviewComponent implements OnInit {
         assigned: 0,
         completed: 0,
         rounds: [],
-        dataError: true
+        dataError: true,
+        submitted: 0,
+        uploadedNotClosed: 0
       };
     }
 
@@ -344,7 +351,9 @@ export class AnalyticsOverviewComponent implements OnInit {
       assigned: active.length,
       completed,
       rounds,
-      dataError: false
+      dataError: false,
+      submitted: groups.filter(g => g.submission?.status === 'Submitted').length,
+      uploadedNotClosed: groups.filter(g => g.submission?.status === 'Uploaded').length
     };
   }
 

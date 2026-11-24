@@ -105,6 +105,17 @@
 
               } @else {
 
+                @if (card.groupCount) {
+                  <div class="submission-summary">
+                    <span>{{ card.submitted }}/{{ card.groupCount }} groups submitted</span>
+                    @if (card.uploadedNotClosed > 0) {
+                      <span class="submission-warn" title="A file is uploaded but the group never closed the submission">
+                        {{ card.uploadedNotClosed }} uploaded, not closed
+                      </span>
+                    }
+                  </div>
+                }
+
                 <div class="rounds">
 
                   @for (r of card.rounds; track r.round) {
