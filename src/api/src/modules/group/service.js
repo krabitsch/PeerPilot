@@ -259,7 +259,7 @@ const getGroupsForAssignment = async (assId)=>{
     return groups.map(({submissions, evalAssignmentsAsEvaluee, ...group}) => {
       const submission = submissions?.[0]
       const result = assignmentOutcome(assignment, (evalAssignmentsAsEvaluee ?? []).filter(p => !p.submissionId || p.submissionId === submission?.id), submission)
-      return {...group, workflowStatus:result.workflowStatus, deadlineFailure:result.deadlineFailure}
+      return {...group, workflowStatus:result.workflowStatus, deadlineFailure:result.deadlineFailure, deadlineFailureReason:result.deadlineFailureReason}
     })
 }
 
@@ -310,7 +310,7 @@ const getMyGroupForAssignment = async ({ userId, assId }) => {
     const {assignment,submissions,evalAssignmentsAsEvaluee,...group} = membership.group
     const submission = submissions?.[0]
     const result = assignmentOutcome(assignment,(evalAssignmentsAsEvaluee ?? []).filter(p => !p.submissionId || p.submissionId === submission?.id),submission)
-    return {...group,deadlineFailure:result.deadlineFailure,workflowStatus:result.workflowStatus}
+    return {...group,deadlineFailure:result.deadlineFailure,deadlineFailureReason:result.deadlineFailureReason,workflowStatus:result.workflowStatus}
 }
 
 module.exports = {createGroup, generateGroups, inviteMember, addMemberAdmin, removeMemberAdmin, respondToInvite, getGroup, leaveGroup,

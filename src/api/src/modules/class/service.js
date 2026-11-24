@@ -226,7 +226,7 @@ const getAssignmentById = async (assignId)=>{
     decorated.groups = (result.groups ?? []).map(({submissions, evalAssignmentsAsEvaluee, ...group}) => {
       const submission = submissions?.[0]
       const overall = assignmentOutcome(result, (evalAssignmentsAsEvaluee ?? []).filter(p => !p.submissionId || p.submissionId === submission?.id), submission)
-      return {...group, deadlineFailure:overall.deadlineFailure, workflowStatus:overall.workflowStatus, passed:overall.passed}
+      return {...group, deadlineFailure:overall.deadlineFailure, deadlineFailureReason:overall.deadlineFailureReason, workflowStatus:overall.workflowStatus, passed:overall.passed}
     })
     return decorated
 }

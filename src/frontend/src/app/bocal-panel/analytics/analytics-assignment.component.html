@@ -129,6 +129,15 @@
           </div>
         </div>
 
+        <div class="summary-card">
+          <div class="summary-number">
+            {{ s.missedDeadline ?? 0 }}
+          </div>
+          <div class="summary-label">
+            Missed deadline
+          </div>
+        </div>
+
       </div>
 
 
@@ -221,6 +230,7 @@
             <option value="All">All</option>
             <option value="Incomplete">Incomplete</option>
             <option value="Unallocated">Unallocated</option>
+            <option value="MissedDeadline">Missed deadline</option>
 
           </select>
 
@@ -245,6 +255,10 @@
 
               <th rowspan="2" scope="col">
                 Group
+              </th>
+
+              <th rowspan="2" scope="col">
+                Deadline
               </th>
 
               <th
@@ -307,8 +321,7 @@
                 </td>
 
                 <td class="student-group">
-                  <span>{{ student.groupName }}
-                  @if (student.deadlineFailure) { <span class="attempt-status failed" title="Overall assignment result: Failed — deadline missed">× Failed</span> }</span>
+                  <span>{{ student.groupName }}</span>
                   @if (student.groupId !== null) {
                     <button
                       type="button"
@@ -318,6 +331,16 @@
                       (click)="downloadSubmission(student.groupId)">
                       ⬇
                     </button>
+                  }
+                </td>
+
+                <td class="deadline-cell">
+                  @if (student.deadlineFailure; as failure) {
+                    <span class="deadline-pill" [title]="failure.long">
+                      Failed · {{ failure.short }}
+                    </span>
+                  } @else {
+                    <span class="deadline-ok" aria-label="No deadline missed">—</span>
                   }
                 </td>
 
@@ -346,7 +369,7 @@
               <tr>
 
                 <td
-                  [attr.colspan]="2 + 2 * rounds().length"
+                  [attr.colspan]="3 + 2 * rounds().length"
                   class="empty-table">
 
                   No students match the selected filter.

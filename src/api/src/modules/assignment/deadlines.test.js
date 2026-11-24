@@ -70,3 +70,24 @@ test('existing score-cache writes never persist a deadline-induced failure',asyn
   await recomputeSubmissionPassed(db,3)
   assert.equal(saved.passed,null);assert.equal(saved.finalScore,null)
 })
+test('deadline failure reason tells staff why, and is null whenever the flag is false', () => {
+  const sub = {...assignment,submissionDeadline:before}
+  const reason = (a, s, p = []) => {
+    const r = assignmentOutcome(a, p, s, now)
+    assert.equal(r.deadlineFailure, r.deadlineFailureReason !== null)
+    return r.deadlineFailureReason
+  }
+  assert.equal(reason(sub,null),'NoSubmission')
+  assert.equal(reason(sub,{id:3,status:'Open',fileId:null}),'NoSubmission')
+  assert.equal(reason(sub,{id:3,status:'Close',fileId:null}),'NoSubmission')
+  assert.equal(reason(sub,{id:3,status:'Open',fileId:4}),'NotClosed')
+  assert.equal(reason(sub,submission,[pairing(80)]),null)
+  const evalDue = {...assignment,submissionDeadline:before,evaluationDeadline:before}
+  assert.equal(reason(evalDue,submission,[pairing(80,'Pending')]),'EvaluationsIncomplete')
+  assert.equal(reason(evalDue,submission,[]),'EvaluationsIncomplete')
+  assert.equal(reason(evalDue,submission,[pairing(80)]),null)
+  // A missed submission deadline is reported ahead of the evaluation one.
+  assert.equal(reason(evalDue,{id:3,status:'Open',fileId:4},[]),'NotClosed')
+  // Nothing is overdue yet.
+  assert.equal(reason({...assignment,submissionDeadline:after,evaluationDeadline:after},null),null)
+})

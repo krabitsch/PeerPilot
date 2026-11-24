@@ -18,8 +18,19 @@ import { SubmissionService } from '../../core/services/submission-service/submis
 import { ExportService } from '../../core/services/export-service/export-service';
 
 
+// Why the overall result is Failed (computed by the API, never stored).
+// 'NoSubmission' is also derived here for students left without a group.
+type DeadlineFailureReason = 'NoSubmission' | 'NotClosed' | 'EvaluationsIncomplete';
+
+const DEADLINE_FAILURE_LABELS: Record<DeadlineFailureReason, { short: string; long: string }> = {
+  NoSubmission: { short: 'No submission', long: 'Failed: submission deadline passed without a submitted file' },
+  NotClosed: { short: 'Not closed', long: 'Failed: a file was uploaded but the submission was never closed before the deadline' },
+  EvaluationsIncomplete: { short: 'Evals incomplete', long: 'Failed: evaluation deadline passed with evaluations still pending' },
+};
+
 interface GroupInfo {
   deadlineFailure?: boolean;
+  deadlineFailureReason?: DeadlineFailureReason | null;
   id: number;
   name: string;
   members: { userId: number }[];
@@ -40,7 +51,7 @@ interface ProgressCell {
 }
 
 interface StudentProgress {
-  deadlineFailure?: boolean;
+  deadlineFailure?: { short: string; long: string } | null;
   id: number;
   name: string;
   groupName: string;
@@ -57,9 +68,10 @@ interface AssignmentStats {
   pairings: number;
   groupsMissingPairings: number;
   unallocatedStudents: number;
+  missedDeadline?: number;
 }
 
-type StudentFilter = 'All' | 'Incomplete' | 'Unallocated';
+type StudentFilter = 'All' | 'Incomplete' | 'Unallocated' | 'MissedDeadline';
 
 
 @Component({
@@ -124,6 +136,9 @@ export class AnalyticsAssignmentComponent implements OnInit {
 
       case 'Unallocated':
         return rows.filter(s => s.evalueeEligible && s.groupId === null);
+
+      case 'MissedDeadline':
+        return rows.filter(s => !!s.deadlineFailure);
 
       default:
         return rows;
@@ -242,6 +257,9 @@ export class AnalyticsAssignmentComponent implements OnInit {
 
         const groups: GroupInfo[] = data.groups.map((g: any) => ({
           id: Number(g.id), deadlineFailure:g.deadlineFailure,
+          // Older API responses carry only the flag; treat that as "no submission"
+          // rather than hiding the failure.
+          deadlineFailureReason: g.deadlineFailure ? (g.deadlineFailureReason ?? 'NoSubmission') : null,
           name: String(g.name),
           members: (g.members ?? []).map((m: any) => ({
             userId: Number(m.userId)
@@ -308,6 +326,11 @@ export class AnalyticsAssignmentComponent implements OnInit {
         });
 
 
+        // Same rule the student's own pages apply: an evaluee with no group
+        // has no submission, so they fail once the submission deadline passes.
+        const submissionDeadlinePassed = !!assignment.submissionDeadline &&
+          Date.now() > new Date(assignment.submissionDeadline).getTime();
+
         // Construct a row for every enrolled student.
         const studentRows: StudentProgress[] =
           enrolled.map(student => {
@@ -356,7 +379,7 @@ export class AnalyticsAssignmentComponent implements OnInit {
               name: student.username,
               groupName: group?.name ?? (eligibleEvaluees.has(student.id) ? 'Unallocated' : 'Not an evaluee'),
               groupId: group?.id ?? null,
-              deadlineFailure:group?.deadlineFailure,
+              deadlineFailure:this.deadlineFailureFor(group, eligibleEvaluees.has(student.id), submissionDeadlinePassed),
               evalueeEligible:eligibleEvaluees.has(student.id),
               received,
               evaluator,
@@ -374,6 +397,7 @@ export class AnalyticsAssignmentComponent implements OnInit {
         );
 
         this.students.set(studentRows);
+        this.stats.update(s => s && { ...s, missedDeadline: studentRows.filter(r => !!r.deadlineFailure).length });
         this.loading.set(false);
       },
 
@@ -434,12 +458,19 @@ export class AnalyticsAssignmentComponent implements OnInit {
   }
 
 
+  private deadlineFailureFor(group: GroupInfo | null, evaluee: boolean, submissionDeadlinePassed: boolean) {
+    const reason = group ? group.deadlineFailureReason : evaluee && submissionDeadlinePassed ? 'NoSubmission' : null;
+    return reason ? DEADLINE_FAILURE_LABELS[reason] : null;
+  }
+
+
   onFilterChanged(value: string): void {
 
     if (
       value === 'All' ||
       value === 'Incomplete' ||
-      value === 'Unallocated'
+      value === 'Unallocated' ||
+      value === 'MissedDeadline'
     ) {
       this.filter.set(value);
     }
