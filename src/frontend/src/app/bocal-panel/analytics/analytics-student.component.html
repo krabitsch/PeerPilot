@@ -249,10 +249,20 @@
               track $index
             ) {
 
-              <tr>
+              <tr [class.expandable-row]="canExpand(row)" [class.expanded]="isExpanded(row.pairingId)">
 
                 <td>
-                  Round {{ row.round }} @if(row.attempt){ · Attempt {{row.attempt}} }
+                  @if (canExpand(row)) {
+                    <button type="button" class="row-toggle" (click)="toggleRow(row.pairingId)"
+                            [attr.aria-expanded]="isExpanded(row.pairingId)"
+                            [attr.aria-controls]="'eval-detail-' + row.pairingId">
+                      <span class="row-chevron" aria-hidden="true">▸</span>
+                      Round {{ row.round }} @if(row.attempt){ · Attempt {{row.attempt}} }
+                    </button>
+                  } @else {
+                    <span class="row-toggle-spacer" aria-hidden="true"></span>
+                    Round {{ row.round }} @if(row.attempt){ · Attempt {{row.attempt}} }
+                  }
                 </td>
 
                 <td>
@@ -301,6 +311,14 @@
                 </td>
 
               </tr>
+
+              @if (isExpanded(row.pairingId)) {
+                <tr class="eval-detail-row" [id]="'eval-detail-' + row.pairingId">
+                  <td colspan="4">
+                    <ng-container *ngTemplateOutlet="evalDetail; context: { $implicit: row.pairingId, given: false, counterpart: row.evaluatorName }" />
+                  </td>
+                </tr>
+              }
 
             }
 
@@ -369,10 +387,20 @@
                 track $index
               ) {
 
-                <tr>
+                <tr [class.expandable-row]="canExpand(row)" [class.expanded]="isExpanded(row.pairingId)">
 
                   <td>
-                    Round {{ row.round }} @if(row.attempt){ · Attempt {{row.attempt}} }
+                    @if (canExpand(row)) {
+                      <button type="button" class="row-toggle" (click)="toggleRow(row.pairingId)"
+                              [attr.aria-expanded]="isExpanded(row.pairingId)"
+                              [attr.aria-controls]="'eval-detail-' + row.pairingId">
+                        <span class="row-chevron" aria-hidden="true">▸</span>
+                        Round {{ row.round }} @if(row.attempt){ · Attempt {{row.attempt}} }
+                      </button>
+                    } @else {
+                      <span class="row-toggle-spacer" aria-hidden="true"></span>
+                      Round {{ row.round }} @if(row.attempt){ · Attempt {{row.attempt}} }
+                    }
                   </td>
 
                   <td>
@@ -409,6 +437,14 @@
 
                 </tr>
 
+                @if (isExpanded(row.pairingId)) {
+                  <tr class="eval-detail-row" [id]="'eval-detail-' + row.pairingId">
+                    <td colspan="3">
+                      <ng-container *ngTemplateOutlet="evalDetail; context: { $implicit: row.pairingId, given: true, counterpart: row.evalueeGroupName }" />
+                    </td>
+                  </tr>
+                }
+
               }
 
             </tbody>
@@ -424,3 +460,70 @@
   }
 
 </div>
+
+
+<!-- One evaluation's feedback, shared by the As evaluee and As evaluator rows. -->
+<ng-template #evalDetail let-pairingId let-given="given" let-counterpart="counterpart">
+  <div class="eval-detail">
+    @if (detailsState() === 'loading') {
+      <p class="eval-detail-empty">Loading…</p>
+    } @else if (detailsState() === 'error') {
+      <p class="eval-detail-empty">Could not load the evaluation details.</p>
+    } @else {
+      @let d = detailFor(pairingId);
+      @if (!d?.response) {
+        <p class="eval-detail-empty">No feedback recorded for this evaluation.</p>
+      } @else {
+        @let r = d!.response!;
+        <div class="eval-grade">
+          <span class="eval-grade-label">{{ given ? 'Grade given' : 'Grade received' }}</span>
+          <span class="eval-grade-value">{{ r.givenMarks }}@if (maxScore()) { / {{ maxScore() }}}</span>
+          <span class="eval-grade-meta">
+            Core {{ r.coreScore ?? r.givenMarks }} · Bonus +{{ r.bonusScore }}@if (passThreshold() != null) { · pass mark {{ passThreshold() }}%}
+          </span>
+          @if (d!.outcome === 'Passed') {
+            <span class="status-complete">✓ Passed</span>
+          } @else if (d!.outcome === 'Failed') {
+            <span class="status-failed">× Failed</span>
+          }
+        </div>
+
+        @if (r.scores.length) {
+          <ul class="eval-sections">
+            @for (sec of r.scores; track sec.sectionId) {
+              <li>
+                <span class="eval-section-name">{{ sec.name }}@if (sec.isBonus) { <em>(bonus)</em>}</span>
+                <span class="eval-section-score">{{ sec.score }}@if (sec.marks != null) { / {{ sec.marks }}}</span>
+              </li>
+            }
+          </ul>
+        }
+
+        <div class="eval-block">
+          <h4>{{ given ? (student()?.username ?? 'Student') + '’s comment' : 'Comment from ' + counterpart }}</h4>
+          @if (r.comment.trim()) {
+            <p class="eval-text">{{ r.comment }}</p>
+          } @else {
+            <p class="eval-detail-empty">No comment.</p>
+          }
+        </div>
+
+        <div class="eval-block">
+          <div class="eval-block-head">
+            <h4>Reply from {{ given ? counterpart : (studentGroup()?.name ?? 'the group') }}</h4>
+            @if (r.hasRecording) {
+              <button type="button" class="download-btn eval-recording" (click)="downloadRecording(r.id)">⬇ Recording</button>
+            } @else {
+              <span class="eval-detail-empty">No recording</span>
+            }
+          </div>
+          @if (r.reply?.trim()) {
+            <p class="eval-text">{{ r.reply }}</p>
+          } @else {
+            <p class="eval-detail-empty">No reply yet.</p>
+          }
+        </div>
+      }
+    }
+  </div>
+</ng-template>

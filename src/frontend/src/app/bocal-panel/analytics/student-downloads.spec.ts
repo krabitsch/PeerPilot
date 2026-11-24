@@ -40,7 +40,7 @@ describe('student analytics: downloads',()=>{
       {provide:CourseService,useValue:{getClass:()=>of({name:'Course'})}},
       {provide:AssignmentService,useValue:{getAssignments:()=>of([{id:1,name:'A1',req_eval:2,max_score:100,pass_threshold:50}])}},
       {provide:GroupService,useValue:{getGroupsForAssignment:()=>of(groups)}},
-      {provide:EvalService,useValue:{getEvalAssignments:()=>of(pairings),getRecordingUrl}},
+      {provide:EvalService,useValue:{getEvalAssignments:()=>of(pairings),getRecordingUrl,getStudentEvaluations:()=>of([])}},
       {provide:SubmissionService,useValue:{getGroupSubmissions:()=>of([{id:40,files}]),getDownloadUrl}},
       {provide:ExportService,useValue:{downloadAssignmentArchive,downloadEvaluationsCsv}},
       {provide:AssignmentWorkflowService,useValue:{summary:()=>of({participants:[eve],slots:[]})}},

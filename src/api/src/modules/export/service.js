@@ -248,4 +248,7 @@ module.exports = {
     planArchive,
     openEntryStream,
     sanitize,
+    // Shared with eval/student-evaluations.js (the student analytics page).
+    getStudentScope,
+    directionFor,
 }

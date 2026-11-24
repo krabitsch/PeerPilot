@@ -207,6 +207,26 @@ export interface EvalSheet {
 // Service
 // ============================================================
 
+// One evaluation pairing involving a student, as staff analytics sees it.
+export interface StudentEvaluation {
+  pairingId: number;
+  direction: 'received' | 'given' | null;
+  round: number;
+  status: string;
+  outcome: string;
+  response: {
+    id: number;
+    givenMarks: number;
+    coreScore: number | null;
+    bonusScore: number;
+    comment: string;
+    reply: string | null;
+    hasRecording: boolean;
+    scores: { sectionId: number; name: string; score: number; marks: number | null; isBonus: boolean }[];
+  } | null;
+}
+
+
 @Injectable({
   providedIn: "root"
 })
@@ -255,6 +275,12 @@ export class EvalService {
 
     submitEvaluation(data: { evalAssignmentId: number, comment: string, scores: { sectionId: number, score: number }[] }) {
         return this.http.post<SubmitEvaluationResponse>(`${this.base}/evaluate/submit`, data)
+    }
+
+    // Staff: every evaluation involving one student (received by their group,
+    // given by them), with grade, section scores, comment and reply.
+    getStudentEvaluations(assignmentId: number, userId: number) {
+        return this.http.get<StudentEvaluation[]>(`${this.base}/assignment/${assignmentId}/student/${userId}/evaluations`)
     }
 
     // Presigned URL to play/download an evaluation's recording (access-gated server-side).

@@ -83,6 +83,14 @@ route.post('/eval-assignments', requireStaff, async(req, res, next) => {
     }catch(err){next(err)}
 })
 
+// Staff: every evaluation involving one student, with grades, comments and
+// replies (GET /api/eval/assignment/:id/student/:userId/evaluations)
+route.get('/assignment/:id/student/:userId/evaluations', requireStaff, async (req, res, next) => {
+    try {
+        res.json(await require('./student-evaluations').getStudentEvaluations(req.params.id, req.params.userId))
+    } catch (err) { next(err) }
+})
+
 // get all EvalAssignments for one assignment (GET /api/eval/assignment/:id/eval-assignments)
 route.get('/assignment/:id/eval-assignments', async (req, res, next) => {
   //console.log('DELETE all eval assignments route reached, assignment id:', req.params.id)

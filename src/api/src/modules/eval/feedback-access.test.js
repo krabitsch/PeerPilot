@@ -1,5 +1,6 @@
 // §8.1: feedback on a submission is readable only by staff, the evaluated
-// group, and (for their own responses) its evaluators.
+// group, and (for their own responses) its evaluators. Plus the staff-only
+// per-student evaluations view behind the student analytics page (issue 7).
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
@@ -70,4 +71,66 @@ test('§8.1: the route passes the token identity, not the query or body', async 
   const src = fs.readFileSync(`${__dirname}/routes.js`, 'utf8')
   const route = src.slice(src.indexOf("route.get('/submission/:subId/responses'"))
   assert.match(route.slice(0, 400), /getEvalResponsesForSubmission\(req\.params\.subId, \{ userId: req\.user\.userId, isStaff: isStaff\(req\) \}\)/)
+})
+
+// --- per-student evaluations (staff) ---
+
+const assignment = { id: 1, max_score: 100, pass_threshold: 50 }
+const section = (name, marks, isBonus = false) => ({ name, marks, isBonus })
+const pairing = (id, evalueeGroupId, evaluatorUserId, response, extra = {}) => ({ id, assignmentId: 1, round: 1, status: response ? 'Submitted' : 'Pending',
+  createdAt: new Date(2026, 10, id), evalueeGroupId, evaluatorUserId, submissionId: evalueeGroupId * 10, evalResponseId: response?.id ?? null, evalResponse: response, ...extra })
+const resp = (id, userId, subId, givenMarks, extra = {}) => ({ id, userId, subId, givenMarks, coreScore: givenMarks, bonusScore: 0, isStaffReview: false,
+  comment: `comment ${id}`, reply: `reply ${id}`, recordingFileId: 100 + id,
+  scores: [{ sectionId: 1, score: givenMarks - 10, section: section('Content', 60) }, { sectionId: 2, score: 10, section: section('Method', 40) }], ...extra })
+
+function studentHarness({ group = { id: 4, name: 'eve-group' } } = {}) {
+  const q = {}
+  const all = [
+    pairing(1, 4, 7, resp(31, 7, 40, 68)),                       // received by eve's group
+    pairing(2, 9, 5, resp(32, 5, 90, 40, { reply: null, recordingFileId: null })),  // given by eve, failed, no reply yet
+    pairing(3, 9, 5, null, { round: 2 }),                         // given by eve, pending
+    pairing(4, 9, 8, resp(33, 8, 90, 90)),                        // unrelated
+  ]
+  const db = {
+    assignment: { findUnique: async ({ where }) => where.id === 1 ? assignment : null },
+    user: { findUnique: async ({ where }) => where.id === 5 ? { id: 5, username: 'eve' } : null },
+    group: { findFirst: async () => group },
+    evalAssignment: { findMany: async a => { q.pairings = a
+      const or = a.where.OR
+      return all.filter(p => or.some(c => (c.evalueeGroupId !== undefined && p.evalueeGroupId === c.evalueeGroupId) || (c.evaluatorUserId !== undefined && p.evaluatorUserId === c.evaluatorUserId))) } },
+  }
+  const exportService = load('../export/service.js', db, { '@transcendence/utils': {} })
+  const mod = load('student-evaluations.js', db, { '../export/service': exportService })
+  return { mod, q }
+}
+
+test('student evaluations: received and given, with grade, sections, comment and reply', async () => {
+  const { mod, q } = studentHarness()
+  const rows = plain(await mod.getStudentEvaluations('1', '5'))
+  assert.deepEqual(plain(q.pairings.where.OR), [{ evalueeGroupId: 4 }, { evaluatorUserId: 5 }])
+  assert.deepEqual(rows.map(r => [r.pairingId, r.direction, r.outcome]), [[1, 'received', 'Passed'], [2, 'given', 'Failed'], [3, 'given', 'Pending']])
+  assert.deepEqual(rows[0].response, { id: 31, givenMarks: 68, coreScore: 68, bonusScore: 0, comment: 'comment 31', reply: 'reply 31', hasRecording: true,
+    scores: [{ sectionId: 1, name: 'Content', score: 58, marks: 60, isBonus: false }, { sectionId: 2, name: 'Method', score: 10, marks: 40, isBonus: false }] })
+  assert.equal(rows[1].response.reply, null)
+  assert.equal(rows[1].response.hasRecording, false)
+  assert.equal(rows[2].response, null)
+  assert(!rows.some(r => r.pairingId === 4), 'other students\' evaluations are not included')
+})
+
+test('student evaluations: an unallocated student gets only what they gave', async () => {
+  const { mod, q } = studentHarness({ group: null })
+  const rows = plain(await mod.getStudentEvaluations(1, 5))
+  assert.deepEqual(plain(q.pairings.where.OR), [{ evaluatorUserId: 5 }])
+  assert(rows.every(r => r.direction === 'given'))
+})
+
+test('student evaluations: bad ids are refused, and the route is staff-only', async () => {
+  const { mod } = studentHarness()
+  await assert.rejects(mod.getStudentEvaluations('x', 5), /Invalid assignment id/)
+  await assert.rejects(mod.getStudentEvaluations(2, 5), /Assignment not found/)
+  await assert.rejects(mod.getStudentEvaluations(1, 'abc'), /Invalid student id/)
+  await assert.rejects(mod.getStudentEvaluations(1, undefined), /Invalid student id/)
+  await assert.rejects(mod.getStudentEvaluations(1, 99), /Student not found/)
+  const src = fs.readFileSync(`${__dirname}/routes.js`, 'utf8')
+  assert.match(src, /route\.get\('\/assignment\/:id\/student\/:userId\/evaluations', requireStaff,/)
 })

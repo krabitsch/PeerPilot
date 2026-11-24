@@ -13,7 +13,7 @@ import {
 } from '@angular/router';
 
 import { forkJoin } from 'rxjs';
-import { DatePipe } from '@angular/common';
+import { DatePipe, NgTemplateOutlet } from '@angular/common';
 
 import { CourseService } from '../../core/services/course-service/course-service';
 
@@ -27,7 +27,8 @@ import {
 } from '../../core/services/group-service/group-service';
 
 import {
-  EvalService
+  EvalService,
+  StudentEvaluation
 } from '../../core/services/eval-service/eval-service';
 
 import { SubmissionService } from '../../core/services/submission-service/submission-service';
@@ -98,6 +99,7 @@ interface PairingInfo {
 
 interface EvalueeRoundRow {
   attempt?:number;
+  pairingId?: number;
   round: number;
 
   evaluatorName: string;
@@ -110,6 +112,7 @@ interface EvalueeRoundRow {
 
 interface EvaluatorRoundRow {
   attempt?:number;
+  pairingId?: number;
   round: number;
 
   evalueeGroupName: string;
@@ -121,7 +124,7 @@ interface EvaluatorRoundRow {
 @Component({
   selector: 'app-analytics-student',
   standalone: true,
-  imports: [DatePipe],
+  imports: [DatePipe, NgTemplateOutlet],
 
   templateUrl: './analytics-student.component.html',
 
@@ -180,6 +183,14 @@ export class AnalyticsStudentComponent implements OnInit {
   downloading = signal<null | 'zip' | 'csv'>(null);
   downloadError = signal<string | null>(null);
   downloadNotice = signal<string | null>(null);
+
+
+  // Expandable rows: grade, section scores, comment and reply per evaluation.
+  maxScore = signal<number | null>(null);
+  passThreshold = signal<number | null>(null);
+  evaluationDetails = signal<Map<number, StudentEvaluation>>(new Map());
+  detailsState = signal<'idle' | 'loading' | 'error'>('idle');
+  expanded = signal<ReadonlySet<number>>(new Set());
 
 
   groupCompletedCount = computed(() => new Set(this.evalueeRows()
@@ -315,6 +326,8 @@ export class AnalyticsStudentComponent implements OnInit {
         this.assignmentName.set(
           assignment.name
         );
+        this.maxScore.set(Number(assignment.max_score) || null);
+        this.passThreshold.set(assignment.pass_threshold ?? null);
 
 
         const requiredRounds =
@@ -534,6 +547,7 @@ export class AnalyticsStudentComponent implements OnInit {
                 round,
 
                 attempt:index+1,
+                pairingId: row.id,
                 evaluatorName:
                   row.evaluatorName ?? studentNameById.get(
                     row.evaluatorUserId
@@ -600,6 +614,8 @@ export class AnalyticsStudentComponent implements OnInit {
 
             .map(p => ({
 
+              pairingId: p.id,
+
               round:
                 p.round,
 
@@ -649,8 +665,9 @@ export class AnalyticsStudentComponent implements OnInit {
 
         this.loading.set(false);
 
-        // Last, so the rest of the page renders even if this request fails.
+        // Last, so the rest of the page renders even if these requests fail.
         this.loadSubmissionFiles(ownGroup?.id ?? null);
+        this.loadEvaluationDetails(assId, studentId);
 
       },
 
@@ -687,6 +704,41 @@ export class AnalyticsStudentComponent implements OnInit {
       },
       error: () => this.submissionFilesState.set('error'),
     });
+  }
+
+
+  private loadEvaluationDetails(assId: number, studentId: number): void {
+    this.expanded.set(new Set());
+    this.evaluationDetails.set(new Map());
+    this.detailsState.set('loading');
+    this.evalService.getStudentEvaluations(assId, studentId).subscribe({
+      next: rows => {
+        this.evaluationDetails.set(new Map((rows ?? []).map(r => [Number(r.pairingId), r])));
+        this.detailsState.set('idle');
+      },
+      error: () => this.detailsState.set('error'),
+    });
+  }
+
+
+  // Only finished evaluations have something to show.
+  canExpand(row: { pairingId?: number; status: string }): boolean {
+    return row.pairingId != null && ['Passed', 'Failed', 'Submitted'].includes(row.status);
+  }
+
+  isExpanded(pairingId: number | undefined): boolean {
+    return pairingId != null && this.expanded().has(pairingId);
+  }
+
+  toggleRow(pairingId: number | undefined): void {
+    if (pairingId == null) return;
+    const next = new Set(this.expanded());
+    if (!next.delete(pairingId)) next.add(pairingId);
+    this.expanded.set(next);
+  }
+
+  detailFor(pairingId: number | undefined): StudentEvaluation | null {
+    return pairingId == null ? null : this.evaluationDetails().get(pairingId) ?? null;
   }
 
 
