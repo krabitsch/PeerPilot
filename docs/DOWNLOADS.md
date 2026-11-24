@@ -30,9 +30,19 @@ The frontend sends a Bearer token from the in-memory `AuthService`
 
 - **Single files** → server returns a short-lived presigned MinIO URL as JSON;
   the browser opens it. (Already the pattern for submissions/recordings.)
-- **Server-generated content (CSV, ZIP)** → the frontend fetches with
+- **Evaluations CSV** (small) → the frontend fetches with
   `responseType: 'blob'` (the interceptor adds the token), then saves the blob
-  via an object URL. These are **never** exposed as unauthenticated links.
+  via an object URL. Never exposed as an unauthenticated link.
+- **Bulk ZIP** (can be many GB) → a blob would sit in tab memory with no
+  progress, which is what broke it in prod (Nov 2026). Instead the frontend
+  `POST`s `/api/export/assignment/:id/archive-ticket` with its token and gets a
+  random, **single-use, 60-second** ticket bound to the caller and to an
+  already-validated archive plan. A hidden iframe then loads
+  `GET /api/export/archive/:ticket`, and the browser streams the ZIP to disk
+  natively. That route is mounted before the global `authenticate`; the ticket
+  is its only credential, and it re-checks the holder's staff role on use.
+  This is the one place a credential travels in a URL. Tickets are held in API
+  process memory (single container; see `modules/export/tickets.js`).
 
 ### Error-handler caveat
 
@@ -76,8 +86,14 @@ fields containing `"`, `,` or newline in quotes, double inner quotes).
 
 ### Bulk ZIP (per assignment)
 
-`GET /api/export/assignment/:id/archive[?recordings=0]` → `application/zip`,
-streamed.
+`POST /api/export/assignment/:id/archive-ticket` `{ recordings }` →
+`{ ticket, expiresAt, totalBytes, submissions, recordings }` (browser path, see
+above), then `GET /api/export/archive/:ticket` → `application/zip`, streamed.
+Refusals (expired / reused / no longer staff) are `410`/`403` plain text, which
+the page reads back from the iframe and shows.
+
+`GET /api/export/assignment/:id/archive[?recordings=0]` (Bearer) streams the
+same ZIP for API clients and the e2e suite.
 
 Entry layout:
 
@@ -92,6 +108,10 @@ Entry layout:
 - Use `archiver` (store / level 0 — audio and zips do not recompress), piping
   MinIO `getObject` **streams** (never buffer a whole file). Memory stays
   bounded regardless of cohort size.
+- Open MinIO objects **lazily, one at a time**: the next object is opened only
+  after archiver reports the previous entry written. Opening them all up front
+  left idle sockets that MinIO dropped on big assignments. A client cancel
+  closes the open object and stops the loop.
 - `?recordings=0` omits the heavy audio (up to 200 MB each) for a quick
   submissions + CSV grab.
 - **Sanitize** every entry name (group name, original filename) to block
@@ -104,9 +124,10 @@ per-assignment page).
 
 - **New `ExportService`** (`core/services/export-service/`):
   `downloadEvaluationsCsv(assId)` and
-  `downloadAssignmentArchive(assId, { recordings })`, both `GET` with
-  `responseType: 'blob'`; plus a `saveBlob(blob, filename)` helper (object URL →
-  anchor click → revoke; filename from `Content-Disposition`).
+  `downloadAssignmentArchive(assId, { recordings }, onRefused)`. The CSV is a
+  blob `GET` saved via `saveBlob` (object URL → anchor click → revoke; filename
+  from `Content-Disposition`); the ZIP uses the ticket + hidden-iframe flow
+  above and the page shows the size estimate from the ticket response.
 - **Header buttons:** "Download all (ZIP)" with an "include recordings" toggle,
   and "Download evaluations (CSV)".
 - **Per-row controls:** in the student/group table, a submission-download icon

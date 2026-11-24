@@ -106,6 +106,7 @@ export class AnalyticsAssignmentComponent implements OnInit {
   includeRecordings = signal(true);
   downloading = signal<null | 'archive' | 'csv'>(null);
   downloadError = signal<string | null>(null);
+  downloadNotice = signal<string | null>(null);
 
   // Prevent outdated API responses from changing the page
   // when users switch assignments quickly.
@@ -459,11 +460,24 @@ export class AnalyticsAssignmentComponent implements OnInit {
 
     this.downloading.set('archive');
     this.downloadError.set(null);
+    this.downloadNotice.set(null);
 
+    // The ZIP itself is a native browser download (progress in the browser's
+    // download bar); this call only obtains the ticket and the size estimate.
     this.exportService
-      .downloadAssignmentArchive(assId, { recordings: this.includeRecordings() })
+      .downloadAssignmentArchive(assId, { recordings: this.includeRecordings() }, refused => {
+        this.downloadNotice.set(null);
+        this.downloadError.set(refused);
+      })
       .subscribe({
-        next: () => this.downloading.set(null),
+        next: grant => {
+          this.downloading.set(null);
+          const parts = [`${grant.submissions} submission file${grant.submissions === 1 ? '' : 's'}`];
+          if (grant.includeRecordings) parts.push(`${grant.recordings} recording${grant.recordings === 1 ? '' : 's'}`);
+          this.downloadNotice.set(
+            `Download started: ~${formatBytes(grant.totalBytes)} (${parts.join(', ')}). ` +
+            `Your browser shows the progress; you can keep using Peerofessor meanwhile.`);
+        },
         error: err => {
           this.downloading.set(null);
           this.downloadError.set(err?.message ?? 'Could not download the assignment archive.');
@@ -529,4 +543,13 @@ openStudentAnalytics(studentId: number): void {
   });
 }
 
+}
+
+
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 MB';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+  const value = bytes / 1024 ** i;
+  return `${value >= 10 || i === 0 ? Math.round(value) : value.toFixed(1)} ${units[i]}`;
 }

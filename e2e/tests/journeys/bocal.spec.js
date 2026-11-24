@@ -100,3 +100,19 @@ test('creates a group for a student', async ({ page }) => {
   const group = await db().group.findFirst({ where: { name: 'bob-group' } })
   expect(group.leaderId).toBe(seeded().users.bob)
 })
+
+// "Download all (ZIP)" is a native browser download (ticket + hidden iframe),
+// so Playwright sees a real download event rather than an XHR blob.
+test('downloads the whole assignment as a ZIP from Analytics', async ({ page }) => {
+  const { classes, assignments } = seeded()
+  await page.goto(`/bocal/analytics/assignment?classId=${classes.web}&assId=${assignments.peer}`)
+  const button = page.getByRole('button', { name: /Download all \(ZIP\)/ })
+  await expect(button).toBeEnabled()
+
+  const [download] = await Promise.all([page.waitForEvent('download'), button.click()])
+  expect(download.suggestedFilename()).toMatch(/^peerofessor-.+\.zip$/)
+  const file = await download.path()
+  const fs = require('node:fs')
+  expect(fs.readFileSync(file).subarray(0, 2).toString('latin1')).toBe('PK')
+  await expect(page.getByRole('status')).toContainText('Download started')
+})

@@ -38,7 +38,7 @@ const getResponsesForAssignment = async (assignmentId, { onlyWithRecording = fal
             user: { select: { username: true, email: true } },
             submission: { select: { group: { select: { id: true, name: true } } } },
             scores: { select: { sectionId: true, score: true } },
-            recordingFile: { select: { url: true, name: true } },
+            recordingFile: { select: { url: true, name: true, size: true } },
             evalAssignment: { select: { id: true, round: true } },
         },
         orderBy: { id: 'asc' },
@@ -129,7 +129,7 @@ const planArchive = async (assId, { includeRecordings = true } = {}) => {
             latestByGroup.set(s.groupId,s)
             submissionEntries.push({
                 path:`submissions/${sanitize(s.group.name)}-group-${s.groupId}/submission-${s.id}/${folder}/${sanitize(file.name)}`,
-                bucket:'submissions',key:file.url,
+                bucket:'submissions',key:file.url,size:file.size ?? 0,
             })
         }
     }
@@ -151,6 +151,7 @@ const planArchive = async (assId, { includeRecordings = true } = {}) => {
                   `round${r.evalAssignment?.round ?? 'NA'}-pairing-${r.evalAssignment?.id ?? 'NA'}-response-${r.id}-${sanitize(r.user?.username ?? 'unknown')}-${sanitize(r.recordingFile.name)}`,
             bucket: 'eval-recordings',
             key: r.recordingFile.url,
+            size: r.recordingFile.size ?? 0,
         }))
         const total = await prisma.evalResponse.count({
             where: { submission: { group: { assId: assignment.id } } },
@@ -177,7 +178,11 @@ const planArchive = async (assId, { includeRecordings = true } = {}) => {
         '',
     ].join('\n')
 
-    return { filenameBase, csv, manifest, submissionEntries, recordingEntries }
+    // Stored sizes of everything streamed from MinIO, so staff see roughly how
+    // big the download will be before it starts (CSV/manifest are negligible).
+    const totalBytes = [...submissionEntries, ...recordingEntries].reduce((sum, e) => sum + (e.size || 0), 0)
+
+    return { filenameBase, csv, manifest, submissionEntries, recordingEntries, totalBytes }
 }
 
 // Opens a readable stream for one planned entry, at pipe time.

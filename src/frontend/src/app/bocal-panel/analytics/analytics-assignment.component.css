@@ -336,6 +336,18 @@
   cursor: pointer;
 }
 
+.download-notice {
+  margin-top: 12px;
+  padding: 10px 14px;
+
+  background: oklch(20% 0.04 150 / 0.35);
+  border: 1px solid oklch(45% 0.08 150 / 0.6);
+  border-radius: 8px;
+
+  color: oklch(86% 0.04 150);
+  font-size: 0.8125rem;
+}
+
 .student-group {
   display: flex;
   align-items: center;

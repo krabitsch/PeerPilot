@@ -142,7 +142,7 @@
           [disabled]="downloading() !== null"
           (click)="downloadArchive()">
           @if (downloading() === 'archive') {
-            Preparing ZIP…
+            Preparing download…
           } @else {
             ⬇ Download all (ZIP)
           }
@@ -169,6 +169,12 @@
         </button>
 
       </div>
+
+      @if (downloadNotice()) {
+        <div class="download-notice" role="status">
+          {{ downloadNotice() }}
+        </div>
+      }
 
       @if (downloadError()) {
         <div class="error-message">

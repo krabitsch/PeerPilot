@@ -81,6 +81,43 @@ test.describe('bulk ZIP archive', () => {
   })
 })
 
+// The browser downloads the ZIP natively (no Bearer header possible), so staff
+// first trade their session for a single-use, short-lived ticket.
+test.describe('bulk ZIP via download ticket', () => {
+  const ticketPath = () => `export/assignment/${seeded().assignments.peer}/archive-ticket`
+
+  test('only staff can obtain a ticket', async ({ api }) => {
+    await expectError(await (await api('alice')).post(ticketPath(), { data: {} }), 403)
+    await expectError(await (await api('anon')).post(ticketPath(), { data: {} }), 401)
+  })
+
+  test('the ticket alone downloads the ZIP exactly once', async ({ api }) => {
+    const grant = await (await (await api('bocal')).post(ticketPath(), { data: { recordings: false } })).json()
+    expect(grant).toMatchObject({ ok: true, includeRecordings: false, recordings: 0 })
+    expect(grant.ticket).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    expect(typeof grant.totalBytes).toBe('number')
+
+    // No Authorization header: the ticket is the credential.
+    const anon = await api('anon')
+    const res = await anon.get(`export/archive/${grant.ticket}`)
+    expect(res.status()).toBe(200)
+    expect(res.headers()['content-type']).toContain('application/zip')
+    expect(res.headers()['content-disposition']).toContain('.zip')
+    const text = (await res.body()).toString('latin1')
+    expect(text.slice(0, 2)).toBe('PK')
+    expect(text).toContain('recordings excluded by request')
+
+    const reused = await anon.get(`export/archive/${grant.ticket}`)
+    expect(reused.status()).toBe(410)
+    expect(reused.headers()['content-disposition']).toBeUndefined()
+    expect((await anon.get('export/archive/made-up-ticket')).status()).toBe(410)
+  })
+
+  test('an unknown assignment fails on the ticket call, not inside a download', async ({ api }) => {
+    await expectError(await (await api('bocal')).post('export/assignment/999999/archive-ticket', { data: {} }), 404)
+  })
+})
+
 test.describe('per-submission download: staff bypass', () => {
   // Staff may download any group's submission; a non-member student may not.
   // Carol's seeded submission has no file, so staff reach the file lookup and
