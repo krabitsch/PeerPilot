@@ -52,6 +52,13 @@ describe('bulk ZIP download (ticket + native browser download)',()=>{
     expect(frames()).toHaveLength(0);
   });
 
+  it('scopes the ticket to one student when asked',async()=>{
+    const done=new Promise(resolve=>service.downloadAssignmentArchive(1,{recordings:true,studentId:5}).subscribe(resolve));
+    const req=http.expectOne('/api/export/assignment/1/student/5/archive-ticket');
+    expect(req.request.method).toBe('POST');req.flush(grant);await done;
+    expect(new URL(frames()[0].src).pathname).toBe('/api/export/archive/tKt_123-abc');
+  });
+
   it('surfaces ticket errors (200 JSON envelope or real status) and starts nothing',async()=>{
     for(const flush of [
       (r:any)=>r.flush({ok:false,code:404,error:'Assignment not found'}),
@@ -86,6 +93,12 @@ describe('evaluations CSV (blob download)',()=>{
     http.expectOne(url).flush(new Blob(['a,b\r\n'],{type:'text/csv'}),
       {headers:new HttpHeaders({'Content-Type':'text/csv; charset=utf-8','Content-Disposition':'attachment; filename="Course-A-evaluations.csv"'})});
     await done;expect(name).toBe('Course-A-evaluations.csv');expect(click).toHaveBeenCalledOnce();
+  });
+
+  it('scopes the CSV to one student when asked',async()=>{
+    const done=new Promise<void>(resolve=>service.downloadEvaluationsCsv(1,5).subscribe({complete:resolve}));
+    http.expectOne('/api/export/assignment/1/student/5/evaluations.csv').flush(new Blob(['direction\r\n'],{type:'text/csv'}),{headers:{'Content-Type':'text/csv'}});
+    await done;expect(click).toHaveBeenCalledOnce();
   });
 
   it('never saves JSON errors or non-CSV bodies',async()=>{

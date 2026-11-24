@@ -12,15 +12,19 @@ const { archiveTickets } = require('./tickets')
 // are never handed out as unauthenticated links. The one URL-borne credential
 // is the single-use, 60-second archive ticket (see tickets.js).
 
-// Evaluations as a CSV sheet (one row per evaluation).
-route.get('/assignment/:id/evaluations.csv', requireStaff, async (req, res, next) => {
+// Evaluations as a CSV sheet (one row per evaluation). The /student/:userId
+// variant keeps only evaluations involving that student (their group's received
+// ones and the ones they gave), with a leading `direction` column.
+const sendEvaluationsCsv = async (req, res, next) => {
     try {
-        const { csv, filenameBase } = await service.buildEvaluationsCsv(req.params.id)
+        const { csv, filenameBase } = await service.buildEvaluationsCsv(req.params.id, { studentId: req.params.userId ?? null })
         res.setHeader('Content-Type', 'text/csv; charset=utf-8')
         res.setHeader('Content-Disposition', `attachment; filename="${filenameBase}-evaluations.csv"`)
         res.send(csv)
     } catch (err) { next(err) }
-})
+}
+route.get('/assignment/:id/evaluations.csv', requireStaff, sendEvaluationsCsv)
+route.get('/assignment/:id/student/:userId/evaluations.csv', requireStaff, sendEvaluationsCsv)
 
 // Pipes a validated plan into a ZIP on `res`.
 //
@@ -101,10 +105,12 @@ const includeRecordingsFrom = (value) => !(value === false || value === '0' || v
 // token, park the plan under a single-use ticket, and return it. Every
 // pre-stream failure (unknown assignment, CSV build error, …) therefore
 // surfaces here as normal JSON the page can show, not inside a download.
-route.post('/assignment/:id/archive-ticket', requireStaff, async (req, res, next) => {
+// The /student/:userId variant scopes the archive to that student (see
+// sendEvaluationsCsv); both redeem through the same ticket route.
+const issueArchiveTicket = async (req, res, next) => {
     try {
         const includeRecordings = includeRecordingsFrom(req.body?.recordings)
-        const plan = await service.planArchive(req.params.id, { includeRecordings })
+        const plan = await service.planArchive(req.params.id, { includeRecordings, studentId: req.params.userId ?? null })
         const { token, expiresAt } = archiveTickets.issue({
             userId: req.user.userId,
             assignmentId: parseInt(req.params.id),
@@ -120,7 +126,9 @@ route.post('/assignment/:id/archive-ticket', requireStaff, async (req, res, next
             includeRecordings,
         })
     } catch (err) { next(err) }
-})
+}
+route.post('/assignment/:id/archive-ticket', requireStaff, issueArchiveTicket)
+route.post('/assignment/:id/student/:userId/archive-ticket', requireStaff, issueArchiveTicket)
 
 // Bearer-authenticated variant (API clients, e2e). Same streaming as the
 // ticket route; the browser UI uses the ticket so it can download natively.

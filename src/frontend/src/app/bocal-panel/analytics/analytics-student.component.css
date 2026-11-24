@@ -298,3 +298,75 @@
 
 }
 .status-failed { color:#f87171; }
+
+
+/* Downloads */
+
+.student-downloads-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.download-lists {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 18px;
+}
+
+@media (max-width: 900px) {
+  .download-lists { grid-template-columns: 1fr; }
+}
+
+.download-list {
+  padding: 14px 16px;
+
+  background: oklch(13% 0.02 272);
+  border: 1px solid oklch(24% 0.025 272);
+  border-radius: 10px;
+}
+
+.download-list h3 {
+  margin: 0 0 10px;
+
+  color: oklch(80% 0.01 272);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.download-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+
+  padding: 8px 0;
+  border-top: 1px solid oklch(21% 0.02 272);
+}
+
+.download-row:first-of-type { border-top: 0; }
+
+.download-name {
+  overflow: hidden;
+
+  color: oklch(90% 0.005 272);
+  font-size: 0.8125rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.download-meta {
+  color: oklch(58% 0.01 272);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.download-empty {
+  margin: 0;
+
+  color: oklch(55% 0.01 272);
+  font-size: 0.8rem;
+}

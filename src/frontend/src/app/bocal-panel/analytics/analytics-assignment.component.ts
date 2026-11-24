@@ -17,6 +17,7 @@ import { EvalService } from '../../core/services/eval-service/eval-service';
 import { SubmissionService } from '../../core/services/submission-service/submission-service';
 import { ExportService } from '../../core/services/export-service/export-service';
 import { followDownload } from '../../core/download';
+import { formatBytes } from '../../core/format-bytes';
 
 
 // Why the overall result is Failed (computed by the API, never stored).
@@ -637,14 +638,6 @@ openStudentAnalytics(studentId: number): void {
 
 }
 
-
-function formatBytes(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) return '0 MB';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
-  const value = bytes / 1024 ** i;
-  return `${value >= 10 || i === 0 ? Math.round(value) : value.toFixed(1)} ${units[i]}`;
-}
 
 
 function formatDate(iso: string): string {

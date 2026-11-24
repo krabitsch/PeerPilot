@@ -118,6 +118,42 @@ test.describe('bulk ZIP via download ticket', () => {
   })
 })
 
+// Student analytics: everything involving one student, for staff only.
+test.describe('per-student exports', () => {
+  const base = () => `export/assignment/${seeded().assignments.peer}/student/${seeded().users.carol}`
+
+  test('are staff-only', async ({ api }) => {
+    await expectError(await (await api('alice')).get(`${base()}/evaluations.csv`), 403)
+    await expectError(await (await api('alice')).post(`${base()}/archive-ticket`, { data: {} }), 403)
+    await expectError(await (await api('anon')).get(`${base()}/evaluations.csv`), 401)
+  })
+
+  test('the CSV marks each evaluation as received or given', async ({ api }) => {
+    const res = await (await api('bocal')).get(`${base()}/evaluations.csv`)
+    expect(res.status()).toBe(200)
+    expect(res.headers()['content-disposition']).toContain('.csv')
+    const [header, ...rows] = (await res.text()).trim().split(/\r?\n/)
+    expect(header).toBe(`direction,${EXPECTED_CSV_HEADER}`)
+    for (const row of rows) expect(row).toMatch(/^(received|given),/)
+  })
+
+  test('the ZIP downloads once via a ticket and says whose it is', async ({ api }) => {
+    const grant = await (await (await api('bocal')).post(`${base()}/archive-ticket`, { data: {} })).json()
+    expect(grant).toMatchObject({ ok: true })
+    const res = await (await api('anon')).get(`export/archive/${grant.ticket}`)
+    expect(res.status()).toBe(200)
+    const text = (await res.body()).toString('latin1')
+    expect(text.slice(0, 2)).toBe('PK')
+    expect(text).toContain('Student: ')
+    expect(text).toContain('evaluations.csv')
+  })
+
+  test('an unknown student is refused', async ({ api }) => {
+    await expectError(await (await api('bocal')).get(
+      `export/assignment/${seeded().assignments.peer}/student/999999/evaluations.csv`), 404)
+  })
+})
+
 test.describe('per-submission download: staff bypass', () => {
   // Staff may download any group's submission; a non-member student may not.
   // Carol's seeded submission has no file, so staff reach the file lookup and

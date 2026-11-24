@@ -25,7 +25,7 @@ describe('historical analytics retries',()=>{
     {provide:AssignmentService,useValue:{getAssignments:()=>of([assignment])}},
     {provide:GroupService,useValue:{getGroupsForAssignment:()=>of(groups)}},
     {provide:EvalService,useValue:{getEvalAssignments:()=>of(pairings)}},
-    {provide:SubmissionService,useValue:{getSubmissionsForAssignment:()=>of([])}},
+    {provide:SubmissionService,useValue:{getSubmissionsForAssignment:()=>of([]),getGroupSubmissions:()=>of([])}},
     {provide:ExportService,useValue:{}},
     {provide:AssignmentWorkflowService,useValue:{summary:()=>of({participants:[student],slots:[]})}},
   ]}));

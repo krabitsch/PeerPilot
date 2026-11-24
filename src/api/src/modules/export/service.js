@@ -26,15 +26,44 @@ const getAssignmentForExport = async (assId) => {
     return assignment
 }
 
+// Optional per-student scope: the student, and their group in this assignment
+// (null when unallocated). Everything a scoped export contains involves them:
+// their group's submission, evaluations their group received, and the
+// evaluations they gave as evaluator.
+const getStudentScope = async (assignmentId, studentId) => {
+    if (studentId == null) return null
+    const id = parseInt(studentId)
+    if (!id) throw new ValidationError('Invalid student id')
+    const user = await prisma.user.findUnique({ where: { id }, select: { id: true, username: true } })
+    if (!user) throw new NotFoundError('Student not found')
+    const group = await prisma.group.findFirst({
+        where: { assId: assignmentId, members: { some: { userId: id } } },
+        select: { id: true, name: true },
+    })
+    return { user, group }
+}
+
+// received: about the student's group's work · given: written by the student.
+const directionFor = (scope, evalueeGroupId, evaluatorUserId) =>
+    scope.group && evalueeGroupId === scope.group.id ? 'received' : evaluatorUserId === scope.user.id ? 'given' : null
+
 // Every evaluation left on any submission in this assignment, with the pieces
 // the CSV/recording exports need. `round` comes from the linked EvalAssignment.
-const getResponsesForAssignment = async (assignmentId, { onlyWithRecording = false } = {}) => {
-    const where = { submission: { group: { assId: assignmentId } } }
+const responseWhere = (assignmentId, scope) => ({
+    submission: { group: { assId: assignmentId } },
+    ...(scope ? { OR: [
+        ...(scope.group ? [{ submission: { groupId: scope.group.id } }] : []),
+        { userId: scope.user.id },
+    ] } : {}),
+})
+
+const getResponsesForAssignment = async (assignmentId, { onlyWithRecording = false, scope = null } = {}) => {
+    const where = responseWhere(assignmentId, scope)
     if (onlyWithRecording) where.recordingFileId = { not: null }
     return await prisma.evalResponse.findMany({
         where,
         select: {
-            id: true, isStaffReview: true, givenMarks: true, coreScore: true, bonusScore: true, comment: true, reply: true,
+            id: true, userId: true, isStaffReview: true, givenMarks: true, coreScore: true, bonusScore: true, comment: true, reply: true,
             user: { select: { username: true, email: true } },
             submission: { select: { group: { select: { id: true, name: true } } } },
             scores: { select: { sectionId: true, score: true } },
@@ -45,10 +74,11 @@ const getResponsesForAssignment = async (assignmentId, { onlyWithRecording = fal
     })
 }
 
-const buildEvaluationsCsv = async (assId) => {
+const buildEvaluationsCsv = async (assId, { studentId = null } = {}) => {
     const assignment = await getAssignmentForExport(assId)
+    const scope = await getStudentScope(assignment.id, studentId)
     const sections = assignment.evalSheet?.sections ?? []
-    const responses = await getResponsesForAssignment(assignment.id)
+    const responses = await getResponsesForAssignment(assignment.id, { scope })
 
     const sectionIndex = new Map(sections.map((s, i) => [s.id, i]))
 
@@ -60,7 +90,10 @@ const buildEvaluationsCsv = async (assId) => {
 
     header.push('evalAssignmentId', 'attempt', 'status', 'outcome', 'createdAt', 'retryRequestedAt', 'evalResponseId')
     const pairings = await prisma.evalAssignment.findMany({
-        where: { assignmentId: assignment.id },
+        where: { assignmentId: assignment.id, ...(scope ? { OR: [
+            ...(scope.group ? [{ evalueeGroupId: scope.group.id }] : []),
+            { evaluatorUserId: scope.user.id },
+        ] } : {}) },
         include: { evaluatorUser: true, evalueeGroup: true, evalResponse: true },
         orderBy: [{round:'asc'}, {createdAt:'asc'}, {id:'asc'}],
     })
@@ -75,6 +108,8 @@ const buildEvaluationsCsv = async (assId) => {
     })
     // Retain legacy/unpaired responses and staff reviews too.
     records.push(...responses.filter(r=>!linked.has(r.id)).map(r=>({r})))
+    // Per-student sheets say which side of each evaluation the student was on.
+    if (scope) header.unshift('direction')
     const lines = [csvRow(header)]
     for (const {r,p,attempt} of records) {
         const sectionScores = new Array(sections.length).fill('')
@@ -82,7 +117,11 @@ const buildEvaluationsCsv = async (assId) => {
             const idx = sectionIndex.get(sc.sectionId)
             if (idx !== undefined) sectionScores[idx] = sc.score
         }
+        const direction = scope
+            ? [directionFor(scope, p?.evalueeGroupId ?? r?.submission?.group?.id, p?.evaluatorUserId ?? r?.userId) ?? '']
+            : []
         lines.push(csvRow([
+            ...direction,
             p?.evalueeGroup?.name ?? r?.submission?.group?.name ?? '',
             p?.round ?? r?.evalAssignment?.round ?? '',
             p?.evaluatorUser?.username ?? r?.user?.username ?? '',
@@ -99,20 +138,23 @@ const buildEvaluationsCsv = async (assId) => {
 
     return {
         csv: lines.join('\r\n') + '\r\n',
-        filenameBase: `${sanitize(assignment.class?.name ?? 'class')}-${sanitize(assignment.name)}`,
+        filenameBase: `${sanitize(assignment.class?.name ?? 'class')}-${sanitize(assignment.name)}` +
+            (scope ? `-${sanitize(scope.user.username)}` : ''),
     }
 }
 
 // Gathers (and validates) everything the ZIP needs. Runs entirely before any
 // byte is streamed, so a failure here still surfaces as a normal JSON error
 // through the global handler. Returns a plan the route pipes into archiver.
-const planArchive = async (assId, { includeRecordings = true } = {}) => {
+const planArchive = async (assId, { includeRecordings = true, studentId = null } = {}) => {
     const assignment = await getAssignmentForExport(assId)
-    const { csv, filenameBase } = await buildEvaluationsCsv(assignment.id)
+    const scope = await getStudentScope(assignment.id, studentId)
+    const { csv, filenameBase } = await buildEvaluationsCsv(assignment.id, { studentId })
 
     // Bulk exports contain every immutable submitted version, in chronological order.
-    const submissions = await utils.getSubmissionsBy(
-        { group: { assId: assignment.id } },
+    // An unallocated student has no group, so no submission to include.
+    const submissions = scope && !scope.group ? [] : await utils.getSubmissionsBy(
+        scope ? { groupId: scope.group.id } : { group: { assId: assignment.id } },
         { file: true, fileVersions:fileVersionInclude, group: { select: { id: true, name: true } } },
     )
     submissions.sort((a,b)=>a.groupId-b.groupId || new Date(a.createdAt)-new Date(b.createdAt) || a.id-b.id)
@@ -135,7 +177,7 @@ const planArchive = async (assId, { includeRecordings = true } = {}) => {
     }
 
     // Groups in the assignment with no downloadable submission — noted in the manifest.
-    const allGroups = await prisma.group.findMany({
+    const allGroups = scope ? (scope.group ? [scope.group] : []) : await prisma.group.findMany({
         where: { assId: assignment.id },
         select: { id: true, name: true },
         orderBy: { id: 'asc' },
@@ -145,23 +187,27 @@ const planArchive = async (assId, { includeRecordings = true } = {}) => {
     let recordingEntries = []
     let evalsWithoutRecording = 0
     if (includeRecordings) {
-        const responses = await getResponsesForAssignment(assignment.id, { onlyWithRecording: true })
+        const responses = await getResponsesForAssignment(assignment.id, { onlyWithRecording: true, scope })
         recordingEntries = responses.map(r => ({
-            path: `recordings/${sanitize(r.submission?.group?.name ?? 'unknown')}-group-${r.submission?.group?.id ?? 'unknown'}/` +
+            path: `recordings/${scope ? `${directionFor(scope, r.submission?.group?.id, r.userId) ?? 'other'}/` : ''}${sanitize(r.submission?.group?.name ?? 'unknown')}-group-${r.submission?.group?.id ?? 'unknown'}/` +
                   `round${r.evalAssignment?.round ?? 'NA'}-pairing-${r.evalAssignment?.id ?? 'NA'}-response-${r.id}-${sanitize(r.user?.username ?? 'unknown')}-${sanitize(r.recordingFile.name)}`,
             bucket: 'eval-recordings',
             key: r.recordingFile.url,
             size: r.recordingFile.size ?? 0,
         }))
-        const total = await prisma.evalResponse.count({
-            where: { submission: { group: { assId: assignment.id } } },
-        })
+        const total = await prisma.evalResponse.count({ where: responseWhere(assignment.id, scope) })
         evalsWithoutRecording = total - responses.length
     }
 
     const manifest = [
         `Assignment: ${assignment.name}`,
         `Class: ${assignment.class?.name ?? ''}`,
+        ...(scope ? [
+            `Student: ${scope.user.username}`,
+            `Group: ${scope.group?.name ?? '(no group in this assignment)'}`,
+            'Contents: this group\'s submission files, the evaluations it received and the evaluations this student gave',
+            '(see the "direction" column in evaluations.csv and the received/given recording folders).',
+        ] : []),
         `Generated: ${new Date().toISOString()}`,
         '',
         `Submissions included: ${submissionEntries.length}`,

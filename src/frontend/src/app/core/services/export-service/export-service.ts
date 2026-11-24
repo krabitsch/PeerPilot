@@ -16,11 +16,18 @@ export class ExportService {
     private http = inject(HttpClient);
     private base = '/api/export';
 
-    downloadEvaluationsCsv(assignmentId: number) {
-        return this.http.get(`${this.base}/assignment/${assignmentId}/evaluations.csv`, {
+    // `studentId` scopes an export to one student: their group's submission,
+    // the evaluations it received, and the evaluations they gave.
+    private scopePath(assignmentId: number, studentId?: number | null): string {
+        return `${this.base}/assignment/${assignmentId}` + (studentId ? `/student/${studentId}` : '');
+    }
+
+    downloadEvaluationsCsv(assignmentId: number, studentId?: number | null) {
+        const fallback = `peerofessor-assignment-${assignmentId}${studentId ? `-student-${studentId}` : ''}-evaluations.csv`;
+        return this.http.get(`${this.scopePath(assignmentId, studentId)}/evaluations.csv`, {
             observe: 'response', responseType: 'blob',
         }).pipe(
-            switchMap(res => from(this.save(res, 'csv', `peerofessor-assignment-${assignmentId}-evaluations.csv`))),
+            switchMap(res => from(this.save(res, 'csv', fallback))),
             catchError(err => from(this.downloadFailure(err)))
         );
     }
@@ -33,9 +40,9 @@ export class ExportService {
     // iframe fetch the ticket URL. The browser streams it to disk with its own
     // progress bar. `onRefused` gets the server's reason if the ticket URL is
     // refused (expired/reused/permission) instead of starting a download.
-    downloadAssignmentArchive(assignmentId: number, opts: { recordings: boolean } = { recordings: true },
+    downloadAssignmentArchive(assignmentId: number, opts: { recordings: boolean; studentId?: number | null } = { recordings: true },
                               onRefused?: (message: string) => void): Observable<ArchiveGrant> {
-        return this.http.post<ArchiveGrant & { ok?: boolean; error?: string }>(`${this.base}/assignment/${assignmentId}/archive-ticket`, {
+        return this.http.post<ArchiveGrant & { ok?: boolean; error?: string }>(`${this.scopePath(assignmentId, opts.studentId)}/archive-ticket`, {
             recordings: opts.recordings,
         }).pipe(
             map(grant => {

@@ -130,6 +130,75 @@
 
     </section>
 
+    <!-- DOWNLOADS -->
+
+    <section class="student-detail-section">
+
+      <h2>Downloads</h2>
+
+      <p class="section-description">
+        Everything involving {{ student()?.username ?? 'this student' }} in this assignment:
+        the group's submission, the evaluations it received, and the evaluations this student gave
+        (scores, comments, replies and recordings).
+      </p>
+
+      <div class="student-downloads-toolbar">
+        <button type="button" class="download-btn primary" [disabled]="downloading() !== null" (click)="downloadStudentArchive()">
+          @if (downloading() === 'zip') { Preparing download… } @else { ⬇ Everything (ZIP) }
+        </button>
+        <button type="button" class="download-btn" [disabled]="downloading() !== null" (click)="downloadStudentCsv()">
+          @if (downloading() === 'csv') { Preparing CSV… } @else { ⬇ Evaluations &amp; replies (CSV) }
+        </button>
+      </div>
+
+      @if (downloadNotice()) {
+        <div class="download-notice" role="status">{{ downloadNotice() }}</div>
+      }
+      @if (downloadError()) {
+        <div class="error-message">{{ downloadError() }}</div>
+      }
+
+      <div class="download-lists">
+
+        <div class="download-list">
+          <h3>Submission files</h3>
+          @if (!studentGroup()) {
+            <p class="download-empty">Not in a group for this assignment, so no submission.</p>
+          } @else if (submissionFilesState() === 'loading') {
+            <p class="download-empty">Loading…</p>
+          } @else if (submissionFilesState() === 'error') {
+            <p class="download-empty">Could not load the submission files.</p>
+          } @else {
+            @for (file of submissionFiles(); track file.id) {
+              <div class="download-row">
+                <span class="download-name" [title]="file.name">{{ file.name }}</span>
+                <span class="download-meta">{{ file.version }} · {{ formatSize(file.size) }}@if (file.uploadedAt) { · {{ file.uploadedAt | date:'d MMM, HH:mm' }} }</span>
+                <button type="button" class="row-download" (click)="downloadSubmissionFile(file.id)" [attr.aria-label]="'Download ' + file.name">⬇</button>
+              </div>
+            } @empty {
+              <p class="download-empty">No file uploaded yet.</p>
+            }
+          }
+        </div>
+
+        <div class="download-list">
+          <h3>Recordings</h3>
+          @for (rec of recordings(); track rec.responseId) {
+            <div class="download-row">
+              <span class="download-name">{{ rec.direction }} · Round {{ rec.round }}</span>
+              <span class="download-meta">{{ rec.counterpart }}</span>
+              <button type="button" class="row-download" (click)="downloadRecording(rec.responseId)" [attr.aria-label]="'Download recording: ' + rec.direction + ', round ' + rec.round">⬇</button>
+            </div>
+          } @empty {
+            <p class="download-empty">No recordings yet.</p>
+          }
+        </div>
+
+      </div>
+
+    </section>
+
+
     <!-- AS EVALUEE -->
 
     <section class="student-detail-section">

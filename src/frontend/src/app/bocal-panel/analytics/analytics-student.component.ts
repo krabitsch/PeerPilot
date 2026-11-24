@@ -13,6 +13,7 @@ import {
 } from '@angular/router';
 
 import { forkJoin } from 'rxjs';
+import { DatePipe } from '@angular/common';
 
 import { CourseService } from '../../core/services/course-service/course-service';
 
@@ -28,6 +29,29 @@ import {
 import {
   EvalService
 } from '../../core/services/eval-service/eval-service';
+
+import { SubmissionService } from '../../core/services/submission-service/submission-service';
+import { ExportService } from '../../core/services/export-service/export-service';
+import { followDownload } from '../../core/download';
+import { formatBytes } from '../../core/format-bytes';
+
+
+// One downloadable file of the student's group submission (original + retries).
+interface SubmissionFileRow {
+  id: number;
+  name: string;
+  size: number;
+  uploadedAt: string | null;
+  version: string;
+}
+
+// One evaluation involving the student that has an audio recording.
+interface RecordingRow {
+  responseId: number;
+  direction: 'Received' | 'Given';
+  round: number;
+  counterpart: string;
+}
 
 
 interface StudentInfo {
@@ -97,6 +121,7 @@ interface EvaluatorRoundRow {
 @Component({
   selector: 'app-analytics-student',
   standalone: true,
+  imports: [DatePipe],
 
   templateUrl: './analytics-student.component.html',
 
@@ -115,6 +140,8 @@ export class AnalyticsStudentComponent implements OnInit {
   private groupService = inject(GroupService);
   private evalService = inject(EvalService);
   private workflow = inject(AssignmentWorkflowService);
+  private submissionService = inject(SubmissionService);
+  private exportService = inject(ExportService);
 
 
   classId = signal<number | null>(null);
@@ -144,6 +171,15 @@ export class AnalyticsStudentComponent implements OnInit {
   loading = signal(false);
 
   error = signal<string | null>(null);
+
+
+  // Downloads for this student.
+  submissionFiles = signal<SubmissionFileRow[]>([]);
+  submissionFilesState = signal<'idle' | 'loading' | 'error'>('idle');
+  recordings = signal<RecordingRow[]>([]);
+  downloading = signal<null | 'zip' | 'csv'>(null);
+  downloadError = signal<string | null>(null);
+  downloadNotice = signal<string | null>(null);
 
 
   groupCompletedCount = computed(() => new Set(this.evalueeRows()
@@ -590,7 +626,31 @@ export class AnalyticsStudentComponent implements OnInit {
         );
 
 
+        // Recordings: one per evaluation response that has one, on either side.
+        this.recordings.set(
+          (data.pairings as any[])
+            .filter(p => p.evalResponse?.id && p.evalResponse?.recordingFileId)
+            .map(p => {
+              const received = !!ownGroup && Number(p.evalueeGroupId) === ownGroup.id;
+              const given = Number(p.evaluatorUserId) === studentId;
+              if (!received && !given) return null;
+              return {
+                responseId: Number(p.evalResponse.id),
+                direction: received ? 'Received' : 'Given',
+                round: Number(p.round),
+                counterpart: received
+                  ? `from ${p.evaluatorUser?.username ?? studentNameById.get(Number(p.evaluatorUserId)) ?? 'evaluator'}`
+                  : `for ${groupById.get(Number(p.evalueeGroupId))?.name ?? `group #${p.evalueeGroupId}`}`,
+              } as RecordingRow;
+            })
+            .filter((r): r is RecordingRow => r !== null)
+            .sort((a, b) => (a.direction === b.direction ? 0 : a.direction === 'Received' ? -1 : 1) || a.round - b.round)
+        );
+
         this.loading.set(false);
+
+        // Last, so the rest of the page renders even if this request fails.
+        this.loadSubmissionFiles(ownGroup?.id ?? null);
 
       },
 
@@ -608,6 +668,90 @@ export class AnalyticsStudentComponent implements OnInit {
     });
 
   }
+
+
+  private loadSubmissionFiles(groupId: number | null): void {
+    this.submissionFiles.set([]);
+    if (!groupId) { this.submissionFilesState.set('idle'); return; }
+    this.submissionFilesState.set('loading');
+    this.submissionService.getGroupSubmissions(groupId).subscribe({
+      next: (subs: any) => {
+        const sub = subs?.[0];
+        const files: any[] = sub?.files ?? (sub?.file ? [sub.file] : []);
+        this.submissionFiles.set(files.map((f, i) => ({
+          id: Number(f.id), name: String(f.name), size: Number(f.size) || 0,
+          uploadedAt: f.createdAt ?? null,
+          version: i === 0 ? 'Original' : `Retry ${i}`,
+        })));
+        this.submissionFilesState.set('idle');
+      },
+      error: () => this.submissionFilesState.set('error'),
+    });
+  }
+
+
+  downloadSubmissionFile(fileId: number): void {
+    const group = this.studentGroup();
+    if (!group) return;
+    this.downloadError.set(null);
+    this.submissionService.getDownloadUrl(group.id, undefined, fileId).subscribe({
+      next: res => { if (res?.url) followDownload(res.url); },
+      error: () => this.downloadError.set('Could not download that submission file.'),
+    });
+  }
+
+
+  downloadRecording(responseId: number): void {
+    this.downloadError.set(null);
+    this.evalService.getRecordingUrl(responseId).subscribe({
+      next: res => { if (res?.url) followDownload(res.url); },
+      error: () => this.downloadError.set('Could not download that recording.'),
+    });
+  }
+
+
+  // Everything involving this student as one ZIP (submission files, the
+  // evaluations they received and gave with comments/replies, recordings).
+  downloadStudentArchive(): void {
+    const assId = this.assignmentId(), studentId = this.studentId();
+    if (!assId || !studentId || this.downloading()) return;
+    this.downloading.set('zip');
+    this.downloadError.set(null);
+    this.downloadNotice.set(null);
+    this.exportService.downloadAssignmentArchive(assId, { recordings: true, studentId }, refused => {
+      this.downloadNotice.set(null);
+      this.downloadError.set(refused);
+    }).subscribe({
+      next: grant => {
+        this.downloading.set(null);
+        this.downloadNotice.set(`Download started: ~${formatBytes(grant.totalBytes)} ` +
+          `(${grant.submissions} submission file${grant.submissions === 1 ? '' : 's'}, ` +
+          `${grant.recordings} recording${grant.recordings === 1 ? '' : 's'}).`);
+      },
+      error: err => {
+        this.downloading.set(null);
+        this.downloadError.set(err?.message ?? 'Could not download this student\'s files.');
+      },
+    });
+  }
+
+
+  downloadStudentCsv(): void {
+    const assId = this.assignmentId(), studentId = this.studentId();
+    if (!assId || !studentId || this.downloading()) return;
+    this.downloading.set('csv');
+    this.downloadError.set(null);
+    this.exportService.downloadEvaluationsCsv(assId, studentId).subscribe({
+      next: () => this.downloading.set(null),
+      error: err => {
+        this.downloading.set(null);
+        this.downloadError.set(err?.message ?? 'Could not download the evaluations CSV.');
+      },
+    });
+  }
+
+
+  formatSize(bytes: number): string { return formatBytes(bytes); }
 
 
   backToAssignmentAnalytics(): void {
