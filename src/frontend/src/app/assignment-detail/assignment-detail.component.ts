@@ -21,6 +21,7 @@ import { BadgeComponent } from '../shared/badge.component';
 import { BtnComponent } from '../shared/btn.component';
 import { AvatarComponent } from '../shared/avatar.component';
 import { ScorePillComponent } from '../shared/score-pill.component';
+import { followDownload } from '../core/download';
 
 
 @Component({
@@ -858,7 +859,7 @@ export class AssignmentDetailComponent implements OnInit {
     const group = this.myGroup();
     if (!group) return;
     this.subService.getDownloadUrl(group.id, undefined, fileId).subscribe({
-      next: result => window.open(result.url, '_blank', 'noopener'),
+      next: result => followDownload(result.url),
       error: err => this.submissionError.set(err?.error?.error ?? 'Could not open submission file.'),
     });
   }
@@ -1007,10 +1008,10 @@ export class AssignmentDetailComponent implements OnInit {
     this.replyDrafts.update(map => new Map(map).set(responseId, value));
   }
 
-  // Fetch a presigned URL for the evaluation recording and open it in a new tab.
+  // Fetch a presigned URL for the evaluation recording and download it.
   playRecording(responseId: number) {
     this.evalService.getRecordingUrl(responseId).subscribe({
-      next: (res) => window.open(res.url, '_blank', 'noopener'),
+      next: (res) => followDownload(res.url),
       error: () => this.replyError.set('Could not load the recording.'),
     });
   }

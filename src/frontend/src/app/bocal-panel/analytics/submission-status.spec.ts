@@ -22,6 +22,7 @@ const groups=[
   // eve has no group
 ];
 const getSubmissionsForAssignment=vi.fn(()=>of([]));
+const getDownloadUrl=vi.fn((_groupId:number)=>of({url:'https://example.test/files/submissions/g-ana.pdf'}));
 const providers=()=>[
   {provide:ActivatedRoute,useValue:{queryParamMap:of(new Map([['classId','4'],['assId','1']]))}},
   {provide:Router,useValue:{navigate:vi.fn()}},
@@ -29,7 +30,7 @@ const providers=()=>[
   {provide:AssignmentService,useValue:{getAssignments:()=>of([{id:1,name:'A1',req_eval:1,max_score:100,pass_threshold:50,submissionDeadline:null}])}},
   {provide:GroupService,useValue:{getGroupsForAssignment:()=>of(groups)}},
   {provide:EvalService,useValue:{getEvalAssignments:()=>of([])}},
-  {provide:SubmissionService,useValue:{getSubmissionsForAssignment}},
+  {provide:SubmissionService,useValue:{getSubmissionsForAssignment,getDownloadUrl}},
   {provide:ExportService,useValue:{}},
   {provide:AssignmentWorkflowService,useValue:{summary:()=>of({participants:people,slots:[]})}},
 ];
@@ -60,6 +61,18 @@ describe('analytics: who submitted',()=>{
 
     // The page no longer pays for the heavy per-submission endpoint it never used.
     expect(getSubmissionsForAssignment).not.toHaveBeenCalled();
+  });
+
+  it('row ⬇ downloads in the same tab instead of a popup a blocker would swallow',()=>{
+    const open=vi.spyOn(window,'open').mockImplementation(()=>null);
+    const hrefs:string[]=[];
+    vi.spyOn(HTMLAnchorElement.prototype,'click').mockImplementation(function(this:HTMLAnchorElement){hrefs.push(this.href);});
+    const f=TestBed.createComponent(AnalyticsAssignmentComponent);f.detectChanges();
+    (rowOf(f.nativeElement,'ana').querySelector('button.row-download') as HTMLButtonElement).click();
+    expect(getDownloadUrl).toHaveBeenCalledWith(11);
+    expect(hrefs).toEqual(['https://example.test/files/submissions/g-ana.pdf']);
+    expect(open).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
   });
 
   it('counts groups by submission state and filters students who haven\'t handed in',()=>{

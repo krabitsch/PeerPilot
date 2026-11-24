@@ -5,6 +5,7 @@ import {ContainerComponent,ContainerConfig} from '../shared/container.component'
 import {BtnComponent} from '../shared/btn.component';
 import {AssignmentWorkflowService,PairingManagement,PairingSlot,EvaluatorParticipant} from '../core/services/assignment-workflow.service';
 import {EvalService} from '../core/services/eval-service/eval-service';
+import { followDownload } from '../core/download';
 @Component({
   selector:'app-eval-assignment-list',standalone:true,imports:[FormsModule,ContainerComponent,BtnComponent],
   templateUrl:'./eval-assignment-list.component.html',
@@ -83,7 +84,7 @@ export class EvalAssignmentListComponent implements OnInit {
       next:r=>{this.notice.set(`Deleted ${r.count} evaluation pairings.`);this.load();},error:e=>this.failed(e)
     });
   }
-  recording(id:number){this.eval.getRecordingUrl(id).subscribe({next:r=>window.open(r.url,'_blank','noopener'),error:e=>this.failed(e)});}
+  recording(id:number){this.eval.getRecordingUrl(id).subscribe({next:r=>followDownload(r.url),error:e=>this.failed(e)});}
   back(){this.router.navigate(['/bocal/classes'],{queryParams:{classId:this.data()?.assignment.classid}});}
   private failed(e:any){this.error.set(e?.error?.error??e?.error?.message??'Could not complete this action.');this.loading.set(false);}
 }

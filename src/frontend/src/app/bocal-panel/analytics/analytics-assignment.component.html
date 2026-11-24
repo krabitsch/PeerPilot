@@ -354,6 +354,7 @@
                 </td>
 
                 <td class="student-group">
+                  <div class="student-group-inner">
                   <span>{{ student.groupName }}</span>
                   @if (student.groupId !== null && student.submission?.hasFile) {
                     <button
@@ -365,6 +366,7 @@
                       ⬇
                     </button>
                   }
+                  </div>
                 </td>
 
                 <td class="submission-cell">

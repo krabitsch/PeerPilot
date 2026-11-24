@@ -16,6 +16,7 @@ import { GroupService } from '../../core/services/group-service/group-service';
 import { EvalService } from '../../core/services/eval-service/eval-service';
 import { SubmissionService } from '../../core/services/submission-service/submission-service';
 import { ExportService } from '../../core/services/export-service/export-service';
+import { followDownload } from '../../core/download';
 
 
 // Why the overall result is Failed (computed by the API, never stored).
@@ -610,7 +611,7 @@ export class AnalyticsAssignmentComponent implements OnInit {
 
     this.submissionService.getDownloadUrl(groupId).subscribe({
       next: (res: any) => {
-        if (res?.url) window.open(res.url, '_blank');
+        if (res?.url) followDownload(res.url);
       },
       error: () => {
         this.downloadError.set('Could not download that submission.');

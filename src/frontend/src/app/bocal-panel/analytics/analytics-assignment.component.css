@@ -348,7 +348,9 @@
   font-size: 0.8125rem;
 }
 
-.student-group {
+/* Flex lives on an inner wrapper: display:flex on the <td> itself takes it
+   out of table-cell layout, so its border drifted from the rest of the row. */
+.student-group-inner {
   display: flex;
   align-items: center;
   gap: 8px;
