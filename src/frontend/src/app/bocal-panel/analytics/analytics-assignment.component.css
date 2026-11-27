@@ -30,7 +30,7 @@
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -289,42 +289,6 @@
   margin-top: 20px;
 }
 
-.download-btn {
-  padding: 9px 16px;
-
-  background: oklch(15% 0.02 272);
-  border: 1px solid oklch(28% 0.03 272);
-  border-radius: 8px;
-
-  color: oklch(90% 0.005 272);
-  font: inherit;
-  font-size: 0.8125rem;
-  font-weight: 600;
-
-  cursor: pointer;
-}
-
-.download-btn:hover:not(:disabled) {
-  border-color: #b986fa;
-  color: #fff;
-}
-
-.download-btn.primary {
-  background: #b986fa;
-  border-color: #b986fa;
-  color: oklch(14% 0.02 272);
-}
-
-.download-btn.primary:hover:not(:disabled) {
-  filter: brightness(1.08);
-  color: oklch(14% 0.02 272);
-}
-
-.download-btn:disabled {
-  opacity: 0.6;
-  cursor: progress;
-}
-
 .download-toggle {
   display: inline-flex;
   align-items: center;
@@ -336,36 +300,14 @@
   cursor: pointer;
 }
 
-.student-group {
+/* Flex lives on an inner wrapper: display:flex on the <td> itself takes it
+   out of table-cell layout, so its border drifted from the rest of the row. */
+.student-group-inner {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.row-download {
-  padding: 2px 6px;
-
-  background: transparent;
-  border: 1px solid oklch(28% 0.03 272);
-  border-radius: 6px;
-
-  color: #b986fa;
-  font: inherit;
-  font-size: 0.75rem;
-  line-height: 1;
-
-  cursor: pointer;
-}
-
-.row-download:hover {
-  border-color: #b986fa;
-  background: oklch(17% 0.02 272);
-}
-
-.row-download:focus-visible {
-  outline: 2px solid #b986fa;
-  outline-offset: 2px;
-}
 .attempt-icons { display:inline-flex; gap:7px; flex-wrap:wrap; align-items:center; justify-content:center; }
 .attempt-status.passed { color:#4ade80; }
 .attempt-status.failed { color:#f87171; }
@@ -376,3 +318,52 @@
 .attempt-status { display:inline-flex; width:18px; height:18px; align-items:center; justify-content:center; vertical-align:middle; line-height:1; font-size:18px; }
 .attempt-status.failed { font-size:25px; font-weight:700; }
 .attempt-status .status-clock { flex:none; }
+
+/* Deadline column: a compact pill, never the 18px icon box (that overflowed). */
+.deadline-cell { text-align: center; white-space: nowrap; }
+.deadline-pill {
+  display: inline-block;
+  padding: 2px 9px;
+
+  background: oklch(30% 0.09 25 / 0.35);
+  border: 1px solid oklch(55% 0.15 25 / 0.55);
+  border-radius: 999px;
+
+  color: #fca5a5;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.5;
+
+  cursor: help;
+}
+.deadline-ok { color: oklch(50% 0.01 272); }
+
+/* Submission column: who handed in. Amber = uploaded but NOT handed in. */
+.submission-cell { text-align: center; white-space: nowrap; }
+.submission-pill {
+  display: inline-block;
+  padding: 2px 9px;
+
+  border: 1px solid transparent;
+  border-radius: 999px;
+
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.5;
+
+  cursor: help;
+}
+.submission-pill.ok    { color: #86efac; background: oklch(30% 0.08 150 / 0.35); border-color: oklch(55% 0.12 150 / 0.55); }
+.submission-pill.warn  { color: #fcd34d; background: oklch(32% 0.08 80 / 0.35);  border-color: oklch(62% 0.13 80 / 0.6); }
+.submission-pill.muted { color: oklch(72% 0.01 272); background: oklch(22% 0.02 272); border-color: oklch(32% 0.02 272); }
+.submission-pill.none  { color: oklch(58% 0.01 272); border-color: oklch(28% 0.02 272); }
+.submission-extra {
+  display: block;
+  margin-top: 3px;
+
+  color: oklch(58% 0.01 272);
+  font-size: 0.7rem;
+}
+
+.summary-card.ok .summary-number   { color: #86efac; }
+.summary-card.warn .summary-number { color: #fcd34d; }

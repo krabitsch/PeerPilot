@@ -254,13 +254,28 @@ const getGroupsForAssignment = async (assId)=>{
     const groups = await prisma.group.findMany({
         where: {assId: parseInt(assId)},
         include: {members: {include: {user: {select: {id: true, username: true, email: true}}}},
-          submissions:true, evalAssignmentsAsEvaluee:{include:{evalResponse:{select:responseSelect}}}}
+          submissions:{include:{fileVersions:{select:{id:true}}}},
+          evalAssignmentsAsEvaluee:{include:{evalResponse:{select:responseSelect}}}}
     })
     return groups.map(({submissions, evalAssignmentsAsEvaluee, ...group}) => {
       const submission = submissions?.[0]
       const result = assignmentOutcome(assignment, (evalAssignmentsAsEvaluee ?? []).filter(p => !p.submissionId || p.submissionId === submission?.id), submission)
-      return {...group, workflowStatus:result.workflowStatus, deadlineFailure:result.deadlineFailure}
+      return {...group, workflowStatus:result.workflowStatus, deadlineFailure:result.deadlineFailure, deadlineFailureReason:result.deadlineFailureReason,
+        submission:submissionSummary(submission)}
     })
+}
+
+// Who handed in what, for staff analytics. Derived from the row the list
+// already loads, so it costs no extra queries.
+//   NotStarted: no submission row · Open: started, no file
+//   Uploaded:   file present but never closed (not handed in!) · Submitted: closed
+// closedAt defaults to the row's creation time, so it is only meaningful once closed.
+const submissionSummary = (submission) => {
+    if (!submission) return { status:'NotStarted', fileCount:0, submittedAt:null }
+    const hasFile = submission.fileId != null
+    const status = submission.status === 'Close' ? 'Submitted' : hasFile ? 'Uploaded' : 'Open'
+    return { id:submission.id, status, fileCount:(hasFile ? 1 : 0) + (submission.fileVersions?.length ?? 0),
+        submittedAt: status === 'Submitted' ? submission.closedAt ?? null : null }
 }
 
 const deleteGroupsInTransaction = async (db,assignmentId,ids) => {
@@ -310,7 +325,7 @@ const getMyGroupForAssignment = async ({ userId, assId }) => {
     const {assignment,submissions,evalAssignmentsAsEvaluee,...group} = membership.group
     const submission = submissions?.[0]
     const result = assignmentOutcome(assignment,(evalAssignmentsAsEvaluee ?? []).filter(p => !p.submissionId || p.submissionId === submission?.id),submission)
-    return {...group,deadlineFailure:result.deadlineFailure,workflowStatus:result.workflowStatus}
+    return {...group,deadlineFailure:result.deadlineFailure,deadlineFailureReason:result.deadlineFailureReason,workflowStatus:result.workflowStatus}
 }
 
 module.exports = {createGroup, generateGroups, inviteMember, addMemberAdmin, removeMemberAdmin, respondToInvite, getGroup, leaveGroup,

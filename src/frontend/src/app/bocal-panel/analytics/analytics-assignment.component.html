@@ -102,6 +102,42 @@
           </div>
         </div>
 
+        <div class="summary-card ok">
+          <div class="summary-number">
+            {{ s.groupsSubmitted }}
+          </div>
+          <div class="summary-label">
+            Groups submitted
+          </div>
+        </div>
+
+        <div class="summary-card warn">
+          <div class="summary-number">
+            {{ s.groupsUploaded }}
+          </div>
+          <div class="summary-label">
+            Uploaded, not closed
+          </div>
+        </div>
+
+        <div class="summary-card">
+          <div class="summary-number">
+            {{ s.groupsNotSubmitted }}
+          </div>
+          <div class="summary-label">
+            Groups not submitted
+          </div>
+        </div>
+
+        <div class="summary-card">
+          <div class="summary-number">
+            {{ s.missedDeadline ?? 0 }}
+          </div>
+          <div class="summary-label">
+            Missed deadline
+          </div>
+        </div>
+
         <div class="summary-card">
           <div class="summary-number">
             {{ s.pairings }}
@@ -142,7 +178,7 @@
           [disabled]="downloading() !== null"
           (click)="downloadArchive()">
           @if (downloading() === 'archive') {
-            Preparing ZIP…
+            Preparing download…
           } @else {
             ⬇ Download all (ZIP)
           }
@@ -169,6 +205,12 @@
         </button>
 
       </div>
+
+      @if (downloadNotice()) {
+        <div class="download-notice" role="status">
+          {{ downloadNotice() }}
+        </div>
+      }
 
       @if (downloadError()) {
         <div class="error-message">
@@ -215,6 +257,9 @@
             <option value="All">All</option>
             <option value="Incomplete">Incomplete</option>
             <option value="Unallocated">Unallocated</option>
+            <option value="NotSubmitted">Not submitted</option>
+            <option value="UploadedNotClosed">Uploaded, not closed</option>
+            <option value="MissedDeadline">Missed deadline</option>
 
           </select>
 
@@ -239,6 +284,14 @@
 
               <th rowspan="2" scope="col">
                 Group
+              </th>
+
+              <th rowspan="2" scope="col">
+                Submission
+              </th>
+
+              <th rowspan="2" scope="col">
+                Deadline
               </th>
 
               <th
@@ -301,17 +354,37 @@
                 </td>
 
                 <td class="student-group">
-                  <span>{{ student.groupName }}
-                  @if (student.deadlineFailure) { <span class="attempt-status failed" title="Overall assignment result: Failed — deadline missed">× Failed</span> }</span>
-                  @if (student.groupId !== null) {
+                  <div class="student-group-inner">
+                  <span>{{ student.groupName }}</span>
+                  @if (student.groupId !== null && student.submission?.hasFile) {
                     <button
                       type="button"
                       class="row-download"
-                      title="Download this group's submission"
+                      [title]="student.submission!.fileCount > 1 ? 'Download the latest of this group\'s ' + student.submission!.fileCount + ' files' : 'Download this group\'s submission'"
                       aria-label="Download this group's submission"
                       (click)="downloadSubmission(student.groupId)">
                       ⬇
                     </button>
+                  }
+                  </div>
+                </td>
+
+                <td class="submission-cell">
+                  @if (student.submission; as sub) {
+                    <span [class]="'submission-pill ' + sub.kind" [title]="sub.detail">{{ sub.label }}</span>
+                    @if (sub.extra) { <span class="submission-extra">{{ sub.extra }}</span> }
+                  } @else {
+                    <span class="deadline-ok" aria-label="No group">—</span>
+                  }
+                </td>
+
+                <td class="deadline-cell">
+                  @if (student.deadlineFailure; as failure) {
+                    <span class="deadline-pill" [title]="failure.long">
+                      Failed · {{ failure.short }}
+                    </span>
+                  } @else {
+                    <span class="deadline-ok" aria-label="No deadline missed">—</span>
                   }
                 </td>
 
@@ -340,7 +413,7 @@
               <tr>
 
                 <td
-                  [attr.colspan]="2 + 2 * rounds().length"
+                  [attr.colspan]="4 + 2 * rounds().length"
                   class="empty-table">
 
                   No students match the selected filter.

@@ -8,7 +8,7 @@
 // disturbs the shared seed other tests rely on.
 const { request } = require('@playwright/test')
 const { test, expect, expectOk, expectError } = require('../../support/api')
-const { seeded } = require('../../support/sessions')
+const { seeded, sessionFile } = require('../../support/sessions')
 const { db } = require('../../support/db')
 const { srcRequire, BASE_URL } = require('../../support/env')
 const D = require('../../support/data')
@@ -165,5 +165,64 @@ test.describe('removing a student keeps course history', () => {
     expect(groupsOfA.map(g => g.id)).toEqual([x.g.a.id])
     await intact('re-adding restores the student to the same groups')
     await seesOwnWork()
+  })
+})
+
+// §8.1: feedback used to be readable by any logged-in student who guessed a
+// submission id. Now: staff and the evaluated group see it all, an evaluator
+// only what they wrote, anyone else nothing.
+test.describe('who can read feedback on a submission', () => {
+  test('the evaluated group and staff read it, its evaluator reads their own, others are refused', async ({ api }) => {
+    const x = await build(), path = `eval/submission/${x.submission.id}/responses`
+    const a = await loginAs(x.s.a.email), b = await loginAs(x.s.b.email), c = await loginAs(x.s.c.email)
+    try {
+      expect((await expectOk(await a.get(path))).map(r => r.id)).toEqual([x.response.id])
+      expect((await expectOk(await (await api('bocal')).get(path))).map(r => r.id)).toEqual([x.response.id])
+      const own = await expectOk(await b.get(path))
+      expect(own.map(r => r.userId)).toEqual([x.s.b.id])
+      await expectError(await c.get(path), 403)
+      await expectError(await (await api('alice')).get(path), 403)
+    } finally { await Promise.all([a, b, c].map(s => s.dispose())) }
+  })
+})
+
+// Issue 7: the expandable rows on the student analytics page.
+test.describe('per-student evaluations (staff)', () => {
+  test('received and given, with grade, sections and comment; students are refused', async ({ api }) => {
+    const x = await build(), bocal = await api('bocal')
+    const received = await expectOk(await bocal.get(`eval/assignment/${x.solo.id}/student/${x.s.a.id}/evaluations`))
+    const row = received.find(r => r.pairingId === x.pairings.bEvaluatedA.id)
+    expect(row).toMatchObject({ direction: 'received', outcome: 'Passed', response: { givenMarks: 80, comment: x.response.comment } })
+    expect(row.response.scores.length).toBeGreaterThan(0)
+    expect(row.response.scores[0]).toHaveProperty('name')
+    expect(received.find(r => r.pairingId === x.pairings.aEvaluatesC.id)).toMatchObject({ direction: 'given', response: null })
+    expect(received.some(r => r.pairingId === x.pairings.cEvaluatesB.id)).toBe(false)
+
+    const given = await expectOk(await bocal.get(`eval/assignment/${x.solo.id}/student/${x.s.b.id}/evaluations`))
+    expect(given.find(r => r.pairingId === x.pairings.bEvaluatedA.id)).toMatchObject({ direction: 'given' })
+
+    const a = await loginAs(x.s.a.email)
+    try { await expectError(await a.get(`eval/assignment/${x.solo.id}/student/${x.s.a.id}/evaluations`), 403) }
+    finally { await a.dispose() }
+  })
+
+  test('on the student analytics page a finished evaluation opens to its grade and comment', async ({ browser }) => {
+    const x = await build()
+    const context = await browser.newContext({ storageState: sessionFile('bocal'), baseURL: BASE_URL, ignoreHTTPSErrors: true })
+    try {
+      const page = await context.newPage()
+      await page.goto(`/bocal/analytics/student?classId=${x.course.id}&assId=${x.solo.id}&studentId=${x.s.a.id}`)
+      const toggle = page.getByRole('button', { name: /Round 1/ }).first()
+      await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+      await toggle.click()
+      await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+      const panel = page.locator('.eval-detail').first()
+      await expect(panel).toContainText('Grade received')
+      await expect(panel.locator('.eval-grade-value')).toContainText('80')
+      await expect(panel).toContainText('A clear, well-argued essay.')
+      await expect(panel).toContainText('No reply yet.')
+      await toggle.click()
+      await expect(page.locator('.eval-detail')).toHaveCount(0)
+    } finally { await context.close() }
   })
 })

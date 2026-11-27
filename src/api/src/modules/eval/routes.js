@@ -83,6 +83,14 @@ route.post('/eval-assignments', requireStaff, async(req, res, next) => {
     }catch(err){next(err)}
 })
 
+// Staff: every evaluation involving one student, with grades, comments and
+// replies (GET /api/eval/assignment/:id/student/:userId/evaluations)
+route.get('/assignment/:id/student/:userId/evaluations', requireStaff, async (req, res, next) => {
+    try {
+        res.json(await require('./student-evaluations').getStudentEvaluations(req.params.id, req.params.userId))
+    } catch (err) { next(err) }
+})
+
 // get all EvalAssignments for one assignment (GET /api/eval/assignment/:id/eval-assignments)
 route.get('/assignment/:id/eval-assignments', async (req, res, next) => {
   //console.log('DELETE all eval assignments route reached, assignment id:', req.params.id)
@@ -154,10 +162,11 @@ route.post('/evaluate/submit', async (req, res, next) => {
     }catch(err){next(err)}
 })
 
-// get all eval feedback left on one submission (GET /api/eval/submission/:subId/responses)
+// eval feedback left on one submission — staff and the evaluated group see all
+// of it, an evaluator only their own (GET /api/eval/submission/:subId/responses)
 route.get('/submission/:subId/responses', async (req, res, next) => {
     try{
-        res.json(await service.getEvalResponsesForSubmission(req.params.subId))
+        res.json(await service.getEvalResponsesForSubmission(req.params.subId, { userId: req.user.userId, isStaff: isStaff(req) }))
     }catch(err){next(err)}
 })
 

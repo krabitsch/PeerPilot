@@ -16,10 +16,43 @@ import { GroupService } from '../../core/services/group-service/group-service';
 import { EvalService } from '../../core/services/eval-service/eval-service';
 import { SubmissionService } from '../../core/services/submission-service/submission-service';
 import { ExportService } from '../../core/services/export-service/export-service';
+import { followDownload } from '../../core/download';
+import { formatBytes } from '../../core/format-bytes';
 
+
+// Why the overall result is Failed (computed by the API, never stored).
+// 'NoSubmission' is also derived here for students left without a group.
+type DeadlineFailureReason = 'NoSubmission' | 'NotClosed' | 'EvaluationsIncomplete';
+
+const DEADLINE_FAILURE_LABELS: Record<DeadlineFailureReason, { short: string; long: string }> = {
+  NoSubmission: { short: 'No submission', long: 'Failed: submission deadline passed without a submitted file' },
+  NotClosed: { short: 'Not closed', long: 'Failed: a file was uploaded but the submission was never closed before the deadline' },
+  EvaluationsIncomplete: { short: 'Evals incomplete', long: 'Failed: evaluation deadline passed with evaluations still pending' },
+};
+
+type SubmissionStatus = 'NotStarted' | 'Open' | 'Uploaded' | 'Submitted';
+
+// The staff group list's per-group summary (see group/service.js submissionSummary).
+interface GroupSubmission {
+  status: SubmissionStatus;
+  fileCount: number;
+  submittedAt: string | null;
+}
+
+interface SubmissionCell {
+  status: SubmissionStatus;
+  kind: 'ok' | 'warn' | 'muted' | 'none';
+  label: string;
+  detail: string;
+  extra: string | null;
+  hasFile: boolean;
+  fileCount: number;
+}
 
 interface GroupInfo {
+  submission: GroupSubmission;
   deadlineFailure?: boolean;
+  deadlineFailureReason?: DeadlineFailureReason | null;
   id: number;
   name: string;
   members: { userId: number }[];
@@ -40,7 +73,8 @@ interface ProgressCell {
 }
 
 interface StudentProgress {
-  deadlineFailure?: boolean;
+  submission: SubmissionCell | null;
+  deadlineFailure?: { short: string; long: string } | null;
   id: number;
   name: string;
   groupName: string;
@@ -57,9 +91,13 @@ interface AssignmentStats {
   pairings: number;
   groupsMissingPairings: number;
   unallocatedStudents: number;
+  groupsSubmitted: number;
+  groupsUploaded: number;
+  groupsNotSubmitted: number;
+  missedDeadline?: number;
 }
 
-type StudentFilter = 'All' | 'Incomplete' | 'Unallocated';
+type StudentFilter = 'All' | 'Incomplete' | 'Unallocated' | 'NotSubmitted' | 'UploadedNotClosed' | 'MissedDeadline';
 
 
 @Component({
@@ -106,6 +144,7 @@ export class AnalyticsAssignmentComponent implements OnInit {
   includeRecordings = signal(true);
   downloading = signal<null | 'archive' | 'csv'>(null);
   downloadError = signal<string | null>(null);
+  downloadNotice = signal<string | null>(null);
 
   // Prevent outdated API responses from changing the page
   // when users switch assignments quickly.
@@ -123,6 +162,17 @@ export class AnalyticsAssignmentComponent implements OnInit {
 
       case 'Unallocated':
         return rows.filter(s => s.evalueeEligible && s.groupId === null);
+
+      // Evaluees whose work isn't handed in: no group, nothing, or a file
+      // that was uploaded but never closed.
+      case 'NotSubmitted':
+        return rows.filter(s => s.evalueeEligible && s.submission?.status !== 'Submitted');
+
+      case 'UploadedNotClosed':
+        return rows.filter(s => s.submission?.status === 'Uploaded');
+
+      case 'MissedDeadline':
+        return rows.filter(s => !!s.deadlineFailure);
 
       default:
         return rows;
@@ -224,10 +274,7 @@ export class AnalyticsAssignmentComponent implements OnInit {
         this.groupService.getGroupsForAssignment(assignment.id),
 
       pairings:
-        this.evalService.getEvalAssignments(assignment.id),
-
-      submissions:
-        this.submissionService.getSubmissionsForAssignment(assignment.id)
+        this.evalService.getEvalAssignments(assignment.id)
 
     }).subscribe({
 
@@ -241,6 +288,14 @@ export class AnalyticsAssignmentComponent implements OnInit {
 
         const groups: GroupInfo[] = data.groups.map((g: any) => ({
           id: Number(g.id), deadlineFailure:g.deadlineFailure,
+          submission: {
+            status: g.submission?.status ?? 'NotStarted',
+            fileCount: Number(g.submission?.fileCount ?? 0),
+            submittedAt: g.submission?.submittedAt ?? null,
+          },
+          // Older API responses carry only the flag; treat that as "no submission"
+          // rather than hiding the failure.
+          deadlineFailureReason: g.deadlineFailure ? (g.deadlineFailureReason ?? 'NoSubmission') : null,
           name: String(g.name),
           members: (g.members ?? []).map((m: any) => ({
             userId: Number(m.userId)
@@ -303,9 +358,17 @@ export class AnalyticsAssignmentComponent implements OnInit {
           groups: groups.length,
           pairings: pairings.filter(p=>p.status!=='Cancelled').length,
           groupsMissingPairings: missingGroups,
-          unallocatedStudents
+          unallocatedStudents,
+          groupsSubmitted: groups.filter(g => g.submission.status === 'Submitted').length,
+          groupsUploaded: groups.filter(g => g.submission.status === 'Uploaded').length,
+          groupsNotSubmitted: groups.filter(g => g.submission.status === 'NotStarted' || g.submission.status === 'Open').length,
         });
 
+
+        // Same rule the student's own pages apply: an evaluee with no group
+        // has no submission, so they fail once the submission deadline passes.
+        const submissionDeadlinePassed = !!assignment.submissionDeadline &&
+          Date.now() > new Date(assignment.submissionDeadline).getTime();
 
         // Construct a row for every enrolled student.
         const studentRows: StudentProgress[] =
@@ -355,7 +418,8 @@ export class AnalyticsAssignmentComponent implements OnInit {
               name: student.username,
               groupName: group?.name ?? (eligibleEvaluees.has(student.id) ? 'Unallocated' : 'Not an evaluee'),
               groupId: group?.id ?? null,
-              deadlineFailure:group?.deadlineFailure,
+              submission: group ? this.submissionCell(group.submission) : null,
+              deadlineFailure:this.deadlineFailureFor(group, eligibleEvaluees.has(student.id), submissionDeadlinePassed),
               evalueeEligible:eligibleEvaluees.has(student.id),
               received,
               evaluator,
@@ -373,6 +437,7 @@ export class AnalyticsAssignmentComponent implements OnInit {
         );
 
         this.students.set(studentRows);
+        this.stats.update(s => s && { ...s, missedDeadline: studentRows.filter(r => !!r.deadlineFailure).length });
         this.loading.set(false);
       },
 
@@ -433,12 +498,41 @@ export class AnalyticsAssignmentComponent implements OnInit {
   }
 
 
+  private submissionCell(sub: GroupSubmission): SubmissionCell {
+    const files = sub.fileCount > 1 ? `${sub.fileCount} files` : null;
+    const base = { status: sub.status, hasFile: sub.fileCount > 0, fileCount: sub.fileCount, extra: null as string | null };
+    switch (sub.status) {
+      case 'Submitted': {
+        const when = sub.submittedAt ? formatDate(sub.submittedAt) : null;
+        return { ...base, kind: 'ok', label: 'Submitted ✓', extra: [when, files].filter(Boolean).join(' · ') || null,
+          detail: when ? `Submitted on ${formatDateTime(sub.submittedAt!)}` : 'Submitted' };
+      }
+      case 'Uploaded':
+        return { ...base, kind: 'warn', label: 'Uploaded, not closed', extra: files,
+          detail: 'A file is uploaded but the group never pressed "Close submission", so it is not handed in' };
+      case 'Open':
+        return { ...base, kind: 'muted', label: 'Started, no file', detail: 'Submission started but no file uploaded yet' };
+      default:
+        return { ...base, kind: 'none', label: 'Not started', detail: 'The group has not started a submission' };
+    }
+  }
+
+
+  private deadlineFailureFor(group: GroupInfo | null, evaluee: boolean, submissionDeadlinePassed: boolean) {
+    const reason = group ? group.deadlineFailureReason : evaluee && submissionDeadlinePassed ? 'NoSubmission' : null;
+    return reason ? DEADLINE_FAILURE_LABELS[reason] : null;
+  }
+
+
   onFilterChanged(value: string): void {
 
     if (
       value === 'All' ||
       value === 'Incomplete' ||
-      value === 'Unallocated'
+      value === 'Unallocated' ||
+      value === 'NotSubmitted' ||
+      value === 'UploadedNotClosed' ||
+      value === 'MissedDeadline'
     ) {
       this.filter.set(value);
     }
@@ -459,11 +553,24 @@ export class AnalyticsAssignmentComponent implements OnInit {
 
     this.downloading.set('archive');
     this.downloadError.set(null);
+    this.downloadNotice.set(null);
 
+    // The ZIP itself is a native browser download (progress in the browser's
+    // download bar); this call only obtains the ticket and the size estimate.
     this.exportService
-      .downloadAssignmentArchive(assId, { recordings: this.includeRecordings() })
+      .downloadAssignmentArchive(assId, { recordings: this.includeRecordings() }, refused => {
+        this.downloadNotice.set(null);
+        this.downloadError.set(refused);
+      })
       .subscribe({
-        next: () => this.downloading.set(null),
+        next: grant => {
+          this.downloading.set(null);
+          const parts = [`${grant.submissions} submission file${grant.submissions === 1 ? '' : 's'}`];
+          if (grant.includeRecordings) parts.push(`${grant.recordings} recording${grant.recordings === 1 ? '' : 's'}`);
+          this.downloadNotice.set(
+            `Download started: ~${formatBytes(grant.totalBytes)} (${parts.join(', ')}). ` +
+            `Your browser shows the progress; you can keep using Peerofessor meanwhile.`);
+        },
         error: err => {
           this.downloading.set(null);
           this.downloadError.set(err?.message ?? 'Could not download the assignment archive.');
@@ -505,7 +612,7 @@ export class AnalyticsAssignmentComponent implements OnInit {
 
     this.submissionService.getDownloadUrl(groupId).subscribe({
       next: (res: any) => {
-        if (res?.url) window.open(res.url, '_blank');
+        if (res?.url) followDownload(res.url);
       },
       error: () => {
         this.downloadError.set('Could not download that submission.');
@@ -529,4 +636,14 @@ openStudentAnalytics(studentId: number): void {
   });
 }
 
+}
+
+
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+}
+
+function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }

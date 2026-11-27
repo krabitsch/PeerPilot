@@ -72,6 +72,18 @@ test('she submits and closes her project', async ({ page }, testInfo) => {
   // It survives a reload: the page reads it back from the API.
   await page.reload()
   await expect(page.getByText('report.pdf')).toBeVisible()
+
+  // Download is a same-tab attachment download, not a popup a blocker can eat
+  // (the presigned URL only arrives after an API round-trip).
+  const popups = []
+  page.context().on('page', (p) => popups.push(p))
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Download', exact: true }).click(),
+  ])
+  expect(download.suggestedFilename()).toBe('report.pdf')
+  expect(popups).toHaveLength(0)
+  await expect(page).toHaveURL(/\/assignment-detail\?assId=\d+/)
 })
 
 test('she edits her bio', async ({ page }) => {

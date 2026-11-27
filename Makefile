@@ -13,7 +13,7 @@ YELLOW = \033[0;33m
 BLUE   = \033[0;34m
 RESET  = \033[0m
 
-.PHONY: setup build up down clean restart run re dev prod check_env studio populateDB resetDB genPrismaClient seedAdmin seedAdmin_prod migrate migrate_prod generateUsers e2e e2e-video e2e-up e2e-seed e2e-down e2e-install e2e-summary e2e-report cert cert-renew backup backup-db restore-db backup-files frontend-dev
+.PHONY: setup build up down clean restart run re dev prod check_env studio populateDB resetDB genPrismaClient seedAdmin seedAdmin_prod migrate migrate_prod generateUsers e2e e2e-video e2e-up e2e-seed e2e-down e2e-install e2e-summary e2e-report snapshot-up snapshot-restore snapshot-down cert cert-renew backup backup-db restore-db backup-files frontend-dev
 
 setup: check_env
 	@echo "$(GREEN)Setup complete.$(RESET)"
@@ -244,6 +244,19 @@ e2e-report:
 e2e-down:
 	@echo "$(RED)Removing the e2e stack and its data...$(RESET)"
 	@$(E2E_COMPOSE) down -v --remove-orphans
+
+# A local copy of production data in its own stack (https://localhost:8444),
+# isolated from dev and e2e. Real student data: `make snapshot-down` when done.
+#   make snapshot-up
+#   make snapshot-restore DB=backups/db/<dump>.sql.gz [FILES=backups/files]
+snapshot-up: setup genPrismaClient
+	@bash scripts/snapshot.sh up
+
+snapshot-restore:
+	@DB="$(DB)" FILES="$(FILES)" bash scripts/snapshot.sh restore
+
+snapshot-down:
+	@bash scripts/snapshot.sh down
 
 frontend-dev:
 	cd src/frontend && npm ci && npm start -- --proxy-config proxy.conf.json

@@ -43,6 +43,11 @@ app.get('/health', (req, res) => {
 // itself on the few of its routes that need it.
 app.use('/auth', require('./modules/auth/routes'))
 
+// The bulk-ZIP download authenticates with a single-use ticket instead of the
+// Bearer header (a native browser download can't send one). The ticket is
+// obtained from an authenticated staff call; see modules/export/tickets.js.
+app.use('/export', require('./modules/export/routes').ticketed)
+
 // Everything past this line requires a valid access token. Individual routes
 // add role and ownership checks on top; this is the floor, not the ceiling.
 app.use(authenticate)

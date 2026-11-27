@@ -1,0 +1,39 @@
+# Production-snapshot overlay: run a copy of the prod database (and optionally
+# its MinIO files) locally, to see the current branch against real data.
+# The Makefile runs it as its own Compose project (`-p peerpilot-snapshot`), so
+# it has separate containers, networks and volumes and never touches the dev or
+# e2e stacks. See scripts/snapshot.sh.
+#
+#   https://localhost:8444   the app, through nginx
+#   localhost:5435           PostgreSQL (for psql / Prisma Studio)
+#
+# The copy holds REAL student data: keep it local, and `make snapshot-down`
+# (deletes its volumes) when you are done.
+services:
+
+  nginx:
+    container_name: snapshot-nginx
+    ports: !override
+      - "8444:443"
+
+  api:
+    container_name: snapshot-api
+    environment:
+      - EMAIL_TRANSPORT=json          # real student addresses: build emails, deliver nothing
+      - BASE_URL=https://localhost:8444/
+      - PUBLIC_APP_URL=https://localhost:8444/
+
+  database:
+    container_name: snapshot-database
+    ports:
+      - "5435:5432"
+
+  frontend:
+    container_name: snapshot-frontend
+
+  minio:
+    container_name: snapshot-minio
+    volumes:
+      # Bucket folders from the prod `make backup-files` output, read-only.
+      # snapshot.sh mirrors them into this MinIO's own volume on restore.
+      - ${SNAPSHOT_FILES_DIR:-../backups/files}:/restore:ro

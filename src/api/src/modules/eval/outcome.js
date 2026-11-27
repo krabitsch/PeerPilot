@@ -49,9 +49,15 @@ const assignmentOutcome = (assignment, pairings, submission, now = Date.now()) =
   const summary = summarizeEvaluationRounds(assignment, pairings)
   const overdue = key => !!assignment[key] && now > new Date(assignment[key]).getTime()
   const validSubmission = submission?.status === 'Close' && submission.fileId != null
-  const deadlineFailure = (overdue('submissionDeadline') && !validSubmission) ||
-    (overdue('evaluationDeadline') && summary.evaluationRounds.some(r => r.outcome === 'Pending'))
-  return { ...summary, deadlineFailure,
+  // Why it failed, for staff analytics. Computed like the flag, never stored.
+  // A missed submission deadline wins over a missed evaluation deadline.
+  const deadlineFailureReason =
+    overdue('submissionDeadline') && !validSubmission
+      ? (submission?.fileId != null ? 'NotClosed' : 'NoSubmission')
+      : overdue('evaluationDeadline') && summary.evaluationRounds.some(r => r.outcome === 'Pending')
+        ? 'EvaluationsIncomplete' : null
+  const deadlineFailure = deadlineFailureReason !== null
+  return { ...summary, deadlineFailure, deadlineFailureReason,
     workflowStatus: deadlineFailure ? 'Failed' : !submission ? 'NotStarted' : submission.status !== 'Close' ? 'InProgress' : summary.workflowStatus,
     passed: deadlineFailure ? false : submission?.status === 'Close' ? summary.passed : null }
 }

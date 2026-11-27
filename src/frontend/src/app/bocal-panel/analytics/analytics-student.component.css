@@ -298,3 +298,230 @@
 
 }
 .status-failed { color:#f87171; }
+
+
+/* Downloads */
+
+.student-downloads-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.download-lists {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 18px;
+}
+
+@media (max-width: 900px) {
+  .download-lists { grid-template-columns: 1fr; }
+}
+
+.download-list {
+  padding: 14px 16px;
+
+  background: oklch(13% 0.02 272);
+  border: 1px solid oklch(24% 0.025 272);
+  border-radius: 10px;
+}
+
+.download-list h3 {
+  margin: 0 0 10px;
+
+  color: oklch(80% 0.01 272);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.download-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+
+  padding: 8px 0;
+  border-top: 1px solid oklch(21% 0.02 272);
+}
+
+.download-row:first-of-type { border-top: 0; }
+
+.download-name {
+  overflow: hidden;
+
+  color: oklch(90% 0.005 272);
+  font-size: 0.8125rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.download-meta {
+  color: oklch(58% 0.01 272);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.download-empty {
+  margin: 0;
+
+  color: oklch(55% 0.01 272);
+  font-size: 0.8rem;
+}
+
+
+/* Expandable evaluation rows (grade, sections, comment, reply) */
+
+.row-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.row-toggle:hover,
+.row-toggle:focus-visible {
+  color: #fff;
+}
+
+.row-toggle:focus-visible {
+  outline: 2px solid #b986fa;
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+.row-chevron {
+  display: inline-block;
+  width: 12px;
+  color: #b986fa;
+  transition: transform 0.15s ease;
+}
+
+.expanded .row-chevron {
+  transform: rotate(90deg);
+}
+
+/* keeps non-expandable rows aligned with the ones that have a chevron */
+.row-toggle-spacer {
+  display: inline-block;
+  width: 20px;
+}
+
+.detail-table tbody tr.expanded td {
+  border-bottom-color: transparent;
+  background: oklch(17% 0.02 272);
+}
+
+.detail-table tbody tr.eval-detail-row:hover {
+  background: none;
+}
+
+.detail-table tbody tr.eval-detail-row > td {
+  padding: 0 14px 16px;
+  background: oklch(17% 0.02 272);
+}
+
+.eval-detail {
+  display: grid;
+  gap: 14px;
+  padding: 14px 16px;
+  background: oklch(13% 0.016 272);
+  border: 1px solid oklch(26% 0.03 272);
+  border-radius: 8px;
+}
+
+.eval-detail-empty {
+  margin: 0;
+  color: oklch(55% 0.01 272);
+  font-style: italic;
+}
+
+.eval-grade {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 14px;
+}
+
+.eval-grade-label {
+  color: oklch(65% 0.01 272);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.eval-grade-value {
+  color: #fff;
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.eval-grade-meta {
+  color: oklch(65% 0.01 272);
+}
+
+.eval-sections {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 6px 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.eval-sections li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 4px;
+  border-bottom: 1px dotted oklch(28% 0.025 272);
+}
+
+.eval-section-name em {
+  color: oklch(60% 0.01 272);
+}
+
+.eval-section-score {
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.eval-block h4 {
+  margin: 0 0 6px;
+  color: oklch(70% 0.01 272);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.eval-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.eval-block-head h4 {
+  margin-bottom: 6px;
+}
+
+.eval-text {
+  margin: 0;
+  color: oklch(88% 0.008 272);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.eval-recording {
+  padding: 5px 12px;
+}
